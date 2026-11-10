@@ -32,6 +32,8 @@ checks = {
     "Previous interruption preserved": 'cobra_previous_interruption.txt' in mount and 'sf_cobra_diag_report_previous();' in main,
     "Before/after version syscall": 'sf_diag_before("VERSION_7000")' in mount and 'sf_diag_after("VERSION_7000",rc)' in mount,
     "Before/after virtual disc mount": 'sf_diag_before("MOUNT_PS3ISO_7024")' in mount and 'sf_diag_after("MOUNT_PS3ISO_7024",rc)' in mount,
+    "ISO scratch allocated outside main-thread stack": "static char s_iso_part_paths[SF_PARTS][SF_PATH];" in mount and "    char parts[SF_PARTS][SF_PATH];" not in mount,
+    "ISO scratch used only for split parts": 'files[n++]=s_iso_part_paths[i];' in mount,
     "Folder EBOOT preflight": '"%s/PS3_GAME/USRDIR/EBOOT.BIN"' in mount,
     "No boot plugin or flash operations": not any(x in mount for x in ("boot_plugins", "/dev_flash", "/dev_blind", "fan_control")),
 }
