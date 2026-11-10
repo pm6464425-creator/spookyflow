@@ -27,6 +27,8 @@ jobs:
       - uses: actions/checkout@v4
       - name: Unit tests (portable core, ASan + UBSan)
         run: make -f Makefile.host test
+      - name: Cobra launch integration static checks
+        run: python3 tests/test_cobra_integration.py
       - name: Render preview PNGs
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq python3-pil

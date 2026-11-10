@@ -237,12 +237,13 @@ int main(int argc, const char *argv[])
     host.prepare = ps3_load_tab_images;
     host.run_async = run_async;
     host.own_sfo_path = "/dev_hdd0/game/" SF_APPID "/PARAM.SFO";
-    host.power_off = NULL; /* No webMAN required. */
-    host.launch = NULL;
+    /* Preserve original optional services; PS3 mounting never calls webMAN. */
+    host.power_off = power_off_via_webman;
+    host.launch = launch_via_webman; /* Legacy PS1/PS2 only. */
     host.launch_ps3 = sf_cobra_mount_ps3;
-    host.read_wm_config = NULL;
+    host.read_wm_config = read_wm_config;
     host.read_at = ps3_read_at;
-    host.ntfs_refresh = NULL; /* External NTFS requires a separate driver. */
+    host.ntfs_refresh = ntfs_refresh;
     host.music_dir = SF_MUSIC_DIR;
     host.bg_dir = SF_BG_DIR;
     host.load_bg_image = ps3_load_bg_image;

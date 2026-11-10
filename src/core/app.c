@@ -1258,13 +1258,9 @@ static void launch_disc(App *a, int disc)
     else sf_strlcpy(name, lib_title(a->lib, g), sizeof(name));
     c = settings_game_get(&a->settings, lib_key(a->lib, g));   /* one set of settings for all discs */
     /* PS3 build: local Cobra mounting; leave all existing UI and settings untouched. */
-    if (a->host.launch_ps3) {
+    if (a->tab == PLAT_PS3 && a->host.launch_ps3) {
         int result, folder = (g->flags & GAME_DIR) != 0;
         const char *tid = lib_str(a->lib, d ? d->id : g->id);
-        if (a->tab != PLAT_PS3) {
-            app_show_toast(a, "Cobra launcher currently supports PS3 games only");
-            return;
-        }
         log_printf("cobra: mount %s (folder=%d)", path, folder);
         result = a->host.launch_ps3(path, folder, tid);
         if (result != 0) {
