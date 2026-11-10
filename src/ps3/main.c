@@ -220,6 +220,7 @@ int main(int argc, const char *argv[])
 
     ps3_fs_mkdirs();
     if (log_open(SF_LOG_PATH) == 0) log_printf("==== %s %s starting ====", APP_NAME, APP_VERSION);
+    sf_cobra_diag_report_previous();
     atexit(on_exit_handler);   /* registered after tiny3d_Init: runs before tiny3d_Exit */
 
     sound_init();

@@ -5,6 +5,7 @@
  * No fan control, network server, webMAN, or boot-time plugin is installed.
  */
 #include "sf_cobra_mount.h"
+#include "log.h"
 #include <ppu-lv2.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -18,40 +19,173 @@
 #define SF_BDVD_DRIVE 0x101000000000006ULL
 #define SF_BLANK "/dev_hdd0/tmp/spookyflow/sf_blank.iso"
 
-static int sf_cobra_version(uint32_t *ver)
+/* Persistent per-syscall journal. A snapshot is CLOSED before each risky
+ * syscall; the last BEFORE_* step remains if the PS3 freezes during it. */
+#define SF_DIAG_LAST "/dev_hdd0/tmp/spookyflow/cobra_last_mount.txt"
+#define SF_DIAG_TRACE "/dev_hdd0/tmp/spookyflow/cobra_trace.txt"
+#define SF_DIAG_INTERRUPTED "/dev_hdd0/tmp/spookyflow/cobra_previous_interruption.txt"
+static char sf_diag_path[SF_PATH];
+static int sf_diag_folder;
+static int sf_diag_active;
+
+static int sf_diag_write(const char *stage, int rc, int state)
+{
+    const char *status = state==1?"IN_PROGRESS":(state==2?"ERROR":"SUCCESS");
+    FILE *f;
+    int good;
+    long size;
+    if (!sf_diag_active) return 0;
+    f=fopen(SF_DIAG_LAST,"wb");
+    if (!f) return -1;
+    good = fprintf(f,"STATE=%s\nSTAGE=%s\nRC=%d\nFORMAT=%s\nPATH=%s\n",
+                   status,stage,rc,sf_diag_folder?"FOLDER":"ISO",sf_diag_path)>0;
+    if (fflush(f)!=0) good=0;
+    if (fclose(f)!=0) good=0;
+    if (!good) return -1;
+    f=fopen(SF_DIAG_TRACE,"ab");
+    if (f) {
+        size=-1;
+        if (fseek(f,0,SEEK_END)==0) size=ftell(f);
+        if (size>96L*1024L) {
+            fclose(f);
+            f=fopen(SF_DIAG_TRACE,"wb");
+            if (f) (void)fprintf(f,"# history rotated after 96 KiB\n");
+        }
+        if (f) {
+            (void)fprintf(f,"%s | %s | rc=%d | %s | %s\n",
+                          status,stage,rc,sf_diag_folder?"FOLDER":"ISO",sf_diag_path);
+            (void)fflush(f);
+            (void)fclose(f);
+        }
+    }
+    return 0;
+}
+static int sf_diag_error(const char *stage, int rc)
+{
+    (void)sf_diag_write(stage,rc,2);
+    log_printf("cobra: ERROR %s rc=%d for %s",stage,rc,sf_diag_path);
+    return rc;
+}
+void sf_cobra_diag_report_previous(void)
+{
+    char text[1600];
+    FILE *f=fopen(SF_DIAG_LAST,"rb"),*out;
+    size_t n;
+    if (!f) return;
+    n=fread(text,1,sizeof(text)-1,f);
+    fclose(f);
+    text[n]='\0';
+    if (strncmp(text,"STATE=IN_PROGRESS\n",18)!=0) return;
+    out=fopen(SF_DIAG_INTERRUPTED,"wb");
+    if (out) {
+        (void)fprintf(out,"PREVIOUS_MOUNT_INTERRUPTED=1\n"
+                 "WARNING=Possible system hang, power loss or forced exit.\n%s",text);
+        (void)fclose(out);
+    }
+    log_printf("cobra: prior mount interrupted; examine cobra_previous_interruption.txt");
+}
+static int sf_diag_before(const char *call)
+{
+    char stage[100];
+    snprintf(stage,sizeof(stage),"BEFORE_%s",call);
+    return sf_diag_write(stage,0,1);
+}
+static void sf_diag_after(const char *call, int rc)
+{
+    char stage[100];
+    snprintf(stage,sizeof(stage),"AFTER_%s",call);
+    (void)sf_diag_write(stage,rc,1);
+}
+
+
+/* Raw methods preserve the original Cobra syscall signatures. */
+static int sf_raw_version(uint32_t *ver)
 {
     lv2syscall2(8, 0x7000, (uint64_t)ver);
     return_to_user_prog(int);
 }
-static int sf_cobra_disc_type(uint32_t *type)
+static int sf_raw_disc_type(uint32_t *type)
 {
     lv2syscall4(8, 0x7020, (uint64_t)type, 0, 0);
     return_to_user_prog(int);
 }
-static int sf_cobra_event(uint64_t event, uint64_t arg)
+static int sf_raw_event(uint64_t event, uint64_t arg)
 {
     lv2syscall4(8, 0x7022, event, arg, SF_BDVD_DRIVE);
     return_to_user_prog(int);
 }
-static int sf_cobra_umount(void)
+static int sf_raw_umount(void)
 {
     lv2syscall1(8, 0x702C);
     return_to_user_prog(int);
 }
-static int sf_cobra_map(const char *from, const char *to)
+static int sf_raw_map(const char *from, const char *to)
 {
-    /* Cobra syscall 35 path redirect, identical method to IRISMAN. */
     lv2syscall2(35, (uint64_t)from, (uint64_t)to);
     return_to_user_prog(int);
+}
+static int sf_raw_mount_iso(uint32_t *ptr, int count)
+{
+    lv2syscall3(8, 0x7024, (uint64_t)count, (uint64_t)ptr);
+    return_to_user_prog(int);
+}
+static int sf_cobra_version(uint32_t *ver)
+{
+    int rc;
+    if (sf_diag_before("VERSION_7000")) return -20;
+    rc=sf_raw_version(ver);
+    sf_diag_after("VERSION_7000",rc);
+    return rc;
+}
+static int sf_cobra_disc_type(uint32_t *type)
+{
+    int rc;
+    if (sf_diag_before("DISC_TYPE_7020")) return -20;
+    rc=sf_raw_disc_type(type);
+    sf_diag_after("DISC_TYPE_7020",rc);
+    return rc;
+}
+static int sf_cobra_event(uint64_t event, uint64_t arg)
+{
+    int rc;
+    char stage[45];
+    snprintf(stage,sizeof(stage),"DISC_EVENT_7022_%u",(unsigned int)event);
+    if (sf_diag_before(stage)) return -20;
+    rc=sf_raw_event(event,arg);
+    sf_diag_after(stage,rc);
+    return rc;
+}
+static int sf_cobra_umount(void)
+{
+    int rc;
+    if (sf_diag_before("UMOUNT_702C")) return -20;
+    rc=sf_raw_umount();
+    sf_diag_after("UMOUNT_702C",rc);
+    return rc;
+}
+static int sf_cobra_map(const char *from, const char *to)
+{
+    int rc;
+    char stage[65];
+    snprintf(stage,sizeof(stage),"MAP_35_%s_%s",
+             !strcmp(from,"/dev_bdvd")?"BDVD":
+             (!strcmp(from,"//dev_bdvd")?"BDVD2":"APPHOME"),
+             to?"SET":"CLEAR");
+    if (sf_diag_before(stage)) return -20;
+    rc=sf_raw_map(from,to);
+    sf_diag_after(stage,rc);
+    return rc;
 }
 static int sf_cobra_mount_iso(const char **paths, int count)
 {
     uint32_t ptr[SF_PARTS];
-    int i;
+    int rc,i;
     if (!paths || count < 1 || count > SF_PARTS) return -1;
-    for (i = 0; i < count; ++i) ptr[i] = (uint32_t)(uintptr_t)paths[i];
-    lv2syscall3(8, 0x7024, (uint64_t)count, (uint64_t)ptr);
-    return_to_user_prog(int);
+    for (i=0;i<count;i++) ptr[i]=(uint32_t)(uintptr_t)paths[i];
+    if (sf_diag_before("MOUNT_PS3ISO_7024")) return -20;
+    rc=sf_raw_mount_iso(ptr,count);
+    sf_diag_after("MOUNT_PS3ISO_7024",rc);
+    return rc;
 }
 static int sf_exists(const char *path, int folder)
 {
@@ -172,12 +306,22 @@ int sf_cobra_mount_ps3(const char *path, int folder, const char *title_id)
     char parts[SF_PARTS][SF_PATH];
     char sfo[SF_PATH];
     size_t len; int n=0,i,rc=0;
-    if (!sf_safe_path(path,folder)) return -2;
-    if (!sf_exists(path,folder)) return -3;
+    char eboot[SF_PATH];
+    sf_diag_folder = !!folder;
+    snprintf(sf_diag_path,sizeof(sf_diag_path),"%s",path?path:"(null)");
+    sf_diag_active=1;
+    if (sf_diag_write("BEGIN_MOUNT",0,1)!=0) return -20;
+    /* The game must be complete before changing virtual disc state. */
+    if (!sf_safe_path(path,folder)) return sf_diag_error("INVALID_PATH",-2);
+    if (!sf_exists(path,folder)) return sf_diag_error("MISSING_GAME",-3);
     if (folder && (snprintf(sfo,sizeof(sfo),"%s/PS3_GAME/PARAM.SFO",path)>=(int)sizeof(sfo) ||
-                   !sf_exists(sfo,0))) return -4;
-    if (sf_cobra_version(&version)!=0 || version==0xffffffffu) return -5;
-    if (sf_cobra_disc_type(&physical)!=0) return -6;
+                   !sf_exists(sfo,0))) return sf_diag_error("MISSING_PARAM_SFO",-4);
+    if (folder && (snprintf(eboot,sizeof(eboot),"%s/PS3_GAME/USRDIR/EBOOT.BIN",path)>=(int)sizeof(eboot) ||
+                   !sf_exists(eboot,0))) return sf_diag_error("MISSING_EBOOT_BIN",-14);
+    if (sf_diag_write("PREFLIGHT_OK",0,1)!=0) return -20;
+    if (sf_cobra_version(&version)!=0 || version==0xffffffffu)
+        return sf_diag_error("COBRA_NOT_AVAILABLE",-5);
+    if (sf_cobra_disc_type(&physical)!=0) return sf_diag_error("DISC_TYPE_FAILED",-6);
 
     if (!folder) {
         if (sf_ends(path,".iso.0")) {
@@ -188,7 +332,7 @@ int sf_cobra_mount_ps3(const char *path, int folder, const char *title_id)
                 files[n++]=parts[i];
             }
         } else files[n++]=path;
-        if (!n) return -7;
+        if (!n) return sf_diag_error("NO_ISO_PARTS",-7);
     }
 
     sf_fake_eject();
@@ -203,16 +347,24 @@ int sf_cobra_mount_ps3(const char *path, int folder, const char *title_id)
             sf_cobra_map("//dev_bdvd",path)!=0) {rc=-10;goto fail;}
         if (!physical) {
             const char *blank[1]={SF_BLANK};
-            if (sf_make_blank(title_id)!=0 || sf_cobra_mount_iso(blank,1)!=0) {
+            int blank_rc;
+            if (sf_diag_before("BUILD_BLANK_ISO")) {rc=-20;goto fail;}
+            blank_rc=sf_make_blank(title_id);
+            sf_diag_after("BUILD_BLANK_ISO",blank_rc);
+            if (blank_rc!=0 || sf_cobra_mount_iso(blank,1)!=0) {
                 rc=-11;goto fail;
             }
         }
     }
     if (sf_fake_insert(physical)!=0) {rc=-12;goto fail;}
+    (void)sf_diag_write("MOUNT_SUCCEEDED",0,0);
+    sf_diag_active=0;
     return 0;
 fail:
     (void)sf_cobra_map("/dev_bdvd",NULL);
     (void)sf_cobra_map("//dev_bdvd",NULL);
     (void)sf_fake_insert(physical);
-    return rc ? rc : -13;
+    rc=sf_diag_error("MOUNT_FAILED",rc?rc:-13);
+    sf_diag_active=0;
+    return rc;
 }

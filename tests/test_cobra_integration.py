@@ -18,6 +18,12 @@ checks = {
     "ISO mount syscall": "lv2syscall3(8, 0x7024" in mount,
     "Folder path map": 'sf_cobra_map("/dev_bdvd",path)' in mount,
     "Folder PARAM.SFO validation": '"%s/PS3_GAME/PARAM.SFO"' in mount,
+    "Diagnostic snapshot file": 'cobra_last_mount.txt' in mount,
+    "Bounded diagnostic history": 'cobra_trace.txt' in mount and '96L*1024L' in mount,
+    "Previous interruption preserved": 'cobra_previous_interruption.txt' in mount and 'sf_cobra_diag_report_previous();' in main,
+    "Before/after version syscall": 'sf_diag_before("VERSION_7000")' in mount and 'sf_diag_after("VERSION_7000",rc)' in mount,
+    "Before/after virtual disc mount": 'sf_diag_before("MOUNT_PS3ISO_7024")' in mount and 'sf_diag_after("MOUNT_PS3ISO_7024",rc)' in mount,
+    "Folder EBOOT preflight": '"%s/PS3_GAME/USRDIR/EBOOT.BIN"' in mount,
     "No boot plugin or flash operations": not any(x in mount for x in ("boot_plugins", "/dev_flash", "/dev_blind", "fan_control")),
 }
 for name, passed in checks.items():
