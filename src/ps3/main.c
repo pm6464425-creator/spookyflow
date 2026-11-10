@@ -214,13 +214,23 @@ int main(int argc, const char *argv[])
     int rc;
     (void)argc; (void)argv;
 
-    tiny3d_Init(VERTEX_BUFFER_BYTES);
-    ps3_pad_init();
-    sysUtilRegisterCallback(SYSUTIL_EVENT_SLOT0, sysutil_cb, NULL);
-
+    /* Create a persistent trace BEFORE any graphics, pad, audio or UI work.
+     * This separates an early startup freeze from a Cobra mount freeze. */
     ps3_fs_mkdirs();
-    if (log_open(SF_LOG_PATH) == 0) log_printf("==== %s %s starting ====", APP_NAME, APP_VERSION);
+    rc = sf_cobra_diag_startup("BEFORE_TINY3D_INIT");
+    if (log_open(SF_LOG_PATH) == 0) {
+        log_printf("==== %s %s starting ====", APP_NAME, APP_VERSION);
+        log_printf("cobra early-probe build EARLY_PROBE_20261109_R1, startup result=%d", rc);
+    }
     sf_cobra_diag_report_previous();
+
+    tiny3d_Init(VERTEX_BUFFER_BYTES);
+    if (sf_cobra_diag_startup("AFTER_TINY3D_INIT") != 0)
+        log_printf("cobra: failed to update startup probe after Tiny3D");
+    ps3_pad_init();
+    (void)sf_cobra_diag_startup("AFTER_PAD_INIT");
+    sysUtilRegisterCallback(SYSUTIL_EVENT_SLOT0, sysutil_cb, NULL);
+    (void)sf_cobra_diag_startup("AFTER_SYSUTIL_CALLBACK");
     atexit(on_exit_handler);   /* registered after tiny3d_Init: runs before tiny3d_Exit */
 
     sound_init();
@@ -242,6 +252,7 @@ int main(int argc, const char *argv[])
     host.power_off = power_off_via_webman;
     host.launch = launch_via_webman; /* Legacy PS1/PS2 only. */
     host.launch_ps3 = sf_cobra_mount_ps3;
+    host.diag_ps3_select = sf_cobra_diag_selection;
     host.read_wm_config = read_wm_config;
     host.read_at = ps3_read_at;
     host.ntfs_refresh = ntfs_refresh;
@@ -264,7 +275,9 @@ int main(int argc, const char *argv[])
 #else
     log_printf("network: plain HTTP only (this build has no mbedTLS)");
 #endif
+    (void)sf_cobra_diag_startup("BEFORE_APP_INIT");
     app_init(&g_app, &g_lib, &host);
+    (void)sf_cobra_diag_startup("READY_FOR_GAME_SELECTION");
 
     prev = now_seconds();
     while (!g_app.quit) {

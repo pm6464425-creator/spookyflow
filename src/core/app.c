@@ -1256,6 +1256,15 @@ static void launch_disc(App *a, int disc)
         snprintf(name, sizeof(name), "%s (%s)", lib_title(a->lib, g), dn);
     }
     else sf_strlcpy(name, lib_title(a->lib, g), sizeof(name));
+    /* This checkpoint is reached before settings lookup or Cobra mount.
+     * If it cannot be persisted, don't risk another untraceable freeze. */
+    if (a->tab == PLAT_PS3 && a->host.launch_ps3 && a->host.diag_ps3_select) {
+        if (a->host.diag_ps3_select(path, (g->flags & GAME_DIR) != 0) != 0) {
+            log_printf("cobra: pre-mount diagnosis could not be written; refusing launch");
+            app_show_toast(a, "Diagnostic file could not be written - launch canceled");
+            return;
+        }
+    }
     c = settings_game_get(&a->settings, lib_key(a->lib, g));   /* one set of settings for all discs */
     /* PS3 build: local Cobra mounting; leave all existing UI and settings untouched. */
     if (a->tab == PLAT_PS3 && a->host.launch_ps3) {

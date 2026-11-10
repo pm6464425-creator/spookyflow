@@ -19,6 +19,48 @@
 #define SF_BDVD_DRIVE 0x101000000000006ULL
 #define SF_BLANK "/dev_hdd0/tmp/spookyflow/sf_blank.iso"
 
+/* Early diagnostic probe is INDEPENDENT of the Cobra mount journal.
+ * It is first written at process entry before any Tiny3D/UI initialization.
+ * We close after every checkpoint so a crash leaves its last stage visible.
+ * If the normal directory is unavailable, fall back to /dev_hdd0/tmp/. */
+#define SF_BOOT_PROBE "/dev_hdd0/tmp/spookyflow/cobra_startup_probe.txt"
+#define SF_BOOT_PROBE_ALT "/dev_hdd0/tmp/cobra_startup_probe_fallback.txt"
+#define SF_SELECT_PROBE "/dev_hdd0/tmp/spookyflow/cobra_selection_probe.txt"
+#define SF_SELECT_PROBE_ALT "/dev_hdd0/tmp/cobra_selection_probe_fallback.txt"
+#define SF_DIAG_BUILD "EARLY_PROBE_20261109_R1"
+static int sf_probe_write(const char *where, const char *stage,
+                          const char *path, int folder)
+{
+    FILE *fp=fopen(where,"wb");
+    int ok=1;
+    if (!fp) return -1;
+    if (fprintf(fp,"BUILD=%s\nSTAGE=%s\nFORMAT=%s\nPATH=%s\n",
+                SF_DIAG_BUILD, stage ? stage : "?",
+                folder ? "FOLDER" : "ISO", path ? path : "(none)") < 0) ok=0;
+    if (fflush(fp)!=0) ok=0;
+    if (fclose(fp)!=0) ok=0;
+    return ok ? 0 : -1;
+}
+int sf_cobra_diag_startup(const char *stage)
+{
+    int rc=sf_probe_write(SF_BOOT_PROBE,stage,NULL,0);
+    if (rc!=0) rc=sf_probe_write(SF_BOOT_PROBE_ALT,stage,NULL,0);
+    return rc;
+}
+int sf_cobra_diag_selection(const char *path, int folder)
+{
+    int rc=sf_probe_write(SF_SELECT_PROBE,"GAME_SELECTED_BEFORE_MOUNT",
+                          path,folder);
+    if (rc!=0)
+        rc=sf_probe_write(SF_SELECT_PROBE_ALT,
+                          "GAME_SELECTED_BEFORE_MOUNT",path,folder);
+    log_printf("cobra: pre-mount probe %s for %s (%s)",
+               rc==0?"saved":"FAILED",path?path:"(null)",
+               folder?"FOLDER":"ISO");
+    return rc;
+}
+
+
 /* Persistent per-syscall journal. A snapshot is CLOSED before each risky
  * syscall; the last BEFORE_* step remains if the PS3 freezes during it. */
 #define SF_DIAG_LAST "/dev_hdd0/tmp/spookyflow/cobra_last_mount.txt"

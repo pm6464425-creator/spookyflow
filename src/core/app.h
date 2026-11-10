@@ -76,6 +76,9 @@ typedef struct {
     int (*launch)(const char *request);
     /* Optional local PS3 Cobra/HEN mounting callback. */
     int (*launch_ps3)(const char *path, int is_folder, const char *title_id);
+    /* Optional early checkpoint, before reading the per-game settings and
+     * before invoking any PS3 mounting backend. Must return 0 to proceed. */
+    int (*diag_ps3_select)(const char *path, int is_folder);
     /* optional: read webMAN's settings (wm_config.bin); leave cfg->valid 0 if unknown */
     void (*read_wm_config)(WmConfig *cfg);
     /* optional: read part of a file (fs_ctx is passed); lets the scanner read
