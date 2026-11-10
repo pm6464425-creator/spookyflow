@@ -74,6 +74,8 @@ typedef struct {
      * webMAN took it (the app then exits to the XMB, where webMAN mounts and
      * starts the game). NULL = launching not available. */
     int (*launch)(const char *request);
+    /* Optional local PS3 Cobra/HEN mounting callback. */
+    int (*launch_ps3)(const char *path, int is_folder, const char *title_id);
     /* optional: read webMAN's settings (wm_config.bin); leave cfg->valid 0 if unknown */
     void (*read_wm_config)(WmConfig *cfg);
     /* optional: read part of a file (fs_ctx is passed); lets the scanner read

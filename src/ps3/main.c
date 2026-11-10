@@ -25,6 +25,7 @@
 #include "log.h"
 #include "sound.h"
 #include "ps3_platform.h"
+#include "sf_cobra_mount.h"
 #include "ui.h"
 
 #define VERTEX_BUFFER_BYTES (4u * 1024u * 1024u)
@@ -236,11 +237,12 @@ int main(int argc, const char *argv[])
     host.prepare = ps3_load_tab_images;
     host.run_async = run_async;
     host.own_sfo_path = "/dev_hdd0/game/" SF_APPID "/PARAM.SFO";
-    host.power_off = power_off_via_webman;
-    host.launch = launch_via_webman;
-    host.read_wm_config = read_wm_config;
+    host.power_off = NULL; /* No webMAN required. */
+    host.launch = NULL;
+    host.launch_ps3 = sf_cobra_mount_ps3;
+    host.read_wm_config = NULL;
     host.read_at = ps3_read_at;
-    host.ntfs_refresh = ntfs_refresh;
+    host.ntfs_refresh = NULL; /* External NTFS requires a separate driver. */
     host.music_dir = SF_MUSIC_DIR;
     host.bg_dir = SF_BG_DIR;
     host.load_bg_image = ps3_load_bg_image;
@@ -307,7 +309,7 @@ int main(int argc, const char *argv[])
     }
 
     if (g_app.poweroff) log_printf("main loop finished, webMAN is powering the system off");
-    if (g_app.launched) log_printf("main loop finished, webMAN starts \"%s\" at the XMB", g_app.last_launch);
+    if (g_app.launched) log_printf("main loop finished, Cobra mounted \"%s\" for XMB", g_app.last_launch);
     log_printf("main loop finished, returning to XMB");
     return 0;   /* atexit handler saves, closes the log and releases pads */
 }

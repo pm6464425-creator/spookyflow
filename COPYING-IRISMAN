@@ -1,0 +1,5 @@
+This branch includes a PS3 Cobra mounting technique and blank-ISO code
+adapted from aldostools/IRISMAN (https://github.com/aldostools/IRISMAN).
+IRISMAN's principal source code is licensed under GNU GPL v3 or later.
+Retain the GPL notices and publish corresponding modified source when
+redistributing builds. See https://www.gnu.org/licenses/gpl-3.0.html
