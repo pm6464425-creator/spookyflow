@@ -17,7 +17,7 @@ checks = {
     "Cobra version detected": "sf_cobra_version(&version)" in mount,
     "ISO mount syscall": "lv2syscall3(8, 0x7024" in mount,
     "Folder path map": 'sf_cobra_map("/dev_bdvd",path)' in mount,
-    "Folder PARAM.SFO validation": '"/PS3_GAME/PARAM.SFO"' in mount,
+    "Folder PARAM.SFO validation": '"%s/PS3_GAME/PARAM.SFO"' in mount,
     "No boot plugin or flash operations": not any(x in mount for x in ("boot_plugins", "/dev_flash", "/dev_blind", "fan_control")),
 }
 for name, passed in checks.items():
