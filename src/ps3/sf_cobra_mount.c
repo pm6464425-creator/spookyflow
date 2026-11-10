@@ -18,6 +18,11 @@
 #define SF_PATH 1024
 #define SF_BDVD_DRIVE 0x101000000000006ULL
 #define SF_BLANK "/dev_hdd0/tmp/spookyflow/sf_blank.iso"
+/* The original 64 x 1024-byte local matrix consumed 64 KiB of main-thread
+ * stack on EVERY launch, even folder games. It may overflow the PS3 PPU
+ * thread stack before BEGIN_MOUNT can be persisted. Allocate it in BSS:
+ * launch is main-thread synchronous, so there are no concurrent uses. */
+static char s_iso_part_paths[SF_PARTS][SF_PATH];
 
 /* Early diagnostic probe is INDEPENDENT of the Cobra mount journal.
  * It is first written at process entry before any Tiny3D/UI initialization.
@@ -345,7 +350,6 @@ int sf_cobra_mount_ps3(const char *path, int folder, const char *title_id)
 {
     uint32_t version=0xffffffffu, physical=0;
     const char *files[SF_PARTS];
-    char parts[SF_PARTS][SF_PATH];
     char sfo[SF_PATH];
     size_t len; int n=0,i,rc=0;
     char eboot[SF_PATH];
@@ -369,9 +373,9 @@ int sf_cobra_mount_ps3(const char *path, int folder, const char *title_id)
         if (sf_ends(path,".iso.0")) {
             len=strlen(path);
             for(i=0;i<SF_PARTS;i++) {
-                int r=snprintf(parts[i],SF_PATH,"%.*s%d",(int)(len-1),path,i);
-                if (r<=0 || r>=SF_PATH || !sf_exists(parts[i],0)) break;
-                files[n++]=parts[i];
+                int r=snprintf(s_iso_part_paths[i],SF_PATH,"%.*s%d",(int)(len-1),path,i);
+                if (r<=0 || r>=SF_PATH || !sf_exists(s_iso_part_paths[i],0)) break;
+                files[n++]=s_iso_part_paths[i];
             }
         } else files[n++]=path;
         if (!n) return sf_diag_error("NO_ISO_PARTS",-7);
