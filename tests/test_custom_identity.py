@@ -15,7 +15,7 @@ icon=(root/'pkgfiles/ICON0.PNG').read_bytes()
 checks={
  "01 XMB name": 'MIS JUEGOS PS3 PS2 PS1' in sfo,
  "02 original Title ID": 'SPKF00001' in sfo,
- "03 PNG signature": icon.startswith(b'\\x89PNG\\r\\n\\x1a\\n'),
+ "03 PNG signature": icon.startswith(b'\x89PNG\r\n\x1a\n'),
  "04 ICON0 dimensions": icon[16:24]==bytes((0,0,1,64,0,0,0,176)),
  "05 ICON0 transparency": icon[25] in (4,6) or b'tRNS' in icon,
  "06 exclusive source folder": 'enum { F_SF_DL = 0, F_COUNT = 1 }' in art,
