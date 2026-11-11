@@ -156,6 +156,7 @@ typedef struct {
     CoverDl *dl;            /* 0.9.2: Download Missing Covers, while it runs */
     CoverDl *dl_orphan;     /* one a rescan stopped, freed when its thread is done */
     int   dl_applied;       /* its results already shown */
+    int   auto_covers_started; /* one automatic cover check per completed library scan */
     int   dl_ran;           /* a download ran since start-up (the card shows its result) */
     int   dl_got, dl_missing, dl_have, dl_noid, dl_error, dl_total, dl_tls;
     char  dl_note[96];
