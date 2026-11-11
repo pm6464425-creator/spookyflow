@@ -81,7 +81,7 @@ def verify(package):
     icon = files["ICON0.PNG"]
     expected = Path("pkgfiles/ICON0.PNG").read_bytes()
     assert icon == expected, "Embedded XMB icon differs from new source image"
-    assert icon.startswith(b"\x89PNG\\r\\n\x1a\\n")
+    assert icon.startswith(b"\x89PNG\r\n\x1a\n")
     assert icon[16:24] == struct.pack(">II", 320, 176)
     assert icon[25] == 6, "Need transparent RGBA PNG for XMB icon"
     sfo = parse_sfo(files["PARAM.SFO"])
