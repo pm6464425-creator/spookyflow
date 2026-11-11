@@ -291,45 +291,51 @@ static void test_cover_lookup(void)
 {
     CoverCand c[COVER_MAX_CANDS];
     unsigned char ok[16];
-    int n, i;
+    int n;
     char stem[COVER_PATH_MAX], stem2[COVER_PATH_MAX];
-    printf("cover lookup\n");
-    n = cover_candidates(PLAT_PS2, "/dev_hdd0/PS2ISO/Game [SLUS-20914].iso", 0, "SLUS20914", NULL, c, COVER_MAX_CANDS);
-    CHECK(n >= 10);
-    CHECK_STR(c[0].base, "/dev_hdd0/PS2ISO/Game [SLUS-20914]");                 /* next to the game first */
-    CHECK_STR(c[1].base, "/dev_hdd0/tmp/wmtmp/Game [SLUS-20914]");
-    CHECK_STR(c[2].base, "/dev_hdd0/game/BLES80608/USRDIR/covers_retro/psx/SLUS_209.14_COV");
-    CHECK(cand_has(c, n, "/dev_hdd0/game/BLES80608/USRDIR/covers/SLUS20914") > 2);
-    CHECK(cand_has(c, n, "/dev_hdd0/tmp/wmtmp/covers/SLUS20914") > 2);
-    CHECK_STR(c[n - 2].base, "/dev_hdd0/PS2ISO/SLUS20914");                    /* game folder, */
-    CHECK_STR(c[n - 1].base, COVER_DL_DIR "/SLUS20914");                       /* 0.9.2: then downloaded */
-    /* split images and decrypted PS3 ISOs lose every extension */
-    n = cover_candidates(PLAT_PS3, "/dev_hdd0/PS3ISO/Game.dec.iso", 0, "", NULL, c, COVER_MAX_CANDS);
+    printf("cover lookup: exclusive managed directory\\n");
+    CHECK(cover_folder_count() == 1);
+    CHECK_STR(cover_folder(0), COVER_DL_DIR);
+
+    n = cover_candidates(PLAT_PS3, "/dev_hdd0/PS3ISO/Gran Turismo6.ISO", 0, "BCES01893", NULL, c, COVER_MAX_CANDS);
     CHECK(n == 2);
-    CHECK_STR(c[0].base, "/dev_hdd0/PS3ISO/Game");
-    n = cover_candidates(PLAT_PS3, "/dev_hdd0/PS3ISO/Big.iso.0", 0, "BLES80608", NULL, c, COVER_MAX_CANDS);
-    CHECK_STR(c[0].base, "/dev_hdd0/PS3ISO/Big");
-    CHECK(cand_has(c, n, "/dev_hdd0/game/BLES80608/USRDIR/covers/BLES80608") >= 0);
-    CHECK(cand_has(c, n, "/dev_hdd0/game/BLES80608/USRDIR/covers_retro/psx/BLES_806.08_COV") < 0);  /* PS3: no retro */
-    /* Folder games support a local cover.png/.jpg before ID artwork. */
+    CHECK_STR(c[0].base, COVER_DL_DIR "/Gran Turismo6");
+    CHECK_STR(c[1].base, COVER_DL_DIR "/BCES01893");
+    CHECK(cand_has(c, n, "/dev_hdd0/PS3ISO/Gran Turismo6") < 0); /* ignore multiMAN sidecar */
+    CHECK(cand_has(c, n, "/dev_hdd0/game/BLES80608/USRDIR/covers/BCES01893") < 0);
+
+    n = cover_candidates(PLAT_PS3, "/dev_hdd0/PS3ISO/TEKKEN TAG TOURNAMENT 2.ISO", 0, "BLES01702", NULL, c, COVER_MAX_CANDS);
+    CHECK(n == 2 && strcmp(c[0].base, COVER_DL_DIR "/TEKKEN TAG TOURNAMENT 2") == 0);
+    CHECK_STR(c[1].base, COVER_DL_DIR "/BLES01702");
+
+    n = cover_candidates(PLAT_PS3, "/dev_hdd0/PS3ISO/Assassins Creed.ISO", 0, "BLUS30089", NULL, c, COVER_MAX_CANDS);
+    CHECK(n == 2 && strcmp(c[0].base, COVER_DL_DIR "/Assassins Creed") == 0);
+    CHECK_STR(c[1].base, COVER_DL_DIR "/BLUS30089");
+
+    n = cover_candidates(PLAT_PS3, "/dev_hdd0/PS3ISO/EA Sports FC 27.iso", 0, "BLES01676", NULL, c, COVER_MAX_CANDS);
+    CHECK(n == 1);  /* mod cannot reuse the base FIFA's official cover */
+    CHECK_STR(c[0].base, COVER_DL_DIR "/EA Sports FC 27");
+
     n = cover_candidates(PLAT_PS3, "/dev_hdd0/GAMES/Demon", 1, "BLUS30443", NULL, c, COVER_MAX_CANDS);
-    CHECK_STR(c[0].base, "/dev_hdd0/GAMES/Demon/cover");
-    CHECK_STR(c[1].base, "/dev_hdd0/tmp/wmtmp/Demon");
-    CHECK(cand_has(c, n, "/dev_hdd0/GAMES/BLUS30443") < 0);
-    /* missing folders are skipped */
+    CHECK(n == 2);
+    CHECK_STR(c[0].base, COVER_DL_DIR "/Demon");
+    CHECK_STR(c[1].base, COVER_DL_DIR "/BLUS30443");
+
+    n = cover_candidates(PLAT_PS2, "/dev_hdd0/PS2ISO/Game.dec.iso", 0, "SLUS20914", NULL, c, COVER_MAX_CANDS);
+    CHECK(n == 2);
+    CHECK_STR(c[0].base, COVER_DL_DIR "/Game");
+    CHECK_STR(c[1].base, COVER_DL_DIR "/SLUS20914");
+
+    n = cover_candidates(PLAT_PS1, "/dev_hdd0/PSXISO/Crash.cue", 0, "SCUS94426", NULL, c, COVER_MAX_CANDS);
+    CHECK(n == 2 && strcmp(c[1].base, COVER_DL_DIR "/SCUS94426") == 0);
     memset(ok, 0, sizeof(ok));
-    for (i = 0; i < cover_folder_count(); i++)
-        if (strcmp(cover_folder(i), "/dev_hdd0/game/BLES80608/USRDIR/covers_retro/psx") == 0) ok[i] = 1;
-    n = cover_candidates(PLAT_PS1, "/dev_hdd0/PSXISO/Crash.cue", 0, "SCUS94426", ok, c, COVER_MAX_CANDS);
-    CHECK(n == 4);
-    CHECK_STR(c[0].base, "/dev_hdd0/PSXISO/Crash");
-    CHECK_STR(c[1].base, "/dev_hdd0/game/BLES80608/USRDIR/covers_retro/psx/SCUS_944.26_COV");
-    CHECK_STR(c[2].base, "/dev_hdd0/PSXISO/SCUS94426");
-    CHECK_STR(c[3].base, COVER_DL_DIR "/SCUS94426");                           /* downloaded: always looked at */
+    n = cover_candidates(PLAT_PS3, "/dev_hdd0/PS3ISO/Big.iso.0", 0, "BLES80608", ok, c, COVER_MAX_CANDS);
+    CHECK(n == 2 && strcmp(c[0].base, COVER_DL_DIR "/Big") == 0);
+    n = cover_candidates(PLAT_PS3, "/dev_hdd0/PS3ISO/Game.iso", 0, "", NULL, c, COVER_MAX_CANDS);
+    CHECK(n == 1 && strcmp(c[0].base, COVER_DL_DIR "/Game") == 0);
     CHECK(cover_candidates(PLAT_PS1, "", 0, "X", NULL, c, COVER_MAX_CANDS) == 0);
-    for (i = 0; i < cover_folder_count(); i++) CHECK(strstr(cover_folder(i), "MANAGUNZ") == NULL);   /* fix 6 */
-    CHECK(cover_candidates(PLAT_PS2, "/a/b.iso", 0, "SLUS20914", NULL, c, 2) == 2);   /* respects max */
-    /* cache names: stable, per platform, change with the file */
+    CHECK(cover_candidates(PLAT_PS2, "/a/b.iso", 0, "SLUS20914", NULL, c, 1) == 1);
+
     cover_cache_stem("/c", PLAT_PS2, "/dev_hdd0/PS2ISO/A.iso", 100, stem, sizeof(stem));
     cover_cache_stem("/c", PLAT_PS2, "/dev_hdd0/PS2ISO/A.iso", 100, stem2, sizeof(stem2));
     CHECK_STR(stem, stem2);
@@ -429,13 +435,14 @@ static void test_cover_loader(void)
     char stem[COVER_PATH_MAX], path[COVER_PATH_MAX + 8];
     printf("cover loader\n");
     memfs_reset();
-    memfs_dir("/dev_hdd0/game/BLES80608/USRDIR/covers_retro/psx");
+    memfs_dir(COVER_DL_DIR);
     img = make_disc("BOOT2 = cdrom0:\\SLUS_209.14;1\r\n", NULL, 0, &len);
     memfs_put("/dev_hdd0/PS2ISO/Game.iso", img, len); free(img);
-    memfs_put("/dev_hdd0/game/BLES80608/USRDIR/covers_retro/psx/SLUS_209.14_COV.JPG", "IMG 50 70 255 0 0 255", 21);
+    memfs_put(COVER_DL_DIR "/SLUS20914.JPG", "IMG 50 70 255 0 0 255", 21);
     memfs_put("/dev_hdd0/PS2ISO/Other.iso", "junk", 4);
     memfs_put("/dev_hdd0/PS2ISO/Side.iso", "junk", 4);
-    memfs_put("/dev_hdd0/PS2ISO/Side.png", "IMG 70 100 0 0 255 255", 22);   /* next to the game wins */
+    memfs_put("/dev_hdd0/PS2ISO/Side.png", "IMG 70 100 255 0 0 255", 22); /* bad external sidecar, must be ignored */
+    memfs_put(COVER_DL_DIR "/Side.png", "IMG 70 100 0 0 255 255", 22);  /* managed cover wins */
     mem_io(&io, "/cache");
     cover_loader_init(&L, &io);
     cc_init(&cc, 8, NULL, NULL);
@@ -477,7 +484,7 @@ static void test_cover_loader(void)
     CHECK(cc.slot[2].state == CC_FAILED && g_reads <= 2 && g_decodes == decodes);   /* cache header + marker */
 
     /* second run: straight from the cache, no decoding, even if the art is gone */
-    mem_remove(NULL, "/dev_hdd0/game/BLES80608/USRDIR/covers_retro/psx/SLUS_209.14_COV.JPG");
+    mem_remove(NULL, COVER_DL_DIR "/SLUS20914.JPG");
     cover_loader_stop(&L);
     cover_loader_init(&L, &io);
     cc_init(&cc, 8, NULL, NULL);
@@ -537,7 +544,7 @@ static void test_cover_loader(void)
     cover_poll(&L, &cc);
     CHECK(cc.slot[6].state == CC_READY);
     /* a decoder failure is a missing cover, not a crash */
-    memfs_put("/dev_hdd0/PS2ISO/Side.png", "garbage", 7);
+    memfs_put(COVER_DL_DIR "/Side.png", "garbage", 7);
     cc.slot[7].state = CC_LOADING;
     cover_request(&L, 7, PLAT_PS2, PLAT_PS2, 1, "/dev_hdd0/PS2ISO/Side.iso", 0, 4, "");
     cover_worker_step(&L);
@@ -547,7 +554,7 @@ static void test_cover_loader(void)
     {
         unsigned char png[24] = { 0x89, 'P', 'N', 'G', '\r', '\n', 0x1a, '\n', 0, 0, 0, 13, 'I', 'H', 'D', 'R',
                                   0, 0, 0x0B, 0xB8, 0, 0, 0x0B, 0xB8 };   /* 3000 x 3000 */
-        memfs_put("/dev_hdd0/PS2ISO/Side.png", png, 24);
+        memfs_put(COVER_DL_DIR "/Side.png", png, 24);
         decodes = g_decodes;
         cc.slot[7].state = CC_LOADING;
         cover_request(&L, 7, PLAT_PS2, PLAT_PS2, 1, "/dev_hdd0/PS2ISO/Side.iso", 0, 4, "");
@@ -966,17 +973,16 @@ static void test_ntfs(void)
     scanner_begin(&sc, roots, 1);
     while (!scanner_step(&sc, &g_lib, mem_list, NULL)) { }
     CHECK(sc.found_ntfs == 4 && g_lib.tab[PLAT_PS3].games[0].size == 0);
-    /* covers: webMAN's "<name>.PNG" next to the pointer file; IDs never read from the pointer file */
+    /* NTFS images also resolve only within the managed artwork directory. */
     {
         CoverCand cand[COVER_MAX_CANDS];
         char id[16];
         int nc = cover_candidates(PLAT_PS3, NTFS_INDEX_DIR "/Demon's Souls (USA).ntfs[PS3ISO]", 0, "BLUS30443", NULL, cand, COVER_MAX_CANDS);
-        CHECK(nc > 1);
-        CHECK(strstr(cand[0].base, "/BLUS30443") != NULL);                        /* real covers by ID first */
-        for (i = 0; i < nc && strcmp(cand[i].base, NTFS_INDEX_DIR "/Demon's Souls (USA)") != 0; i++) { }
-        CHECK(i < nc);                                                             /* then webMAN's icon */
+        CHECK(nc == 2);
+        CHECK_STR(cand[0].base, COVER_DL_DIR "/Demon's Souls (USA)");
+        CHECK_STR(cand[1].base, COVER_DL_DIR "/BLUS30443");
         nc = cover_candidates(PLAT_PS3, NTFS_INDEX_DIR "/Gran Turismo 5.iso.ntfs[PS3ISO]", 0, "", NULL, cand, COVER_MAX_CANDS);
-        CHECK(nc >= 1 && strcmp(cand[0].base, NTFS_INDEX_DIR "/Gran Turismo 5") == 0);   /* no ID: the icon */
+        CHECK(nc == 1 && strcmp(cand[0].base, COVER_DL_DIR "/Gran Turismo 5") == 0);
         CHECK(!discid_read(PLAT_PS3, NTFS_INDEX_DIR "/Demon's Souls (USA).ntfs[PS3ISO]", 0, mem_read_at, NULL, id, sizeof(id)));
         CHECK(!discid_read(PLAT_PS1, NTFS_INDEX_DIR "/Crash.ntfs[PSXISO]", 0, mem_read_at, NULL, id, sizeof(id)));
     }

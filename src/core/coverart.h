@@ -1,25 +1,16 @@
-/* coverart.h - real cover art: find, decode, fit, cache and stream covers.
+/* coverart.h - find, decode, fit, cache and stream cover art.
  *
- * Lookup order (same folders and names webMAN MOD uses, so a webMAN /
- * multiMAN cover pack works as-is):
- *   1. next to the game:      <game path without extension>.JPG/.PNG/.jpg/.png
- *   2. webMAN's temp covers:  /dev_hdd0/tmp/wmtmp/<game file name>.*
- *   by title ID (from the file name, else read from the disc image):
- *   3. PS1/PS2: <mm>/covers_retro/psx/SLUS_209.14_COV.*   (mm = multiMAN roots)
- *   4. <mm>/covers/<ID>.*, also /dev_hdd0/GAMES/covers, /dev_hdd0/GAMEZ/covers
- *   5. /dev_hdd0/tmp/wmtmp/covers/<ID>.*
- *   6. the game's own folder: <folder>/<ID>.*
- *   7. downloaded (0.9.2, Download Missing Covers): COVER_DL_DIR/<ID>.*
+ * Authoritative art: /dev_hdd0/tmp/spookyflow/downloaded/
+ *   - Manual (highest priority): <ISO filename without extension>.jpg/.png
+ *   - Automatic for official games: <Title ID>.jpg/.png
+ * An ISO's adjacent ICON0.PNG/sidecar, webMAN and multiMAN artwork caches
+ * are deliberately ignored. This avoids treating 320x176 XMB icons as box art.
  *
- * A found cover is fitted to the case's art area (never cropped), resized smoothly to the
- * slot texture size, dithered to 16-bit and saved as a small cache file
- * (<cache>/<ps1|ps2|ps3>/<key>.cvr) so the next time it is one file read.
- * Games without a cover get a "<key>.none" marker so the folders are only
- * searched once; "Rescan Library" clears the cache.
- *
- * Threading: one worker thread (cover_worker_main) does all file and decode
- * work. The main thread only posts requests and polls results; the two
- * share a small job table guarded by a spinlock. */
+ * Downloaded art is adapted using the original platform-specific dimensions
+ * and cached as .cvr files for the worker. Versioned cache rejects old images.
+ * Manually replacing an image requires Rescan Library to invalidate .cvr.
+ * Launch/graphics pipeline is unaffected.
+ */
 #ifndef SF_COVERART_H
 #define SF_COVERART_H
 
@@ -92,7 +83,7 @@ typedef struct { char base[COVER_PATH_MAX]; } CoverCand;   /* path without exten
  * Returns the count. */
 int   cover_candidates(int plat, const char *game_path, int is_dir, const char *id,
                        const unsigned char *dir_ok, CoverCand *out, int max);
-/* The webMAN/multiMAN cover folders (index = dir_ok index). */
+/* The exclusive SpookyFlow artwork source folder. */
 int   cover_folder_count(void);
 const char *cover_folder(int i);
 

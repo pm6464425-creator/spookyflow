@@ -12,29 +12,17 @@
 
 typedef char sf_static_slots[(R_COVER_SLOTS >= CC_MAX_SLOTS) ? 1 : -1];
 
-#define MM_STD   "/dev_hdd0/game/BLES80608/USRDIR"      /* multiMAN */
-#define MM_STL   "/dev_hdd0/tmp/game_repo/main"          /* stealthMAN */
-#define MM_SSTL  "/dev_hdd0/game/NPEA00374/USRDIR"      /* multiMAN SingStar stealth */
-#define WMTMP    "/dev_hdd0/tmp/wmtmp"
-
-enum {
-    F_RETRO_STD, F_RETRO_STL, F_RETRO_SSTL,
-    F_COV_STD, F_COV_STL, F_COV_SSTL, F_COV_GAMES, F_COV_GAMEZ,
-    F_WMTMP_COV, F_WMTMP, F_SF_DL, F_COUNT
-};
-
-static const char *const k_folders[F_COUNT] = {
-    MM_STD "/covers_retro/psx", MM_STL "/covers_retro/psx", MM_SSTL "/covers_retro/psx",
-    MM_STD "/covers", MM_STL "/covers", MM_SSTL "/covers",
-    "/dev_hdd0/GAMES/covers", "/dev_hdd0/GAMEZ/covers",
-    WMTMP "/covers", WMTMP, COVER_DL_DIR,
-};
+/* SpookyFlow owns one authoritative source folder. Images copied beside
+ * ISOs by multiMAN are commonly 320x176 ICON0 screenshots, not box art.
+ * Never pick them or foreign manager folders as a cover. */
+enum { F_SF_DL = 0, F_COUNT = 1 };
+static const char *const k_folders[F_COUNT] = { COVER_DL_DIR };
 
 static const char *const k_exts[] = { ".JPG", ".PNG", ".jpg", ".png" };
 static const char *const k_plat_dir[PLAT_COUNT] = { "ps1", "ps2", "ps3" };
 
 #define CVR_HEADER 16
-#define CVR_VERSION 5     /* 4: release year in the header (fix 10); 5: more years (fix 29) */
+#define CVR_VERSION 6     /* source-policy change: invalidate old cached 320x176 sidecar icons */
 
 int cover_folder_count(void) { return F_COUNT; }
 const char *cover_folder(int i) { return (i >= 0 && i < F_COUNT) ? k_folders[i] : ""; }
@@ -121,53 +109,24 @@ static int add(CoverCand *out, int n, int max, const char *a, const char *b, con
 int cover_candidates(int plat, const char *game_path, int is_dir, const char *id,
                      const unsigned char *dir_ok, CoverCand *out, int max)
 {
-    char stem[COVER_PATH_MAX], name[COVER_PATH_MAX], folder[COVER_PATH_MAX];
+    char name[COVER_PATH_MAX];
     const char *slash;
-    int n = 0, i;
-#define OK(f) (!dir_ok || dir_ok[f])
-    if (!game_path || !game_path[0]) return 0;
+    int n = 0;
+    /* One source folder for downloaded and manually selected images.
+     * Name.jpg takes precedence over <TITLE_ID>.jpg, so modified titles
+     * can have individual artwork without colliding with the base game.
+     * Never use the sidecar PNG next to an ISO or an external manager cache. */
+    (void)plat;
+    (void)is_dir;
+    (void)dir_ok;
+    if (!game_path || !game_path[0] || !out || max <= 0) return 0;
     slash = strrchr(game_path, '/');
     sf_strlcpy(name, slash ? slash + 1 : game_path, sizeof(name));
-    sf_strlcpy(folder, game_path, sizeof(folder));
-    if (slash) folder[slash - game_path] = '\0'; else folder[0] = '\0';
     while (strip_one_ext(name)) { }
-
-    /* an NTFS game (webMAN's pointer file in wmtmp): the "<name>.PNG" beside it
-     * is mostly the game's ICON0 (a small wide XMB icon), so real covers by
-     * title ID come first */
-    if (strstr(game_path, ".ntfs[") && id && id[0]) {
-        for (i = F_COV_STD; i <= F_WMTMP_COV; i++)
-            if (OK(i)) n = add(out, n, max, k_folders[i], "/", id);
+    if (name[0]) n = add(out, n, max, COVER_DL_DIR, "/", name);
+    if (id && id[0] && !cover_name_is_custom(game_path) &&
+        sf_stricmp(name, id) != 0)
         n = add(out, n, max, COVER_DL_DIR, "/", id);
-        if (plat == PLAT_PS1) {
-            char rid[24];
-            snprintf(rid, sizeof(rid), "%.4s_%.3s.%.2s_COV", id, id + 4, id + 7);
-            for (i = F_RETRO_STD; i <= F_RETRO_SSTL; i++)
-                if (OK(i)) n = add(out, n, max, k_folders[i], "/", rid);
-        }
-    }
-    if (!is_dir) {
-        sf_strlcpy(stem, game_path, sizeof(stem));
-        while (strip_one_ext(stem)) { }
-        n = add(out, n, max, stem, NULL, NULL);                       /* 1. local manual ISO override */
-    } else {
-        /* PS3 folder: <game>/cover.jpg or .png is the user override. */
-        n = add(out, n, max, game_path, "/cover", NULL);
-    }
-    if (OK(F_WMTMP)) n = add(out, n, max, WMTMP "/", name, NULL);     /* 2. webMAN temp */
-    if (id && id[0] && !strstr(game_path, ".ntfs[") && !cover_name_is_custom(game_path)) {
-        if (plat == PLAT_PS1 || plat == PLAT_PS2) {                   /* 3. retro packs */
-            char rid[24];
-            snprintf(rid, sizeof(rid), "%.4s_%.3s.%.2s_COV", id, id + 4, id + 7);
-            for (i = F_RETRO_STD; i <= F_RETRO_SSTL; i++)
-                if (OK(i)) n = add(out, n, max, k_folders[i], "/", rid);
-        }
-        for (i = F_COV_STD; i <= F_WMTMP_COV; i++)                    /* 4.-5. by ID */
-            if (OK(i)) n = add(out, n, max, k_folders[i], "/", id);
-        if (!is_dir && folder[0]) n = add(out, n, max, folder, "/", id);   /* 6. game folder */
-        n = add(out, n, max, COVER_DL_DIR, "/", id);                   /* 7. downloaded (always looked at: */
-    }                                                                   /*    it may appear after the probe) */
-#undef OK
     return n;
 }
 
@@ -686,13 +645,10 @@ int cover_has_art(const CoverIO *io, int plat, const char *path, int is_dir, uin
     char f[COVER_PATH_MAX + 16];
     CoverCand *cand;
     int nc, c, e, found = 0;
+    (void)size;
     if (!io || !io->is_file) return 0;
-    if (io->cache_dir) {                    /* a cover already made for this game */
-        char stem[COVER_PATH_MAX];
-        cover_cache_stem(io->cache_dir, plat, path, size, stem, sizeof(stem));
-        snprintf(f, sizeof(f), "%s.cvr", stem);
-        if (io->is_file(io->ctx, f)) return 1;
-    }
+    /* Processed .cvr is NOT an authoritative cover. Legacy caches may
+     * contain multiMAN's horizontal sidecars and must not block a fetch. */
     cand = (CoverCand *)malloc(sizeof(CoverCand) * COVER_MAX_CANDS);
     if (!cand) return 0;
     nc = cover_candidates(plat, path, is_dir, id, NULL, cand, COVER_MAX_CANDS);
@@ -732,8 +688,9 @@ void cover_dl_run(CoverDl *d)
         int nu, u, got = 0, neterr = 0, offline = 1, not_found_only = 1;
         char miss_path[COVER_PATH_MAX];
         if (!it->id[0]) discid_read(it->plat, it->path, it->is_dir, io->read_at, io->ctx, it->id, sizeof(it->id));
-        if (!id_ok(it->id)) { it->state = DL_NOID; d->n_noid++; goto next; }
+        /* A name-matched manual cover counts even when an ISO has no ID. */
         if (cover_has_art(io, it->plat, it->path, it->is_dir, it->size, it->id)) { it->state = DL_HAVE; d->n_have++; goto next; }
+        if (!id_ok(it->id)) { it->state = DL_NOID; d->n_noid++; goto next; }
         if (cover_name_is_custom(it->path)) {
             it->state = DL_MISSING; d->n_missing++; goto next;
         }
