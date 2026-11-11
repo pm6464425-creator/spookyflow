@@ -58,6 +58,29 @@ float cover_art_aspect(int plat)
 
 /* ------------------------------------------------------------------ */
 /* Candidates                                                          */
+/* Some fan mods reuse the base game's title ID, so prefer file-name
+ * overrides and avoid automatically choosing the original game's cover. */
+static int cover_name_is_custom(const char *path)
+{
+    static const char *const terms[] = {
+        "[MOD]", "(MOD)", " - MOD ", "[PATCH]", "(PATCH)",
+        "[CUSTOM]", "(CUSTOM)", "FC 27", "FIFA 27", "PES 2027",
+        "EFOOTBALL 2027"
+    };
+    int i;
+    const char *s;
+    if (!path) return 0;
+    s = strrchr(path, '/');
+    s = s ? s+1 : path;
+    for (i=0;i<SF_ARRAY_LEN(terms);i++) {
+        const char *p;
+        size_t n=strlen(terms[i]);
+        for (p=s; *p; p++)
+            if (sf_strnicmp(p, terms[i], n)==0) return 1;
+    }
+    return 0;
+}
+
 
 static int strip_one_ext(char *s)
 {
@@ -126,10 +149,13 @@ int cover_candidates(int plat, const char *game_path, int is_dir, const char *id
     if (!is_dir) {
         sf_strlcpy(stem, game_path, sizeof(stem));
         while (strip_one_ext(stem)) { }
-        n = add(out, n, max, stem, NULL, NULL);                       /* 1. next to the game */
+        n = add(out, n, max, stem, NULL, NULL);                       /* 1. local manual ISO override */
+    } else {
+        /* PS3 folder: <game>/cover.jpg or .png is the user override. */
+        n = add(out, n, max, game_path, "/cover", NULL);
     }
     if (OK(F_WMTMP)) n = add(out, n, max, WMTMP "/", name, NULL);     /* 2. webMAN temp */
-    if (id && id[0] && !strstr(game_path, ".ntfs[")) {
+    if (id && id[0] && !strstr(game_path, ".ntfs[") && !cover_name_is_custom(game_path)) {
         if (plat == PLAT_PS1 || plat == PLAT_PS2) {                   /* 3. retro packs */
             char rid[24];
             snprintf(rid, sizeof(rid), "%.4s_%.3s.%.2s_COV", id, id + 4, id + 7);
@@ -403,9 +429,10 @@ static void wipe(CoverLoader *L)
             if (n <= 0) break;
             for (i = 0; i < n; i++) {
                 if (ent[i].is_dir || ent[i].name[0] == '.') continue;
-                /* 0.9.3: only the "no cover" markers: made covers are kept (a rescan
-                 * deleted them all, and covers whose source folder is gone were lost) */
-                if (!sf_ends_with_i(ent[i].name, ".none")) continue;
+                /* Explicit Rescan Library: replacement JPG/PNG must defeat a
+                 * processed .cvr image from the older version. */
+                if (!sf_ends_with_i(ent[i].name, ".none") &&
+                    !sf_ends_with_i(ent[i].name, ".cvr")) continue;
                 snprintf(f, sizeof(f), "%s/%s", dir, ent[i].name);
                 if (L->io.remove(L->io.ctx, f) == 0) { removed++; got++; }
             }
@@ -413,7 +440,7 @@ static void wipe(CoverLoader *L)
         }
     }
     free(ent);
-    log_printf("covers: looking again for games without a cover (%d markers cleared)", removed);
+    log_printf("covers: explicit rescan invalidated %d processed images/markers", removed);
 }
 
 static int read_cache(CoverLoader *L, const char *cvr, int tw, int th, int *year)
@@ -702,10 +729,18 @@ void cover_dl_run(CoverDl *d)
     log_printf("covers: downloading missing covers (%d games to check)", d->n);
     for (i = 0; i < d->n && !d->cancel; i++) {
         CoverDlItem *it = &d->item[i];
-        int nu, u, got = 0, neterr = 0, offline = 1;   /* offline: every attempt failed to find its server */
+        int nu, u, got = 0, neterr = 0, offline = 1, not_found_only = 1;
+        char miss_path[COVER_PATH_MAX];
         if (!it->id[0]) discid_read(it->plat, it->path, it->is_dir, io->read_at, io->ctx, it->id, sizeof(it->id));
         if (!id_ok(it->id)) { it->state = DL_NOID; d->n_noid++; goto next; }
         if (cover_has_art(io, it->plat, it->path, it->is_dir, it->size, it->id)) { it->state = DL_HAVE; d->n_have++; goto next; }
+        if (cover_name_is_custom(it->path)) {
+            it->state = DL_MISSING; d->n_missing++; goto next;
+        }
+        snprintf(miss_path, sizeof(miss_path), "%s/%s.missing", COVER_DL_DIR, it->id);
+        if (d->auto_mode && io->is_file && io->is_file(io->ctx, miss_path)) {
+            it->state = DL_MISSING; d->n_missing++; goto next;
+        }
         nu = cover_dl_urls(it->plat, it->id, urls, COVER_DL_URLS);
         for (u = 0; u < nu && !got && !d->cancel; u++) {
             char url[COVER_URL_MAX], loc[COVER_URL_MAX];
@@ -718,6 +753,7 @@ void cover_dl_run(CoverDl *d)
                 if ((st == 301 || st == 302 || st == 303 || st == 307 || st == 308) && loc[0]) { sf_strlcpy(url, loc, sizeof(url)); continue; }
                 break;
             }
+            if (st != 404) not_found_only = 0;
             if (st == COVER_HTTP_TLS) {
                 d->tls_needed = 1;
                 if (!logged_tls) { logged_tls = 1; log_printf("covers: %s needs HTTPS, which this build can't do", url); }
@@ -740,6 +776,7 @@ void cover_dl_run(CoverDl *d)
         }
         if (got) {
             it->state = DL_GOT; d->n_got++; streak = 0;
+            if (io->remove) (void)io->remove(io->ctx, miss_path);
             if (io->cache_dir && io->remove) {             /* forget "this game has no cover" */
                 char stem[COVER_PATH_MAX], f[COVER_PATH_MAX + 8];
                 cover_cache_stem(io->cache_dir, it->plat, it->path, it->size, stem, sizeof(stem));
@@ -760,6 +797,8 @@ void cover_dl_run(CoverDl *d)
             }
         } else {
             it->state = DL_MISSING; d->n_missing++; streak = 0;
+            if (not_found_only && io->write_file)
+                (void)io->write_file(io->ctx, miss_path, "404", 3, "", 0);
         }
     next:
         __sync_synchronize();
