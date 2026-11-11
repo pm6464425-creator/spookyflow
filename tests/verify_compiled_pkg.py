@@ -38,7 +38,7 @@ def decrypt_debug_pkg(blob):
     return out
 
 def parse_sfo(blob):
-    assert blob[:4] == b"\\x00PSF", "Wrong PARAM.SFO magic"
+    assert blob[:4] == b"\x00PSF", "Wrong PARAM.SFO magic"
     _, version, key_offset, data_offset, count = struct.unpack_from("<4sIIII", blob)
     assert version == 0x101
     assert 0 < count < 200
@@ -49,18 +49,18 @@ def parse_sfo(blob):
         kpos = key_offset + ko
         vpos = data_offset + vo
         assert 0 <= kpos < len(blob) and 0 <= vpos <= len(blob)
-        key = blob[kpos:blob.index(b"\\x00", kpos)].decode("ascii")
+        key = blob[kpos:blob.index(b"\x00", kpos)].decode("ascii")
         assert vpos + length <= len(blob), key
         if typ == 0x0404:
             out[key] = struct.unpack_from("<I", blob, vpos)[0]
         else:
-            out[key] = blob[vpos:vpos+length].split(b"\\x00")[0].decode("utf-8")
+            out[key] = blob[vpos:vpos+length].split(b"\x00")[0].decode("utf-8")
     return out
 
 def verify(package):
     data = Path(package).read_bytes()
-    assert data[:4] == b"\\x7fPKG"
-    assert data[4:8] == b"\\x00\\x00\\x00\\x01", "Expected PSL1GHT debug PS3 PKG"
+    assert data[:4] == b"\x7fPKG"
+    assert data[4:8] == b"\x00\x00\x00\x01", "Expected PSL1GHT debug PS3 PKG"
     assert be64(data, 0x18) == len(data), "Declared PKG size differs from actual file"
     assert data[0x30:0x60].startswith(b"UP0001-SPKF00001"), "Application content ID changed"
     count = be32(data, 0x14)
@@ -81,7 +81,7 @@ def verify(package):
     icon = files["ICON0.PNG"]
     expected = Path("pkgfiles/ICON0.PNG").read_bytes()
     assert icon == expected, "Embedded XMB icon differs from new source image"
-    assert icon.startswith(b"\\x89PNG\\r\\n\\x1a\\n")
+    assert icon.startswith(b"\x89PNG\\r\\n\x1a\\n")
     assert icon[16:24] == struct.pack(">II", 320, 176)
     assert icon[25] == 6, "Need transparent RGBA PNG for XMB icon"
     sfo = parse_sfo(files["PARAM.SFO"])
