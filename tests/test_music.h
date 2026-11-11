@@ -2308,7 +2308,7 @@ static void test_092(void)
     items[4].plat = PLAT_PS3; sf_strlcpy(items[4].path, "/dev_hdd0/PS3ISO/E.iso", COVER_PATH_MAX); sf_strlcpy(items[4].id, "BLUS30002", 16);
     items[5].plat = PLAT_PS2; sf_strlcpy(items[5].path, "/dev_hdd0/PS2ISO/F.iso", COVER_PATH_MAX);           /* no title ID */
     items[6].plat = PLAT_PS3; sf_strlcpy(items[6].path, "/dev_hdd0/PS3ISO/G.iso", COVER_PATH_MAX); sf_strlcpy(items[6].id, "BLES00001", 16);
-    ff_write(NULL, "/dev_hdd0/PS3ISO/E.JPG", "x", 1, "", 0);                                              /* E has a cover */
+    ff_write(NULL, COVER_DL_DIR "/E.JPG", "x", 1, "", 0);                                              /* E has a cover */
     cover_cache_stem("/cache", PLAT_PS3, items[0].path, 0, stem, sizeof(stem));
     snprintf(marker, sizeof(marker), "%s.none", stem);
     ff_write(NULL, marker, "x", 1, "", 0);                                                                  /* A was "no cover" */
