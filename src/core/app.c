@@ -530,7 +530,7 @@ static void dl_free(CoverDl *d) { if (d) { free(d->item); free(d); } }
 
 static void dl_worker(void *arg) { cover_dl_run((CoverDl *)arg); }
 
-static void download_start(App *a)
+static void download_start(App *a, int automatic)
 {
     CoverDl *d;
     int t, i, n = 0;
@@ -538,7 +538,7 @@ static void download_start(App *a)
     a->dl_ran = 1;
     a->dl_got = a->dl_missing = a->dl_have = a->dl_noid = a->dl_error = a->dl_tls = 0;
     a->dl_note[0] = '\0';
-    if (!a->host.http_get || !a->host.covers) {
+    if (!a->host.http_get || !a->host.covers || (automatic && !a->host.run_async)) {
         sf_strlcpy(a->dl_note, "Downloading isn't available here", sizeof(a->dl_note));
         a->dl_total = 0;
         log_printf("covers: download not available (no network functions)");
@@ -564,11 +564,20 @@ static void download_start(App *a)
             sf_strlcpy(it->id, lib_id(a->lib, g), sizeof(it->id));
         }
     d->io = &a->host.covers->io;
+    d->auto_mode = !!automatic;
     d->http = a->host.http_get;
     d->http_ctx = a->host.http_ctx;
     a->dl = d;
     a->dl_applied = 0;
-    if (!a->host.run_async || a->host.run_async(dl_worker, d) != 0) cover_dl_run(d);   /* no thread: now */
+    if (a->host.run_async && a->host.run_async(dl_worker, d) == 0) return;
+    if (automatic) {
+        /* No synchronous Internet fetches while rendering the PS3 cover flow. */
+        a->dl = NULL;
+        dl_free(d);
+        log_printf("covers: auto scan skipped (background worker unavailable)");
+    } else {
+        cover_dl_run(d); /* existing manual fallback is preserved */
+    }
 }
 
 static void download_poll(App *a)
@@ -592,10 +601,11 @@ static void download_poll(App *a)
     a->dl_error = d->n_error; a->dl_tls = d->tls_needed;
     if (d->finished && a->dl_applied >= d->pos) {
         char msg[96];
+        int was_auto = d->auto_mode;
         sf_strlcpy(a->dl_note, d->note, sizeof(a->dl_note));
         dl_free(d);
         a->dl = NULL;
-        if (!(a->about && a->card == CARD_DOWNLOAD)) {      /* the card isn't up: say it in a line */
+        if (!was_auto && !(a->about && a->card == CARD_DOWNLOAD)) {  /* auto scan: don't interrupt user */
             if (a->dl_note[0]) sf_strlcpy(msg, a->dl_note, sizeof(msg));
             else if (a->dl_got > 0) snprintf(msg, sizeof(msg), "%d cover%s downloaded", a->dl_got, a->dl_got == 1 ? "" : "s");
             else sf_strlcpy(msg, "No new covers found", sizeof(msg));
@@ -736,6 +746,7 @@ static void loading_update(App *a, float dt)
         break;
     case LOAD_SORT:
         finish_library(a);
+        a->auto_covers_started = 0;
         sizes_start(a);
         scan_music(a);
         sf_strlcpy(a->load_status, "Doing the Heavy Lifting", sizeof(a->load_status));
@@ -750,6 +761,10 @@ static void loading_update(App *a, float dt)
             a->intro = 0.0f;
             input_reset(&a->input);
             log_printf("ui: cover flow ready (tab %s)", k_plat_name[a->tab]);
+            if (!a->auto_covers_started) {
+                a->auto_covers_started = 1;
+                download_start(a, 1); /* background, after UI is already ready */
+            }
         }
         break;
     }
@@ -1156,7 +1171,7 @@ static void apply_fx(App *a, RowKind k, int fx)
         break;
     case MENU_FX_COVERS_STUB:          /* 0.9.2: Download Missing Covers (the card shows how it goes) */
         log_printf("panel: Download Missing Covers");
-        download_start(a);
+        download_start(a, 0);
         a->about = 1; a->card = CARD_DOWNLOAD;
         break;
     case MENU_FX_XMB_TOP:
