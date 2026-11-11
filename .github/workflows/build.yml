@@ -29,6 +29,8 @@ jobs:
         run: make -f Makefile.host test
       - name: Cobra launch integration static checks
         run: python3 tests/test_cobra_integration.py
+      - name: 30 identity and cover regression checks
+        run: python3 tests/test_custom_identity.py
       - name: Render preview PNGs
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq python3-pil
