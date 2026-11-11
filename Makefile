@@ -11,7 +11,7 @@ ifeq ($(strip $(PSL1GHT)),)
 $(error "Please set PSL1GHT in your environment. export PSL1GHT=<path>")
 endif
 
-TITLE     := spookyflow
+TITLE     := MIS JUEGOS PS3 PS2 PS1
 APPID     := SPKF00001
 CONTENTID := UP0001-$(APPID)_00-0000000000000000
 ICON0     := $(CURDIR)/pkgfiles/ICON0.PNG
