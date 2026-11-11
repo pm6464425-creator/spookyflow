@@ -761,10 +761,6 @@ static void loading_update(App *a, float dt)
             a->intro = 0.0f;
             input_reset(&a->input);
             log_printf("ui: cover flow ready (tab %s)", k_plat_name[a->tab]);
-            if (!a->auto_covers_started) {
-                a->auto_covers_started = 1;
-                download_start(a, 1); /* background, after UI is already ready */
-            }
         }
         break;
     }
@@ -1171,6 +1167,7 @@ static void apply_fx(App *a, RowKind k, int fx)
         break;
     case MENU_FX_COVERS_STUB:          /* 0.9.2: Download Missing Covers (the card shows how it goes) */
         log_printf("panel: Download Missing Covers");
+        a->auto_covers_started = 1;
         download_start(a, 0);
         a->about = 1; a->card = CARD_DOWNLOAD;
         break;
@@ -1541,6 +1538,15 @@ void app_update(App *a, uint32_t held, float dt)
     music_tick(a);
     sizes_poll(a);
     download_poll(a);
+
+    /* Existing size scan also uses the host background-thread launcher.
+     * Wait until it completes before scheduling the automatic cover worker.
+     * Never delay UI frames or interfere with a user-triggered search. */
+    if (a->mode == MODE_FLOW && !a->exiting && !a->auto_covers_started &&
+        !app_sizes_busy(a) && !a->dl) {
+        a->auto_covers_started = 1;
+        download_start(a, 1);
+    }
 
     if (a->exiting) {
         anim_approach(&a->exit_fade, 1.0f, 1.0f / EXIT_FADE_TIME, dt);
