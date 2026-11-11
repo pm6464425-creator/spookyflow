@@ -77,6 +77,9 @@ jobs:
       - name: Build PKG
         run: bash ci/build_ps3.sh
 
+      - name: Verify compiled PKG title, transparent icon, Title ID, and package payload
+        run: python3 tests/verify_compiled_pkg.py spookyflow.pkg
+
       - uses: actions/upload-artifact@v4
         with:
           name: spookyflow-pkg-${{ env.sha_name }}
