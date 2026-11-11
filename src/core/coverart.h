@@ -144,6 +144,7 @@ typedef struct {
     volatile int pos;            /* games looked at so far (item[0..pos) are final) */
     volatile int cancel, finished;
     int n_have, n_noid, n_got, n_missing, n_error;
+    int auto_mode;               /* automatic background scan; respect known 404 */
     int tls_needed;              /* a source answered only over HTTPS */
     char note[96];               /* why it stopped early ("" = it didn't) */
 } CoverDl;
