@@ -293,7 +293,7 @@ static void test_cover_lookup(void)
     unsigned char ok[16];
     int n;
     char stem[COVER_PATH_MAX], stem2[COVER_PATH_MAX];
-    printf("cover lookup: exclusive managed directory\\n");
+    printf("cover lookup: exclusive managed directory\n");
     CHECK(cover_folder_count() == 1);
     CHECK_STR(cover_folder(0), COVER_DL_DIR);
 
