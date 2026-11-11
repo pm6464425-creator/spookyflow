@@ -311,9 +311,10 @@ static void test_cover_lookup(void)
     CHECK_STR(c[0].base, "/dev_hdd0/PS3ISO/Big");
     CHECK(cand_has(c, n, "/dev_hdd0/game/BLES80608/USRDIR/covers/BLES80608") >= 0);
     CHECK(cand_has(c, n, "/dev_hdd0/game/BLES80608/USRDIR/covers_retro/psx/BLES_806.08_COV") < 0);  /* PS3: no retro */
-    /* folder games: nothing "next to" a folder */
+    /* Folder games support a local cover.png/.jpg before ID artwork. */
     n = cover_candidates(PLAT_PS3, "/dev_hdd0/GAMES/Demon", 1, "BLUS30443", NULL, c, COVER_MAX_CANDS);
-    CHECK_STR(c[0].base, "/dev_hdd0/tmp/wmtmp/Demon");
+    CHECK_STR(c[0].base, "/dev_hdd0/GAMES/Demon/cover");
+    CHECK_STR(c[1].base, "/dev_hdd0/tmp/wmtmp/Demon");
     CHECK(cand_has(c, n, "/dev_hdd0/GAMES/BLUS30443") < 0);
     /* missing folders are skipped */
     memset(ok, 0, sizeof(ok));
@@ -515,15 +516,15 @@ static void test_cover_loader(void)
     CHECK(L.job[0].done_gen == L.job[0].req_gen && L.job[1].done_gen != L.job[1].req_gen);   /* other tab last */
     cover_worker_step(&L);
 
-    /* Rescan Library: games without a cover are looked up again (0.9.3: the
-     * made covers stay: their source may be gone) */
+    /* Explicit Rescan Library now drops both .none and .cvr so replaced
+     * user JPG/PNG artwork appears; underlying originals are preserved. */
     for (i = 0, k = 0; i < MEMFS_MAX; i++) if (g_mf[i].used && strncmp(g_mf[i].path, "/cache/", 7) == 0 && strstr(g_mf[i].path, ".cvr")) k++;
     cover_wipe_cache(&L);
     CHECK(cover_worker_step(&L) == 1);
     snprintf(path, sizeof(path), "%s.none", stem);
     CHECK(memfs_find(path) == NULL);
     for (i = 0, slot = 0; i < MEMFS_MAX; i++) if (g_mf[i].used && strncmp(g_mf[i].path, "/cache/", 7) == 0) slot++;
-    CHECK(k > 0 && slot == k);                                  /* only the .cvr covers are left */
+    CHECK(k > 0 && slot == 0);                                  /* all caches invalidated */
     CHECK(memfs_find("/dev_hdd0/PS2ISO/Side.png") != NULL);    /* user files untouched */
 
     /* no disk cache configured: still works */
