@@ -15,6 +15,7 @@
 #define SF_CASES_DIR     SF_DATA_DIR "/cases"    /* optional case images */
 #define SF_COVERS_DIR    SF_DATA_DIR "/covers"   /* processed cover cache (safe to delete) */
 #define SF_LOG_PATH      SF_DATA_DIR "/log.txt"
+#define SF_USB_DIAG_PATH SF_DATA_DIR "/diagnostico_usb_ntfs.txt"
 #define SF_SETTINGS_PATH SF_DATA_DIR "/settings.ini"
 
 /* render_tiny3d.c */
