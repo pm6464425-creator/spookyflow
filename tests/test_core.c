@@ -1365,6 +1365,19 @@ static void test_bdiso_real_download(void)
     CHECK(d.n_got==1 && g_movie_reset_calls==0);
 }
 
+
+static void test_bdiso_flowmovie_manual_cover_paths(void)
+{
+    CoverCand c[8];
+    int n=cover_candidates(PLAT_BDISO,
+        "/dev_usb000/BDISO/2009 Avatar 3D-001.iso",0,"",NULL,c,8);
+    CHECK(n>=4);
+    CHECK(strcmp(c[0].base,"/dev_usb000/BDISO/2009 Avatar 3D-001")==0);
+    CHECK(strcmp(c[1].base,"/dev_usb000/BDISO/COVERS/2009 Avatar 3D-001")==0);
+    CHECK(strcmp(c[2].base,"/dev_usb000/BDISO/2009 Avatar 3D-001.iso")==0);
+    CHECK(strcmp(c[3].base,"/dev_usb000/BDISO/COVERS/2009 Avatar 3D-001.iso")==0);
+}
+
 int main(void)
 {
     log_set_echo(0);
@@ -1391,6 +1404,7 @@ int main(void)
     test_discid();
     test_cover_lookup();
     test_bdiso_real_download();
+    test_bdiso_flowmovie_manual_cover_paths();
     test_cover_process();
     test_cover_loader();
     test_cover_cache_gpu();
