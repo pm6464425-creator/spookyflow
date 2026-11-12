@@ -572,7 +572,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     /* Safe release-year hint when the ISO has no embedded year.
      * 'Rio' alone is ambiguous; only the 2011 Blue Sky animation is
      * the known BDISO movie, not the unrelated 2025 'Extraño río'. */
-    if(!year && sf_stricmp(query,"Rio")==0)year=2011;
+    if(!year && movie_title_exact(query,"Rio"))year=2011;
     if(!query[0] || encode_query(query,encoded,sizeof(encoded))!=0)return -5;
 
     k=movie_key(dir,"TMDB_KEY.TXT",tmdb,sizeof(tmdb));
@@ -600,7 +600,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
      * SensaCine film page, not text search (which returns 'Rio 2',
      * 'Extraño río' and many unrelated films before Rio 2011).
      * The film ID is stable and was verified with its original year. */
-    if(sf_stricmp(query,"Rio")==0 && year==2011 &&
+    if(movie_title_exact(query,"Rio") && year==2011 &&
        snprintf(url,sizeof(url),
          "https://www.sensacine.com/peliculas/pelicula-146550/")<(int)sizeof(url) &&
        movie_http_cinema_html(url,json,&n) &&
