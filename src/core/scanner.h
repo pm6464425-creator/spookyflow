@@ -59,6 +59,8 @@ typedef struct {
     int found_ntfs;                  /* of found[], games from NTFS drives */
     ReadAtFn rd;                     /* optional: read files (NTFS sizes and title IDs) */
     void *rd_ctx;
+    /* Optional PS3-only filter for orphaned webMAN movie pointers. */
+    int (*ntfs_bdiso_online)(const unsigned char *raw, size_t len);
     int dirs_listed, errors, skipped_long;
     int done;
 } Scanner;
@@ -79,6 +81,7 @@ void  scanner_begin(Scanner *s, const ScanRoot *roots, int nroots);
 /* Let the scanner read files (call after scanner_begin). Without it, NTFS
  * games still show, but with no size and no title ID from their .SFO. */
 void  scanner_set_reader(Scanner *s, ReadAtFn rd, void *ctx);
+void  scanner_set_bdiso_pointer_filter(Scanner *s, int (*online)(const unsigned char *, size_t));
 
 /* 0.9.0: total size of the files under dir, every subfolder included (a
  * folder game). Breadth first, with a ring of at most qmax pending folders
