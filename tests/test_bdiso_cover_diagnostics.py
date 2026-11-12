@@ -27,7 +27,7 @@ tests=[
     ("No direct HDD movie cover writes", "movie_usb_write" in art),
     ("Existing JPEG is preserved and PNG is written separately", "if(repair)continue;" in art and "movie_usb_write(coverpng,port,jpeg,bytes)" in art),
     ("No candidates produce trace", "no poster candidates" in art),
-    ("Rejected JPEG produces trace", "returned no usable JPEG" in art),
+    ("Rejected JPEG produces trace", "returned no usable image" in art),
     ("USB output write failure produces trace", "USB write failed" in art),
     ("Missing folder produces trace", "failed to create/read BDISO/COVERS" in art),
     ("Failed poster leaves final trace", "cover fetch failed for %s" in art),
