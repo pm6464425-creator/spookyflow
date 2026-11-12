@@ -301,7 +301,9 @@ static int lower_eq(const char *a, const char *b, size_t n)
 
 static int ps3_http_get_single(void *ctx, const char *url, uint8_t *buf, uint32_t cap, uint32_t *len, char *loc, size_t loc_cap)
 {
-    char host[128], req[640];
+    /* Movie image proxy requests carry a URL-encoded upstream poster URL.
+     * 640 bytes silently rejected some long Amazon artwork URLs. */
+    char host[128], req[1800];
     const char *p, *path;
     HttpConn c;
     uint32_t got = 0;
