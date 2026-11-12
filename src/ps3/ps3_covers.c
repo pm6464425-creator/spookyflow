@@ -221,6 +221,11 @@ static int sf_bdiso_art_cb(void *ctx,const char *path)
     (void)ctx;
     return sf_bdiso_ensure_art(path);
 }
+static void sf_bdiso_reset_cb(void *ctx)
+{
+    (void)ctx;
+    sf_bdiso_reset_attempts();
+}
 
 static int io_decode(void *ctx, const char *path, int *w, int *h, uint8_t **rgba)
 {
@@ -274,6 +279,7 @@ CoverLoader *ps3_covers_start(void)
         log_printf("covers: PNG decoder module failed to load");
     io.read_at = ps3_read_at;
     io.ensure_movie_art = sf_bdiso_art_cb;
+    io.reset_movie_attempts = sf_bdiso_reset_cb;
     io.is_file = io_is_file;
     io.is_dir = io_is_dir;
     io.decode = io_decode;
