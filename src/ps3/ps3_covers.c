@@ -193,7 +193,8 @@ static int decode_any(const char *path, int min_w, int min_h, int max_dim, int *
             ps3_decode_unlock(); return -1;
         }
         cover_diag("NTFS_READ_OK","path=%s bytes=%u firma=%02x-%02x-%02x-%02x",
-                   path,(unsigned)nbytes,data[0],data[1],data[2],data[3]);
+                   path,(unsigned)nbytes,nbytes>0?data[0]:0,
+                   nbytes>1?data[1]:0,nbytes>2?data[2]:0,nbytes>3?data[3]:0);
         if(is_png) {
             pngData d;
             memset(&d,0,sizeof(d));
