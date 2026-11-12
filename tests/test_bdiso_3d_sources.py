@@ -31,10 +31,10 @@ tests=[
     ("3D label determined by ISO filename, not poster", "movie_filename_is_3d(lib_path(a->lib,g))" in ui),
     ("No 3D release lookup from Mubis", '"https://www.mubis.es/titulos/%s-blu-ray-3d"' not in art),
     ("No 3D Blu-ray release JPEG downloads", 'https://images.static-bluray.com/movies/covers/%d_front.jpg' not in art),
-    ("Normal Spanish edition metadata parsed", "movie_edition_mubis_normal_html(" in art),
-    ("Standard Spanish poster priority available", '"TMDB-ES"' in art and '"2D-ES-Mubis"' in art),
+    ("Actual Spanish cinema poster parsed from SensaCine", "movie_sensacine_pick(" in art),
+    ("Standard Spanish poster priority available", '"TMDB-ES"' in art and '"SensaCine-Cartel"' in art),
     ("Useless source TXT creation removed", "COVERS/%s.sources.txt" not in art),
-    ("Legacy JPG remains in place; new normal JPG separate", '"%s/COVERS/NORMAL"' in art and '"%s/%s.jpg",normaldir,stem' in art),
+    ("Legacy JPG remains in place; new cinema JPG separate", '"%s/COVERS/CINE"' in art and '"%s/%s.jpg",normaldir,stem' in art),
     ("English auto-generated title converted to Spanish without overriding manual titles", "movie_spanish_title(stem,existing?prior:title" in art),
     ("JPEG fallback still validates image signature", "buf[0]==0xff && buf[1]==0xd8 && buf[2]==0xff" in art),
     ("HTTPS for image URLs", 'strncmp(url,"https://",8)' in art),
@@ -46,7 +46,7 @@ tests=[
     ("PS3 and BDISO mount backends remain separate", "host.launch_ps3" in host and "host.launch_bdiso" in host),
     ("PS3-style case maintained", "ui_set_case_image(PLAT_BDISO" in read("src/ps3/ps3_tabimg.c")),
     ("PS1/PS2/PS3 scan roots kept", all(v in scan for v in ('"PSXISO"','"PS2ISO"','"PS3ISO"'))),
-    ("Documented standard posters and paired watermarks", "portadas normales" in doc and "marca de agua" in doc),
+    ("Documented cinema posters and paired watermarks", "póster cinematográfico" in doc and "marca de agua" in doc),
     ("Spanish titles still attempted", "movie_title_id(" in art),
 ]
 failed=[name for name,good in tests if not good]
