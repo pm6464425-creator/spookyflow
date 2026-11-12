@@ -46,7 +46,7 @@ int main(void)
         "\"releaseInfo\":\"2011\"}]}", "Thor",2011,
         poster,sizeof(poster),title,sizeof(title)));
     CHECK(!movie_catalog_pick("{\"metas\":[{\"name\":\"Thor\","
-        "\"poster\":\"https://m.media-amazon.com/x.jpg\"",
+        "\"poster\":\"https://m.media-amazon.com/x.jpg\""
         "\"genres\":[\"Action\"]}", "Thor",2011,
         poster,sizeof(poster),title,sizeof(title)));
     /* Results with nested arrays + quotes containing ] and } are valid. */
