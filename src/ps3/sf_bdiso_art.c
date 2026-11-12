@@ -135,26 +135,77 @@ static const char *json_field(const char *obj,const char *end,const char *key)
     while(p<end && (*p==' '||*p==':'||*p=='\t'))p++;
     return p<end?p:NULL;
 }
+/* JSON string decoder: retain Spanish accents from TMDB's \uXXXX notation.
+ * Inputs are bounded by the enclosing parsed JSON object and destination. */
+static int json_hex4(const char *s, const char *end, unsigned *v)
+{
+    unsigned x=0;
+    int k;
+    if(end-s<4)return 0;
+    for(k=0;k<4;k++){
+        int c=(unsigned char)s[k],d;
+        if(c>='0'&&c<='9')d=c-'0';
+        else if(c>='a'&&c<='f')d=c-'a'+10;
+        else if(c>='A'&&c<='F')d=c-'A'+10;
+        else return 0;
+        x=(x<<4)|(unsigned)d;
+    }
+    *v=x; return 1;
+}
+static int json_utf8(char *out,size_t cap,size_t *n,unsigned cp)
+{
+    unsigned char bytes[4];
+    int count=0,k;
+    if(cp<=0x7f){bytes[0]=(unsigned char)cp;count=1;}
+    else if(cp<=0x7ff){
+        bytes[0]=(unsigned char)(0xc0|(cp>>6));
+        bytes[1]=(unsigned char)(0x80|(cp&63));count=2;
+    }else if(cp<=0xffff && !(cp>=0xd800&&cp<=0xdfff)){
+        bytes[0]=(unsigned char)(0xe0|(cp>>12));
+        bytes[1]=(unsigned char)(0x80|((cp>>6)&63));
+        bytes[2]=(unsigned char)(0x80|(cp&63));count=3;
+    }else if(cp<=0x10ffff && cp>=0x10000){
+        bytes[0]=(unsigned char)(0xf0|(cp>>18));
+        bytes[1]=(unsigned char)(0x80|((cp>>12)&63));
+        bytes[2]=(unsigned char)(0x80|((cp>>6)&63));
+        bytes[3]=(unsigned char)(0x80|(cp&63));count=4;
+    } else return 0;
+    if(*n+(size_t)count>=cap)return 0;
+    for(k=0;k<count;k++)out[(*n)++]=(char)bytes[k];
+    return 1;
+}
 static int json_text(const char *obj,const char *end,const char *key,char *out,size_t cap)
 {
     const char *p=json_field(obj,end,key);
     size_t i=0;
-    if(!p||*p!='"')return 0;
+    if(!p||*p!='"'||cap==0)return 0;
     p++;
     while(p<end && *p!='"' && i+1<cap){
-        if(*p=='\\' && p+1<end){
+        if(*p=='\\' && p+1<end) {
             p++;
             if(*p=='n'||*p=='t'||*p=='r'){out[i++]=' ';p++;continue;}
-            if(*p=='u'){ /* Avoid embedding an incomplete escape in filenames. */
-                if(p+4<end)p+=5; else break;
+            if(*p=='u'){
+                unsigned cp,low;
+                if(!json_hex4(p+1,end,&cp))break;
+                p+=5;
+                if(cp>=0xd800&&cp<=0xdbff && end-p>=6 &&
+                   p[0]=='\\'&&p[1]=='u' &&
+                   json_hex4(p+2,end,&low) && low>=0xdc00&&low<=0xdfff){
+                    cp=0x10000+((cp-0xd800)<<10)+(low-0xdc00);
+                    p+=6;
+                }
+                if(!json_utf8(out,cap,&i,cp))break;
                 continue;
             }
+            if(*p=='"'||*p=='\\'||*p=='/') {out[i++]=*p++;continue;}
+            break;
         }
         out[i++]=*p++;
     }
     out[i]=0;
     return i>0;
 }
+
 static int first_object(const char *json,const char *array_name,
                         const char **start,const char **end)
 {
