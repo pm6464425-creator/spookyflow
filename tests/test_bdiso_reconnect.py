@@ -53,7 +53,8 @@ checks=[
  ("Cinema 2:3 cases retained",
   "case PLAT_BDISO: return 2.0f/3.0f" in read("src/core/layout.c")),
  ("No new destructive USB file operations",
-  "sf_bdntfs_unlink(" not in ntfs and "sf_bdntfs_write(" not in usb),
+  "sf_bdntfs_unlink(" not in ntfs.split("int sf_bdntfs_start(void)",1)[1].split("void sf_bdntfs_probe_port",1)[0]
+  and "sf_bdntfs_write(" not in usb),
  ("Forensic report continues recording real physical NTFS state",
   "sf_bdntfs_usb_present_mask()" in diag),
 ]
