@@ -131,10 +131,10 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp spookyflow.pkg MI_PKG_V8.pkg
-          gh release create mi-pkg-v8 MI_PKG_V8.pkg --target "$GITHUB_SHA" \
-            --title "MI PKG V8 - Portadas BDISO 3D y titulos en espanol" \
-            --notes "Muestra Blu-ray 3D y titulos en espanol para 26 peliculas BDISO, prioriza poster espanol de TMDB si hay clave, utiliza PNG compatible con PS3 para imagenes publicas, y preserva el JPG original en disco NTFS. Consola pendiente de validacion."
+          cp spookyflow.pkg MI_PKG_V9.pkg
+          gh release create mi-pkg-v9 MI_PKG_V9.pkg --target "$GITHUB_SHA" \
+            --title "MI PKG V9 - Peliculas en espanol y Blu-ray 3D" \
+            --notes "Muestra en la PS3 títulos en español, distintivo Blu-ray 3D y compatibilidad nativa con JPG progresivos almacenados en NTFS. No altera portadas manuales. Compilación y pruebas verificadas; consola física pendiente de validación."
 
   ps3-pkg-docker:
     needs: host-tests
