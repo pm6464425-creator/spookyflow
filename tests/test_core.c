@@ -1285,6 +1285,86 @@ static void test_font_and_draw(void)
     }
 }
 
+
+/* Regression: the manual Download Missing Covers action must fetch movies
+ * by ISO filename, WITHOUT a PS3 game ID. Before the fix it always
+ * counted BDISO as DL_NOID and skipped the movie downloader completely. */
+static int g_movie_present, g_movie_calls, g_movie_reset_calls, g_movie_fail;
+static int movie_test_is_file(void *ctx,const char *path)
+{
+    (void)ctx;
+    return g_movie_present && strstr(path,"/BDISO/COVERS/") &&
+           sf_ends_with_i(path,".jpg");
+}
+static int movie_test_ensure(void *ctx,const char *path)
+{
+    (void)ctx;
+    g_movie_calls++;
+    CHECK(strstr(path,"/BDISO/")!=NULL);
+    if(g_movie_fail)return -13;
+    g_movie_present=1;
+    return 0;
+}
+static void movie_test_reset(void *ctx)
+{
+    (void)ctx;
+    g_movie_reset_calls++;
+}
+static int movie_test_http(void *ctx,const char *url,uint8_t *buf,
+                           uint32_t cap,uint32_t *length,char *loc,size_t loc_cap)
+{
+    (void)ctx;(void)url;(void)buf;(void)cap;(void)length;(void)loc;(void)loc_cap;
+    return 404;
+}
+static void test_bdiso_real_download(void)
+{
+    CoverIO io;
+    CoverDl d;
+    CoverDlItem item;
+    printf("manual BDISO cover downloads by movie title\n");
+    memset(&io,0,sizeof(io));
+    io.is_file=movie_test_is_file;
+    io.ensure_movie_art=movie_test_ensure;
+    io.reset_movie_attempts=movie_test_reset;
+    memset(&d,0,sizeof(d));
+    memset(&item,0,sizeof(item));
+    d.io=&io;
+    d.http=movie_test_http;
+    d.item=&item;
+    d.n=1;
+    item.plat=PLAT_BDISO;
+    sf_strlcpy(item.path,"/dev_usb000/BDISO/Avatar (2009) 3D.iso",
+               sizeof(item.path));
+    CHECK(item.id[0]==0);
+    g_movie_present=0;g_movie_calls=0;g_movie_reset_calls=0;g_movie_fail=0;
+    cover_dl_run(&d);
+    CHECK(d.finished && d.n_got==1 && item.state==DL_GOT);
+    CHECK(d.n_noid==0);
+    CHECK(g_movie_calls==1 && g_movie_reset_calls==1);
+
+    /* An existing custom poster must never be replaced. */
+    memset(&d,0,sizeof(d));d.io=&io;d.http=movie_test_http;
+    d.item=&item;d.n=1;item.state=DL_PENDING;
+    g_movie_present=1;g_movie_calls=0;
+    cover_dl_run(&d);
+    CHECK(d.n_have==1 && item.state==DL_HAVE && g_movie_calls==0);
+
+    /* An unavailable source is an error, not a missing PS3 game ID. */
+    memset(&d,0,sizeof(d));d.io=&io;d.http=movie_test_http;
+    d.item=&item;d.n=1;item.state=DL_PENDING;
+    g_movie_present=0;g_movie_fail=1;g_movie_calls=0;
+    cover_dl_run(&d);
+    CHECK(d.n_error==1 && item.state==DL_ERROR && d.n_noid==0);
+    CHECK(g_movie_calls==1);
+
+    /* Automatic background scans do not clear ongoing retry states. */
+    memset(&d,0,sizeof(d));d.io=&io;d.http=movie_test_http;
+    d.item=&item;d.n=1;d.auto_mode=1;item.state=DL_PENDING;
+    g_movie_fail=0;g_movie_present=0;g_movie_reset_calls=0;
+    cover_dl_run(&d);
+    CHECK(d.n_got==1 && g_movie_reset_calls==0);
+}
+
 int main(void)
 {
     log_set_echo(0);
@@ -1310,6 +1390,7 @@ int main(void)
     test_font_and_draw();
     test_discid();
     test_cover_lookup();
+    test_bdiso_real_download();
     test_cover_process();
     test_cover_loader();
     test_cover_cache_gpu();
