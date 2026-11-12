@@ -7,6 +7,7 @@
 #include "stage.h"
 #include "theme.h"
 #include "title.h"
+#include "movie_spanish.h"
 #include "util.h"
 #include <math.h>
 #include <stdlib.h>
@@ -1309,13 +1310,37 @@ static void draw_cover(const App *a, int plat, const Game *g, const CoverPos *p,
         if (cased) case_shine(x, y, w, h, outline * outline * alpha);
         else case_shine(win.x, win.y, win.w, win.h, outline * outline * alpha);
     }
-    /* One translucent Blu-ray watermark, with no solid banner, extra spine,
-     * or 3D tag. It is drawn after the PS3 case/gloss so it stays legible
-     * without adding another texture upload or per-frame image decoding. */
+    /* Blu-ray films retain the PS3 case texture.  3D branding is an
+     * unambiguous label INSIDE the visible case, not an invented claim that
+     * a generic poster is an original commercial 3D cover scan.
+     * Render the Spanish title over imported English posters, too. */
     if (plat == PLAT_BDISO) {
-        d_text_fit(&g_font_main, x + w * 0.74f, y + h * 0.055f,
-                   h * 0.036f, shade(0xFFFFFFFFu, b, alpha * 0.68f),
-                   "Blu-ray", ALIGN_CENTER, w * 0.42f);
+        const char *path=lib_path(a->lib,g);
+        int is3d=movie_filename_is_3d(path);
+        const char *visible=lib_title(a->lib,g);
+        if (art>0.001f && visible && visible[0] && win.h>30.0f) {
+            float bh=win.h*0.16f;
+            d_rect_grad(win.x,win.y+win.h-bh,win.w,bh,
+                        sf_col_alpha(0x07101BD5u,alpha*art*0.82f),
+                        sf_col_alpha(0x07101BEFu,alpha*art*0.92f));
+            d_text_fit(&g_font_main,win.x+win.w*0.5f,
+                       win.y+win.h-bh*0.44f,bh*0.40f,
+                       sf_col_alpha(0xFFFFFFFFu,alpha*art),
+                       visible,ALIGN_CENTER,win.w*0.91f);
+        }
+        if (is3d) {
+            float bw=win.w*0.68f,bh=win.h*0.075f;
+            float bx=win.x+win.w*0.5f-bw*0.5f, by=win.y+win.h*0.012f;
+            d_rrect(bx,by,bw,bh,bh*0.25f,
+                    sf_col_alpha(0x063B71E9u,alpha*0.92f));
+            d_text_fit(&g_font_main,bx+bw*0.5f,by+bh*0.53f,
+                       bh*0.58f,sf_col_alpha(0xFFFFFFFFu,alpha),
+                       "BLU-RAY 3D",ALIGN_CENTER,bw*0.94f);
+        } else {
+            d_text_fit(&g_font_main,x+w*0.74f,y+h*0.055f,
+                       h*0.036f,shade(0xFFFFFFFFu,b,alpha*0.68f),
+                       "Blu-ray",ALIGN_CENTER,w*0.42f);
+        }
     }
 }
 
