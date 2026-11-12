@@ -29,6 +29,7 @@
 #include "sf_cobra_mount.h"
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
+#include "sf_usb_diag.h"
 #include "util.h"
 #include "ui.h"
 
@@ -287,6 +288,8 @@ int main(int argc, const char *argv[])
     /* Create a persistent trace BEFORE any graphics, pad, audio or UI work.
      * This separates an early startup freeze from a Cobra mount freeze. */
     ps3_fs_mkdirs();
+    rc = sf_usb_diag_begin();
+    log_printf("usb_diag: report open status=%d at " SF_USB_DIAG_PATH,rc);
     rc = cover_diag_start(SF_DATA_DIR "/diagnostico_portadas.txt");
     log_printf("bdiso diag: report open status=%d at " SF_DATA_DIR "/diagnostico_portadas.txt",rc);
     cover_diag("INICIO","El programa arranco. Solo portadas BDISO. No altera ISO ni COVERS");
@@ -296,6 +299,7 @@ int main(int argc, const char *argv[])
         log_printf("cobra early-probe build EARLY_PROBE_20261109_R1, startup result=%d", rc);
     }
     sf_cobra_diag_report_previous();
+    sf_usb_diag_snapshot("PRE_NATIVE_NTFS",NULL,NULL,usb_media_mask());
 
     tiny3d_Init(VERTEX_BUFFER_BYTES);
     if (sf_cobra_diag_startup("AFTER_TINY3D_INIT") != 0)
@@ -331,6 +335,7 @@ int main(int argc, const char *argv[])
     host.read_at = ps3_read_at;
     host.ntfs_refresh = ntfs_refresh;
     host.usb_media_mask = usb_media_mask;
+    host.usb_diag = sf_usb_diag_snapshot;
     host.ntfs_bdiso_online = sf_bdntfs_index_online;
     host.music_dir = SF_MUSIC_DIR;
     host.bg_dir = SF_BG_DIR;
@@ -353,6 +358,7 @@ int main(int argc, const char *argv[])
 #endif
     /* Movie-only native NTFS discovery. Other platforms remain untouched. */
     rc=sf_bdntfs_start();
+    sf_usb_diag_snapshot("POST_NATIVE_NTFS",NULL,NULL,usb_media_mask());
     log_printf("bdiso: NTFS volumes discovered=%d",rc);
     cover_diag("NTFS","volumenes_detectados=%d; si es 0, la app no puede leer JPG NTFS",rc);
     (void)sf_cobra_diag_startup("BEFORE_APP_INIT");
