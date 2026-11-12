@@ -1282,9 +1282,14 @@ static void draw_cover(const App *a, int plat, const Game *g, const CoverPos *p,
             float hue = (float)(sf_hash(title) & 0xFFFF) / 65535.0f;
             uint32_t cc = sf_hsv(hue, 0.42f, 0.58f, 255);
             d_rect_grad(win.x, win.y, win.w, win.h, shade(col_mul(cc, g_light_top), b, pa), shade(col_mul(cc, g_light_bot), b, pa));
-            d_rect(win.x, win.y, win.w, win.h * 0.085f, shade(plat == PLAT_BDISO ? 0x1678C7FFu : TH_CASE_HEADER, b, pa * 0.85f));
-            d_text_fit(&g_font_main, win.x + d_xu(win.h * 0.025f), win.y + win.h * 0.045f, win.h * 0.050f,
-                       shade(0xFFFFFFD0u, b, pa), k_plat_case[plat], ALIGN_LEFT, win.w * 0.9f);
+            /* BDISO's only branding is its subtle Blu-ray overlay on the
+             * PS3 case below. Other platforms keep their normal title strip. */
+            if (plat != PLAT_BDISO) {
+                d_rect(win.x, win.y, win.w, win.h * 0.085f,
+                       shade(TH_CASE_HEADER, b, pa * 0.85f));
+                d_text_fit(&g_font_main, win.x + d_xu(win.h * 0.025f), win.y + win.h * 0.045f, win.h * 0.050f,
+                           shade(0xFFFFFFD0u, b, pa), k_plat_case[plat], ALIGN_LEFT, win.w * 0.9f);
+            }
             d_text_box(&g_font_main, win.x + win.w * 0.5f, win.y + win.h * 0.40f, win.w * 0.84f, h * 0.068f, 4,
                        shade(0xFFFFFFF0u, b, pa), title);
         }
@@ -1296,37 +1301,21 @@ static void draw_cover(const App *a, int plat, const Game *g, const CoverPos *p,
                   shade(sf_col_mix(g_light_top, g_light_bot, t0), b, alpha * art),
                   shade(sf_col_mix(g_light_top, g_light_bot, t1), b, alpha * art));
     }
-    /* BDISO is a persistent blue Blu-ray case with a translucent spine,
-       distinct from the movie poster itself. The same shell works for
-       Blu-ray and Blu-ray 3D artworks. No per-frame image decoding. */
-    if (plat == PLAT_BDISO) {
-        float head = h * 0.086f, spine = w * 0.035f;
-        const char *path = lib_path(a->lib, g), *z = path;
-        int movie3d = 0;
-        for (; z && z[0] && z[1]; ++z) {
-            if (z[0] == '3' && (z[1] == 'D' || z[1] == 'd')) { movie3d=1; break; }
-        }
-        d_rect_grad(x, y, w, head,
-                    shade(0x277BE6FFu, b, alpha * 0.92f),
-                    shade(0x08357CFFu, b, alpha * 0.96f));
-        d_rect_grad(x, y + head, spine, h - head,
-                    shade(0x4C9EE5FFu,b,alpha * 0.78f),
-                    shade(0x103E79FFu,b,alpha * 0.76f));
-        d_rect(x + w * 0.987f, y + head, w * 0.013f, h - head,
-               shade(0x2D7EC2FFu,b,alpha * 0.58f));
-        d_text_fit(&g_font_main,x + w * 0.08f,y + head * 0.52f,
-                   head * 0.45f,shade(0xFFFFFFFFu,b,alpha),
-                   "Blu-ray", ALIGN_LEFT, w * 0.66f);
-        if (movie3d)
-            d_text_fit(&g_font_main,x+w*0.77f,y+head*0.52f,
-                       head*0.38f,shade(0xFFFFFFFFu,b,alpha),
-                       "3D",ALIGN_LEFT,w*0.18f);
-    }
+    /* BDISO reuses the exact PS3 case texture and geometry. The former
+     * opaque blue Blu-ray header/spine must not cover movie artwork. */
     if (cased) d_image_v(g_case_tex[plat], x, y, w, h, 0.0f, 1.0f, shade(g_light_top, b, alpha),
                          shade(g_light_bot, b, alpha));   /* plastic + gloss over the art */
     if (outline > 0.0f && g_light_k > 0.0f) {
         if (cased) case_shine(x, y, w, h, outline * outline * alpha);
         else case_shine(win.x, win.y, win.w, win.h, outline * outline * alpha);
+    }
+    /* One translucent Blu-ray watermark, with no solid banner, extra spine,
+     * or 3D tag. It is drawn after the PS3 case/gloss so it stays legible
+     * without adding another texture upload or per-frame image decoding. */
+    if (plat == PLAT_BDISO) {
+        d_text_fit(&g_font_main, x + w * 0.74f, y + h * 0.055f,
+                   h * 0.036f, shade(0xFFFFFFFFu, b, alpha * 0.68f),
+                   "Blu-ray", ALIGN_CENTER, w * 0.42f);
     }
 }
 
