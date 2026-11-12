@@ -60,6 +60,8 @@ jobs:
           ./build-host/test_movie_edition
       # Includes the V13 regular-poster migration, Spanish-first policy,
       # manually supplied cover priority and the watermark-only visual gate.
+      - name: V15.9 PS1 true CUE/BIN tracks, Libretro exact-title source and HDD JPEG recovery
+        run: python3 tests/test_ps1_cue_bin_recovery.py
       - name: V15.8 PS1 covers serial and verified source regressions
         run: python3 tests/test_ps1_cover_fix.py
       - name: V15.7 FlowMovie native NTFS retry and real hardware log regression
@@ -292,6 +294,16 @@ jobs:
           gh release create spookyflow-v15-8-caratulas-ps1 SPOOKYFLOW_V15_8_CARATULAS_PS1_FIX.pkg --target "$GITHUB_SHA" \
             --title "SpookyFlow V15.8 - Caratulas PS1 mejoradas" \
             --notes "Correccion exclusiva PS1: deteccion de seriales SLUS SCUS SLES y otros en nombres CHD PBP BIN y CUE cuando no se lee el ID interno; seleccion del data TRACK en CUE multifichero; fuente verificada xlenore prioritaria y reintentos frente a marcadores 404 antiguos; log por titulo sin serial, no disponible online o error de red. BDISO V15.7, PS2 y PS3 sin cambios funcionales. Pruebas automatizadas y PKG verificados; validar portadas en PS3 real."
+
+      - name: Publish direct V15.9 real PS1 CUE BIN covers fix
+        if: github.ref == 'refs/heads/fix/ps1-cue-bin-association-v15-9'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp spookyflow.pkg SPOOKYFLOW_V15_9_CARATULAS_PS1_CUE_BIN.pkg
+          gh release create spookyflow-v15-9-ps1-cue-bin-covers SPOOKYFLOW_V15_9_CARATULAS_PS1_CUE_BIN.pkg --target "$GITHUB_SHA" \
+            --title "SpookyFlow V15.9 - Caratulas PS1 CUE y BIN" \
+            --notes "PS1: CUE/BIN multi-track con FILE y nombres no coincidentes se agrupan como un solo juego; se detecta serial del CUE si existe; si no hay serial/404, busca nombre exacto con region en la biblioteca real de Libretro/RetroArch. Recupera JPEG progresivo descargado en HDD si el decodificador hardware lo rechaza. Invalida solo antiguos marcadores/caches negativos de PS1. Incluye por juego en log.txt: GAME serial, EXISTING_COVER, SEARCH, SOURCE status, NETWORK_ERROR, NO_ART_ON_SOURCES. PS2, PS3 y BDISO 3D conservan V15.8/V15.7. Pruebas y PKG verificadas; comprobar los juegos reales en PS3."
 
   ps3-pkg-docker:
     needs: host-tests
