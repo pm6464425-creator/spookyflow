@@ -2498,7 +2498,7 @@ static void draw_storage(const App *a)
         const GameList *gl = &a->lib->tab[p];
         uint64_t s = 0;
         int i, n = 0, u = 0;
-        static const char *const names[PLAT_COUNT] = { "PS1", "PS2", "PS3" };
+        static const char *const names[PLAT_COUNT] = { "PS1", "PS2", "PS3", "BDISO" };
         for (i = 0; i < gl->count && !gl->demo; i++) {
             const Game *g = &gl->games[i];
             if (g->flags & GAME_DEMO) continue;
@@ -2507,8 +2507,8 @@ static void draw_storage(const App *a)
         }
         total += s; ngames += n; unknown += u;
         d_text(&g_font_main, lx, yy, em, sf_col_alpha(head, al), names[p], ALIGN_LEFT);
-        if (n == 0) sf_strlcpy(buf, "No games", sizeof(buf));
-        else snprintf(buf, sizeof(buf), "%d game%s", n, n == 1 ? "" : "s");
+        if (n == 0) sf_strlcpy(buf, p == PLAT_BDISO ? "No movies" : "No games", sizeof(buf));
+        else snprintf(buf, sizeof(buf), p == PLAT_BDISO ? "%d movie%s" : "%d game%s", n, n == 1 ? "" : "s");
         d_text(&g_font_main, cx - iw * 0.08f, yy, em, sf_col_alpha(TH_TEXT_DIM, al), buf, ALIGN_CENTER);
         if (n > 0 && s > 0) sf_format_size(s, sz, sizeof(sz)); else sf_strlcpy(sz, n > 0 ? "Unknown" : "", sizeof(sz));
         d_text(&g_font_main, rxe, yy, em, sf_col_alpha(TH_TEXT, al), sz, ALIGN_RIGHT);
@@ -2516,7 +2516,7 @@ static void draw_storage(const App *a)
     }
     d_rect(lx, yy - 0.036f * H() * sc, iw, 0.0022f * H(), sf_col_alpha(TH_TAB_INACTIVE, al * 2.0f));
     yy += 0.012f * H() * sc;
-    d_text(&g_font_main, lx, yy, em * 1.08f, sf_col_alpha(TH_TEXT, al), "All Games", ALIGN_LEFT);
+    d_text(&g_font_main, lx, yy, em * 1.08f, sf_col_alpha(TH_TEXT, al), "All Media", ALIGN_LEFT);
     snprintf(buf, sizeof(buf), "%d game%s", ngames, ngames == 1 ? "" : "s");
     d_text(&g_font_main, cx - iw * 0.08f, yy, em * 1.08f, sf_col_alpha(TH_TEXT_DIM, al), buf, ALIGN_CENTER);
     if (total > 0) sf_format_size(total, sz, sizeof(sz)); else sf_strlcpy(sz, "0 GB", sizeof(sz));
