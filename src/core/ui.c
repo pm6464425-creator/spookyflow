@@ -1311,13 +1311,18 @@ static void draw_cover(const App *a, int plat, const Game *g, const CoverPos *p,
         if (cased) case_shine(x, y, w, h, outline * outline * alpha);
         else case_shine(win.x, win.y, win.w, win.h, outline * outline * alpha);
     }
-    /* Keep the original PS3-shaped case and the subtle Blu-ray text.
-     * 3D must be part of the actual poster image, not a stripe on the case.
-     * Spanish titles are displayed in the normal library UI. */
+    /* Preserve the original case: two SMALL translucent watermarks at
+     * opposite ends, and NO opaque band or label over the movie image.
+     * '3D' describes the ISO format; the downloaded movie poster is 2D. */
     if (plat == PLAT_BDISO) {
         d_text_fit(&g_font_main, x + w * 0.74f, y + h * 0.055f,
                    h * 0.036f, shade(0xFFFFFFFFu, b, alpha * 0.68f),
                    "Blu-ray", ALIGN_CENTER, w * 0.42f);
+        if(movie_filename_is_3d(lib_path(a->lib,g))) {
+            d_text_fit(&g_font_main, x + w * 0.22f, y + h * 0.055f,
+                       h * 0.036f, shade(0xFFFFFFFFu, b, alpha * 0.68f),
+                       "3D", ALIGN_CENTER, w * 0.24f);
+        }
     }
 }
 
