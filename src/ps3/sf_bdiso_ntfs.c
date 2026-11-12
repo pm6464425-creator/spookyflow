@@ -22,33 +22,93 @@ static const DISC_INTERFACE *const s_devices[8] = {
 };
 static ntfs_md *s_mount[8];
 static int s_count[8];
-static volatile int s_initialized;
+/* FLOW MOVIE scans every partition of each attached USB device.  Keep the
+ * partition containing /BDISO, not an arbitrary first partition. */
+static int s_partition[8] = {-1,-1,-1,-1,-1,-1,-1,-1};
 
-/* Deliberately mount only CLEAN NTFS filesystems; no recover/repair writes. */
+/* Do not disturb mounted game volumes; these handles belong only to BDISO. */
+static void bd_release_port(int u)
+{
+    int p;
+    if(u<0 || u>=8) return;
+    if(s_mount[u]) {
+        for(p=0;p<s_count[u];p++)
+            if(s_mount[u][p].name[0])
+                ntfsUnmount(s_mount[u][p].name,true);
+        free(s_mount[u]);
+        s_mount[u]=NULL;
+    }
+    s_count[u]=0;
+    s_partition[u]=-1;
+    PS3_NTFS_Shutdown(u);
+}
+
+static int bd_find_partition(int u)
+{
+    int p;
+    if(u<0 || u>=8 || !s_mount[u] || s_count[u]<=0) return -1;
+    for(p=0;p<s_count[u];p++) {
+        char dir[512];
+        size_t n=strlen(s_mount[u][p].name);
+        DIR_ITER *it;
+        int len;
+        if(n==0)continue;
+        len=snprintf(dir,sizeof(dir),"%s%sBDISO",
+                     s_mount[u][p].name,
+                     s_mount[u][p].name[n-1]==':'?"/":":/");
+        if(len<=0 || (size_t)len>=sizeof(dir))continue;
+        it=ps3ntfs_diropen(dir);
+        if(it){ps3ntfs_dirclose(it);return p;}
+    }
+    return -1;
+}
+
+/* Preserve FLOW MOVIE's NTFS mount flags, and scan all partitions.  Device
+ * errors are diagnosed rather than silently returning an empty BDISO list. */
 int sf_bdntfs_start(void)
 {
     int u,good=0;
-    /* Recheck only absent ports, so Rescan Library can detect USB drives
-       plugged in AFTER the app starts. Mounted partitions are not disturbed. */
-    for (u=0;u<8;u++) {
+    for(u=0;u<8;u++) {
         int n;
-        if(s_count[u]>0){good++;continue;}
-        if (!PS3_NTFS_IsInserted(u)) continue;
-        n=ntfsMountDevice(s_devices[u],&s_mount[u],NTFS_DEFAULT);
-        if (n>0 && s_mount[u]) {
+        int inserted=PS3_NTFS_IsInserted(u);
+        if(!inserted) {
+            if(s_count[u]>0) {
+                log_printf("bdiso: USB%03d removed; releasing native NTFS handles",u);
+                bd_release_port(u);
+            }
+            continue;
+        }
+        if(s_count[u]>0 && s_mount[u]) {
+            s_partition[u]=bd_find_partition(u);
+            if(s_partition[u]>=0) good++;
+            continue;
+        }
+        s_partition[u]=-1;
+        n=ntfsMountDevice(s_devices[u],&s_mount[u],NTFS_DEFAULT | NTFS_RECOVER);
+        if(n>0 && s_mount[u]) {
             s_count[u]=n;
-            good++;
-            log_printf("bdiso: native NTFS USB%03d mounted (%d partitions)",u,n);
+            s_partition[u]=bd_find_partition(u);
+            if(s_partition[u]>=0) {
+                good++;
+                log_printf("bdiso: USB%03d NTFS mounted, %d partitions; BDISO on partition %d",
+                           u,n,s_partition[u]);
+            } else {
+                log_printf("bdiso: USB%03d NTFS mounted, %d partitions; no /BDISO directory",
+                           u,n);
+            }
         } else {
-            if(s_mount[u]) {free(s_mount[u]);s_mount[u]=NULL;}
+            if(s_mount[u]){free(s_mount[u]);s_mount[u]=NULL;}
             s_count[u]=0;
-            log_printf("bdiso: USB%03d NTFS unavailable or dirty, disk left unchanged",u);
+            log_printf("bdiso: USB%03d NTFS mount failed (check cable, filesystem and power)",u);
         }
     }
-    s_initialized=1;
     return good;
 }
-int sf_bdntfs_has_port(int port) { return port>=0 && port<8 && s_count[port]>0; }
+int sf_bdntfs_has_port(int port)
+{
+    return port>=0 && port<8 && s_count[port]>0 &&
+           s_mount[port] && s_partition[port]>=0;
+}
 
 /* The public scanner path remains /dev_usb00N/BDISO/, matching FAT32.
  * Map it to the private libntfs prefix only after strict validation. */
@@ -67,14 +127,14 @@ int sf_bdntfs_path(const char *path, char *out, size_t cap)
         strstr(sub,"/./") || strstr(sub,"//") || strchr(sub,'\\')) return 0;
     if(strncmp(sub,"/BDISO",6)!=0 && strcmp(sub,"/")!=0) return 0;
     if (sub[0]=='/' && sub[1]=='B' && sub[6] && sub[6]!='/') return 0;
-    len=strlen(s_mount[u][0].name);
+    len=strlen(s_mount[u][s_partition[u]].name);
     if(!len) return 0;
     if(strcmp(sub,"/")==0) {
-        r=snprintf(out,cap,"%s%s",s_mount[u][0].name,
-                   s_mount[u][0].name[len-1]==':'?"/":":/");
+        r=snprintf(out,cap,"%s%s",s_mount[u][s_partition[u]].name,
+                   s_mount[u][s_partition[u]].name[len-1]==':'?"/":":/");
     } else {
-        r=snprintf(out,cap,"%s%s%s",s_mount[u][0].name,
-                   s_mount[u][0].name[len-1]==':'?"":":",sub);
+        r=snprintf(out,cap,"%s%s%s",s_mount[u][s_partition[u]].name,
+                   s_mount[u][s_partition[u]].name[len-1]==':'?"":":",sub);
     }
     return r>0 && (size_t)r<cap;
 }
