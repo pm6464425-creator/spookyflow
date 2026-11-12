@@ -32,7 +32,7 @@ SCETOOL_FLAGS +=
 #---------------------------------------------------------------------------------
 # libraries: same set as the Tiny3D sprites2D sample, plus libsysfs for
 # sysFsOpendir/Readdir/Stat (Apollo Save Tool links it the same way).
-LIBS := $(CURDIR)/third_party/lib/libcobra.a $(CURDIR)/third_party/lib/libfatfs.a $(CURDIR)/third_party/lib/libntfs_ext.a -lstdc++ -ltiny3d -lrsx -lsimdmath -lgcm_sys -lio -lsysutil -laudio -lnet -lrt -lsysfs -llv2 -lpngdec -ljpgdec -lsysmodule -lm
+LIBS := -L$(CURDIR)/../third_party/lib -lcobra -lfatfs -lntfs_ext -lstdc++ -ltiny3d -lrsx -lsimdmath -lgcm_sys -lio -lsysutil -laudio -lnet -lrt -lsysfs -llv2 -lpngdec -ljpgdec -lsysmodule -lm
 
 CFLAGS   = -O2 -Wall -std=gnu99 -mcpu=cell $(MACHDEP) $(INCLUDE)
 
