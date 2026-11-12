@@ -122,6 +122,26 @@ static void movie_query(const char *stem,char *dst,size_t cap,int *year)
     }
     dst[o]='\0';
 }
+/* A few localized Blu-ray release names differ from the worldwide movie
+ * catalog titles. Apply aliases to the SEARCH term, not to the filename
+ * used for artwork on disk; manual JPG naming stays unchanged. */
+static void movie_search_alias(char *query,size_t cap)
+{
+    static const struct { const char *local,*catalog; } map[]={
+        {"Yo Robot","I Robot"},
+        {"Terminator 2 el Juicio Final","Terminator 2 Judgment Day"},
+        {"Final Destination V","Final Destination 5"},
+        {"Warcraft The Beginning","Warcraft"},
+        {"How to Train Your Dragon II","How to Train Your Dragon 2"}
+    };
+    unsigned i;
+    for(i=0;i<sizeof(map)/sizeof(map[0]);i++){
+        if(sf_stricmp(query,map[i].local)==0){
+            snprintf(query,cap,"%s",map[i].catalog);
+            break;
+        }
+    }
+}
 static int encode_query(const char *src,char *dst,size_t cap)
 {
     static const char hex[]="0123456789ABCDEF";
@@ -466,6 +486,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     /* Manual art always wins. The worker invokes us only when art is missing. */
     if(ps3_fs_is_file(NULL,cover))return 1;
     movie_query(stem,query,sizeof(query),&year);
+    movie_search_alias(query,sizeof(query));
     if(!query[0] || encode_query(query,encoded,sizeof(encoded))!=0)return -5;
     is3d=movie_3d(stem);
     k=movie_key(dir,"TMDB_KEY.TXT",tmdb,sizeof(tmdb));
