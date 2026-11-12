@@ -33,6 +33,8 @@ jobs:
         run: python3 tests/test_bdiso_integration.py
       - name: Direct BDISO NTFS regression checks (29)
         run: python3 tests/test_bdiso_ntfs_fix.py
+      - name: PS3-style BDISO case visual regression checks (18)
+        run: python3 tests/test_bdiso_ps3_case.py
       - name: 30 identity and cover regression checks
         run: python3 tests/test_custom_identity.py
       - name: Render preview PNGs
