@@ -419,6 +419,71 @@ static void test_ps1_cover_download_retry(void)
     memfs_reset();
 }
 
+/* PS1 Redump CUE/BIN sets must appear as ONE cover per game.
+ * Real dumps have FILE names different from CUE names, often 20+ tracks.
+ * Earlier versions treated each "(Track NN).bin" as an independent game,
+ * all with no serial/cover. Reading CUE FILE directives is authoritative. */
+static void test_ps1_cue_bin_track_grouping(void)
+{
+    Scanner sc;
+    ScanRoot root[1]={{PLAT_PS1,"/dev_hdd0/PSXISO",SRC_HDD_ISO_DIR}};
+    const char *cue=
+        "REM GENRE GAME\r\n"
+        "FILE \"Resident Evil 2 (USA) (Track 01).bin\" BINARY\r\n"
+        "  TRACK 01 MODE2/2352\r\n"
+        "FILE \"Resident Evil 2 (USA) (Track 02).bin\" BINARY\r\n"
+        "  TRACK 02 AUDIO\r\n"
+        "FILE \"Resident Evil 2 (USA) (Track 03).bin\" BINARY\r\n"
+        "  TRACK 03 AUDIO\r\n";
+    const char *cue2=
+        "FILE \"Gran Turismo (USA).bin\" BINARY\n"
+        "  TRACK 01 MODE2/2352\n";
+    char names[PS1_CUE_REF_MAX][PS1_CUE_REF_NAME_MAX];
+    int i,c1=0,c2=0,solo=0,n;
+    printf("PS1 CUE BIN: authoritative multi-track grouping and no duplicate covers\\n");
+    n=discid_cue_files(cue,strlen(cue),names,PS1_CUE_REF_MAX);
+    CHECK(n==3);
+    CHECK_STR(names[0],"Resident Evil 2 (USA) (Track 01).bin");
+    CHECK_STR(names[1],"Resident Evil 2 (USA) (Track 02).bin");
+    CHECK_STR(names[2],"Resident Evil 2 (USA) (Track 03).bin");
+    CHECK(discid_cue_files("FILE \"DIR\\\\Game (Track 01).bin\" BINARY\n",
+                           strlen("FILE \"DIR\\\\Game (Track 01).bin\" BINARY\n"),
+                           names,PS1_CUE_REF_MAX)==1);
+    CHECK_STR(names[0],"Game (Track 01).bin");
+    memfs_reset();
+    memfs_put("/dev_hdd0/PSXISO/Resident Evil 2 (USA).cue",cue,(uint32_t)strlen(cue));
+    memfs_put("/dev_hdd0/PSXISO/Resident Evil 2 (USA) (Track 01).bin","one",3);
+    memfs_put("/dev_hdd0/PSXISO/Resident Evil 2 (USA) (Track 02).bin","audio",5);
+    memfs_put("/dev_hdd0/PSXISO/Resident Evil 2 (USA) (Track 03).bin","more",4);
+    memfs_put("/dev_hdd0/PSXISO/Gran Turismo (USA).cue",cue2,(uint32_t)strlen(cue2));
+    memfs_put("/dev_hdd0/PSXISO/Gran Turismo (USA).bin","original",8);
+    memfs_put("/dev_hdd0/PSXISO/Unrelated.bin","standalone",10);
+    lib_clear(&g_lib);
+    scanner_begin(&sc,root,1);
+    scanner_set_reader(&sc,mem_read_at,NULL);
+    while(!scanner_step(&sc,&g_lib,mem_list,NULL)){}
+    CHECK(sc.done);
+    CHECK(g_lib.tab[PLAT_PS1].count==3);
+    CHECK(sc.found[PLAT_PS1]==3);
+    for(i=0;i<g_lib.tab[PLAT_PS1].count;i++){
+        const Game *g=&g_lib.tab[PLAT_PS1].games[i];
+        const char *name=lib_title(&g_lib,g);
+        if(strcmp(name,"Resident Evil 2")==0){
+            c1++;
+            CHECK(g->size==(uint64_t)strlen(cue)+3+5+4);
+            CHECK(strstr(lib_path(&g_lib,g),".cue")!=NULL);
+        }else if(strcmp(name,"Gran Turismo")==0){
+            c2++;
+            CHECK(g->size==(uint64_t)strlen(cue2)+8);
+        }else if(strcmp(name,"Unrelated")==0){
+            solo++;
+        }
+        CHECK(strstr(name,"Track")==NULL);
+    }
+    CHECK(c1==1 && c2==1 && solo==1);
+    memfs_reset();
+}
+
 static int cand_has(const CoverCand *c, int n, const char *base)
 {
     int i;
