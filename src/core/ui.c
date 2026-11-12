@@ -3,6 +3,7 @@
 #include "cats.h"
 #include "icons.h"
 #include "log.h"
+#include "cover_diag.h"
 #include "render.h"
 #include "stage.h"
 #include "theme.h"
@@ -1426,6 +1427,26 @@ static void draw_flow_row(App *a, int tab, float xoff, float alpha)
             {
                 int slot = cc_lookup(&a->covers, tab, idx), tex = -1, no_cover = 1;
                 float art = 0.0f;
+                /* Log what the coverflow really sees. Only on state
+                 * changes; do not perform file I/O every 60fps frame. */
+                if (tab==PLAT_BDISO) {
+                    static int last_signature[CC_MAX_SLOTS], seen[CC_MAX_SLOTS];
+                    static int last_missing=-10000;
+                    if (slot>=0 && slot<CC_MAX_SLOTS) {
+                        const CcSlot *ds=&a->covers.slot[slot];
+                        int sig=(idx<<12) ^ (ds->state<<6) ^ (ds->tex+2);
+                        if(!seen[slot] || last_signature[slot]!=sig){
+                            seen[slot]=1;last_signature[slot]=sig;
+                            cover_diag(ds->state==CC_READY?"PANTALLA_OK":"PANTALLA_ESTADO",
+                                "indice=%d slot=%d state=%d tex=%d titulo=%s",
+                                idx,slot,ds->state,ds->tex,lib_title(a->lib,&gl->games[idx]));
+                        }
+                    } else if (idx==((int)(scroll+0.5f)) && idx!=last_missing) {
+                        last_missing=idx;
+                        cover_diag("PANTALLA_SIN","Película seleccionada sin slot: indice=%d titulo=%s",
+                                    idx,lib_title(a->lib,&gl->games[idx]));
+                    }
+                }
                 if (slot >= 0) {
                     const CcSlot *cs = &a->covers.slot[slot];
                     if (cs->state == CC_READY && cs->tex >= 0) {
