@@ -1,6 +1,5 @@
-/* Movie artwork: background-worker-only network lookup.
- * Priorities: genuine 3D Spanish edition, genuine 3D English edition,
- * normal Spanish release, normal English movie poster. No UI overlay. */
+/* Movie artwork: standard Spanish film posters first, English fallback.
+ * 3D is a subtle watermark in the case, NEVER part of the image search. */
 #include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -24,19 +23,6 @@
 #define MOVIE_CAND_MAX 16
 static uint64_t s_attempted[64];
 static unsigned s_attempt_index;
-/* Independent retry guard for repairing previously saved JPEGs which are
- * unsupported by the PS3 decoder (e.g. progressive cover scans). */
-static uint64_t hash_key(const char *s);
-static uint64_t s_repaired[64];
-static unsigned s_repair_index;
-static int repair_attempted(const char *path)
-{
-    uint64_t h=hash_key(path);
-    unsigned i;
-    for(i=0;i<64;i++)if(s_repaired[i]==h)return 1;
-    s_repaired[(s_repair_index++)%64]=h;
-    return 0;
-}
 /* The visible-case loader and Download Missing Covers can run on different
  * threads. Only one movie download may access its NTFS artwork and retry
  * table at a time. This prevents partially-written JPG files. */
@@ -53,8 +39,6 @@ void sf_bdiso_reset_attempts(void)
     art_lock();
     memset(s_attempted,0,sizeof(s_attempted));
     s_attempt_index=0;
-    memset(s_repaired,0,sizeof(s_repaired));
-    s_repair_index=0;
     art_unlock();
     log_printf("bdiso: poster lookup attempts reset for retry");
 }
@@ -71,13 +55,6 @@ static int attempted(const char *path)
     unsigned i;
     for(i=0;i<64;i++) if(s_attempted[i]==h) return 1;
     s_attempted[(s_attempt_index++)%64]=h;
-    return 0;
-}
-static int movie_3d(const char *s)
-{
-    for(;s[0]&&s[1];s++) {
-        if(s[0]=='3' && (s[1]=='d'||s[1]=='D')) return 1;
-    }
     return 0;
 }
 static void iso_stem(const char *path,char *out,size_t cap)
@@ -499,7 +476,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     char local_es[256]="",slug[280]="";
     MovieCandidate candidates[MOVIE_CAND_MAX];
     uint32_t n=0;
-    int year=0,id=0,port,status=-1,count=0,i,k,repair=0;
+    int year=0,id=0,port,status=-1,count=0,i,k;
     if(!iso_path || strncmp(iso_path,"/dev_usb00",10)!=0 ||
        iso_path[10]<'0'||iso_path[10]>'7'||iso_path[11]!='/')return -1;
     port=iso_path[10]-'0';
@@ -539,8 +516,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
         cover_diag("DESCARGA","Portada normal PNG ya existe: %s",coverpng);
         return 1;
     }
-    repair=ps3_fs_is_file(NULL,cover);
-    if(repair) {
+    if(ps3_fs_is_file(NULL,cover)) {
         /* JPG already regular: never redownload or overwrite. */
         cover_diag("DESCARGA","Portada normal JPG ya existe: %s",cover);
         return 1;
@@ -565,7 +541,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     (void)movie_spanish_title(stem,NULL,local_es,sizeof(local_es));
     if(!tmdb[0] && !omdb[0])
         log_printf("bdiso: no API key in USB BDISO/COVERS; trying keyless public movie catalog");
-    if(!repair && attempted(iso_path))return -2;
+    if(attempted(iso_path))return -2;
     log_printf("bdiso: starting online poster search for %s (TMDB=%s OMDb=%s)",
                stem,tmdb[0]?"yes":"no",omdb[0]?"yes":"no");
     json=(unsigned char*)malloc(MOVIE_JSON_MAX+1);
