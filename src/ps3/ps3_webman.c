@@ -248,6 +248,45 @@ static int conn_recv(HttpConn *c, uint8_t *buf, uint32_t n)
     return (int)netRecv(c->s, buf, n, 0);
 }
 
+/* Some modern poster CDNs send chunked bodies even to HTTP/1.0 clients.
+ * Turn the received body into a contiguous JSON/JPEG buffer before any
+ * consumer validates the JPEG signature or parses its JSON. */
+static int http_dechunk(uint8_t *body, uint32_t *len)
+{
+    uint32_t rd=0,wr=0,total=*len;
+    for (;;) {
+        uint32_t n=0;
+        int digits=0;
+        while(rd<total && body[rd]!='\r' && body[rd]!='\n') {
+            unsigned char c=body[rd++];
+            unsigned v;
+            if(c==';') {
+                while(rd<total && body[rd]!='\r' && body[rd]!='\n')rd++;
+                break;
+            }
+            if(c>='0' && c<='9')v=c-'0';
+            else if(c>='a' && c<='f')v=c-'a'+10;
+            else if(c>='A' && c<='F')v=c-'A'+10;
+            else return -1;
+            if(n>0x0fffffffu)return -1;
+            n=(n<<4)|v;
+            digits++;
+        }
+        if(!digits || rd+1>=total || body[rd]!='\r' || body[rd+1]!='\n')
+            return -1;
+        rd+=2;
+        if(n==0) {
+            *len=wr;
+            return 0;   /* optional trailers are irrelevant to the body */
+        }
+        if(n>total-rd || wr>total-n) return -1;
+        memmove(body+wr,body+rd,n);
+        wr+=n;rd+=n;
+        if(rd+1>=total || body[rd]!='\r' || body[rd+1]!='\n')return -1;
+        rd+=2;
+    }
+}
+
 static int lower_eq(const char *a, const char *b, size_t n)
 {
     size_t i;
@@ -260,7 +299,7 @@ static int lower_eq(const char *a, const char *b, size_t n)
     return 1;
 }
 
-int ps3_http_get(void *ctx, const char *url, uint8_t *buf, uint32_t cap, uint32_t *len, char *loc, size_t loc_cap)
+static int ps3_http_get_single(void *ctx, const char *url, uint8_t *buf, uint32_t cap, uint32_t *len, char *loc, size_t loc_cap)
 {
     char host[128], req[640];
     const char *p, *path;
@@ -285,7 +324,7 @@ int ps3_http_get(void *ctx, const char *url, uint8_t *buf, uint32_t cap, uint32_
         char *colon = strchr(host, ':');
         if (colon) { port = atoi(colon + 1); *colon = '\0'; }
     }
-    n = snprintf(req, sizeof(req), "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: spookyflow/%s (PS3)\r\nAccept: */*\r\nConnection: close\r\n\r\n",
+    n = snprintf(req, sizeof(req), "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: spookyflow/%s (PS3)\r\nAccept: */*\r\nAccept-Encoding: identity\r\nConnection: close\r\n\r\n",
                  path[0] ? path : "/", host, APP_VERSION);
     if (n <= 0 || n >= (int)sizeof(req)) return COVER_HTTP_NET;
     if (netInitialize() < 0) return COVER_HTTP_NET;
@@ -296,13 +335,15 @@ int ps3_http_get(void *ctx, const char *url, uint8_t *buf, uint32_t cap, uint32_
         int r;
         if (got >= cap) { conn_close(&c); netDeinitialize(); return COVER_HTTP_BIG; }
         r = conn_recv(&c, buf + got, cap - got);
-        if (r <= 0) break;
+        if (r < 0) { conn_close(&c); netDeinitialize(); return COVER_HTTP_NET; }
+        if (r == 0) break;
         got += (uint32_t)r;
     }
     conn_close(&c);
     netDeinitialize();
     {   /* status line, headers, body */
         uint32_t i, hend = 0;
+        int chunked = 0;
         for (i = 0; i + 3 < got; i++)
             if (buf[i] == '\r' && buf[i + 1] == '\n' && buf[i + 2] == '\r' && buf[i + 3] == '\n') { hend = i + 4; break; }
         if (!hend || got < 12 || memcmp(buf, "HTTP/", 5) != 0) return COVER_HTTP_NET;
@@ -322,10 +363,34 @@ int ps3_http_get(void *ctx, const char *url, uint8_t *buf, uint32_t cap, uint32_
                 }
             }
         }
+        for (i=0;i+18<hend;i++) {
+            if ((i==0 || buf[i-1]=='\n') &&
+                lower_eq((const char *)buf+i,"transfer-encoding:",18)) {
+                uint32_t j=i+18;
+                while(j<hend && (buf[j]==' ' || buf[j]=='\t'))j++;
+                if(j+7<hend && lower_eq((const char *)buf+j,"chunked",7))
+                    chunked=1;
+                break;
+            }
+        }
         *len = got - hend;
         memmove(buf, buf + hend, *len);
+        if(chunked && http_dechunk(buf,len)!=0)return COVER_HTTP_NET;
     }
     return status;
+}
+/* PS3 game-cover and movie-cover workers share netInitialize/netDeinitialize.
+ * Serialize public HTTP requests to avoid one worker deinitializing network
+ * while the other has an open connection. */
+static volatile int g_http_busy;
+int ps3_http_get(void *ctx, const char *url, uint8_t *buf, uint32_t cap,
+                 uint32_t *len, char *loc, size_t loc_cap)
+{
+    int result;
+    while(__sync_lock_test_and_set(&g_http_busy,1)) usleep(1000);
+    result=ps3_http_get_single(ctx,url,buf,cap,len,loc,loc_cap);
+    __sync_lock_release(&g_http_busy);
+    return result;
 }
 
 int ps3_webman_get_wait(const char *command, int timeout_s, char *out, size_t cap)
