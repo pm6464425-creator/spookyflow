@@ -1543,6 +1543,95 @@ static void test_usb_movie_hotplug(void)
     g_hotplug_mask=0;
 }
 
+/* V15.5 REPRODUCES THE REAL USER'S PS3 LOG:
+ * physical USB000 is mounted by native NTFS, /BDISO reads movie filenames,
+ * but sysFs cannot list the /dev_usb000 root. Original V15.4 scan reported
+ * SCANNER_USB_MOVIE_ROOTS=0 and BDISO_visible=0; native root injection must
+ * now list these titles and remove them again after the drive is unplugged.
+ * PS1/PS2/PS3 roots are not synthesized from an NTFS-only connection. */
+static uint32_t test_native_bdiso_ready_mask(void) { return g_hotplug_mask; }
+static int test_native_lv2_invisible(void *ctx,const char *dir,
+                                     FsEntry *out,int max)
+{
+    static const char *const movies[]={
+        "2010 How to Train Your Dragon 3D.iso",
+        "1991 Terminator 2 el Juicio Final 3D.iso",
+        "2001 Shrek 3D.iso",
+        "2004 Yo, Robot 3D.iso"
+    };
+    int i;
+    (void)ctx;
+    if(strcmp(dir,"/dev_usb000")==0) return -1; /* console's LV2 sysFs! */
+    if(strcmp(dir,"/dev_usb000/BDISO")==0 && g_hotplug_mask){
+        int n=max<4?max:4;
+        for(i=0;i<n;i++){
+            memset(&out[i],0,sizeof(out[i]));
+            sf_strlcpy(out[i].name,movies[i],FS_NAME_MAX);
+            out[i].size=(uint64_t)(i+1)*1024*1024;
+        }
+        return n;
+    }
+    return -1;
+}
+static void test_native_ntfs_bdiso_without_lv2_root(void)
+{
+    AppHost host;
+    int nb,n,nd,i,bd=0,other_usb=0;
+    const ScanRoot *base=scanner_default_roots(&nb),*roots;
+    Scanner scanner;
+    printf("REAL PS3 V15.4 regression: NTFS BDISO available but lv2 USB root missing\\n");
+    g_hotplug_mask=1;
+    roots=scanner_roots_with_usb_native(base,nb,test_native_lv2_invisible,
+                                        NULL,1,&n,&nd);
+    CHECK(n==nb+1 && nd==1);
+    for(i=0;i<n;i++){
+        if(strcmp(roots[i].path,"/dev_usb000/BDISO")==0 &&
+           roots[i].plat==PLAT_BDISO)bd++;
+        if(strncmp(roots[i].path,"/dev_usb000/",12)==0 &&
+           roots[i].plat!=PLAT_BDISO)other_usb++;
+    }
+    CHECK(bd==1 && other_usb==0);
+    lib_clear(&g_lib);
+    scanner_begin(&scanner,roots,n);
+    while(!scanner_step(&scanner,&g_lib,test_native_lv2_invisible,NULL)) { }
+    CHECK(g_lib.tab[PLAT_BDISO].count==4);
+    CHECK(scanner.found[PLAT_BDISO]==4);
+    roots=scanner_roots_with_usb_native(base,nb,test_native_lv2_invisible,
+                                        NULL,0,&n,&nd);
+    CHECK(n==nb && nd==0);
+    /* Also exercise actual App auto hotplug refresh, not only root creation. */
+    memset(&host,0,sizeof(host));
+    host.fs_list=test_native_lv2_invisible;
+    host.usb_media_mask=test_usb_mask;
+    host.native_bdiso_ready_mask=test_native_bdiso_ready_mask;
+    host.usb_diag=mock_usb_diag;
+    g_hotplug_mask=0;
+    app_init(&g_app,&g_lib,&host);
+    run_frames(0,LOAD_MIN_TIME+2.0f);
+    CHECK(g_app.mode==MODE_FLOW && g_lib.tab[PLAT_BDISO].count==0);
+    g_app.tab=PLAT_BDISO;
+    g_hotplug_mask=1;
+    run_frames(0,1.65f);
+    CHECK(g_app.mode==MODE_LOADING);
+    run_frames(0,3.0f);
+    CHECK(g_app.mode==MODE_FLOW);
+    CHECK(g_lib.tab[PLAT_BDISO].count==4);
+    CHECK(g_app.scanner.nroots==nb+1);
+    CHECK(g_app.tab==PLAT_BDISO);
+    g_hotplug_mask=0;
+    run_frames(0,1.65f);
+    run_frames(0,3.0f);
+    CHECK(g_app.mode==MODE_FLOW);
+    CHECK(g_lib.tab[PLAT_BDISO].count==0);
+    CHECK(g_app.scanner.nroots==nb);
+    g_hotplug_mask=1;
+    run_frames(0,1.65f);
+    run_frames(0,3.0f);
+    CHECK(g_app.mode==MODE_FLOW);
+    CHECK(g_lib.tab[PLAT_BDISO].count==4);
+    g_hotplug_mask=0;
+}
+
 /* V15.2 field regression: webMAN BDISO cache files with unusual or unreadable
  * rawseciso headers must not hide a present disk's movies. */
 static void test_usb_index_presence(void)
@@ -1636,6 +1725,7 @@ int main(void)
     test_bdiso_real_download();
     test_bdiso_flowmovie_manual_cover_paths();
     test_usb_movie_hotplug();
+    test_native_ntfs_bdiso_without_lv2_root();
     test_usb_index_presence();
     test_ntfs_movie_pointer_fallback();
     test_bdiso_cinema_crop_fill();
