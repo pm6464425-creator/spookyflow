@@ -31,7 +31,18 @@ const ScanRoot *scanner_default_roots(int *n)
     return k_roots;
 }
 
-const ScanRoot *scanner_roots_with_usb(const ScanRoot *base, int nbase, FsListFn list, void *ctx, int *n, int *ndrives)
+/* Some PS3 NTFS devices are available through native libntfs but their
+ * /dev_usb000 path is NOT exposed to lv2 sysFs.  V15.4 hardware diagnosis
+ * found exactly this: the NTFS volume and BDISO are readable, but the
+ * traditional USB-root probe excluded the media from the scan roots.
+ *
+ * Pass native_ready_mask from the PS3 host to inject BDISO-only scan roots
+ * for those ports, without inventing USB paths for PS1/PS2/PS3. The
+ * original 6 USB game root types are unchanged when lv2 detects a device. */
+const ScanRoot *scanner_roots_with_usb_native(const ScanRoot *base, int nbase,
+                                              FsListFn list, void *ctx,
+                                              uint32_t native_ready_mask,
+                                              int *n, int *ndrives)
 {
     static const struct { const char *dir; int plat, kind; } k_usb[] = {
         { "PS3ISO", PLAT_PS3, SRC_HDD_ISO_DIR }, { "GAMES", PLAT_PS3, SRC_HDD_GAME_FOLDERS },
@@ -49,10 +60,23 @@ const ScanRoot *scanner_roots_with_usb(const ScanRoot *base, int nbase, FsListFn
         char dev[16];
         FsEntry one;
         snprintf(dev, sizeof(dev), "/dev_usb%03d", p);
-        if (list(ctx, dev, &one, 1) <= 0) continue;         /* nothing in that port (or an empty drive) */
+        /* Native NTFS is not necessarily visible via lv2.  When a native
+         * BDISO partition is mounted, add its BDISO root even if the lv2
+         * /dev_usb00N probe returned 0 or -1. The filesystem listing of
+         * /dev_usb00N/BDISO is resolved independently by the PS3 host. */
+        int lv2_visible = list(ctx, dev, &one, 1) > 0;
+        int ntfs_bdiso_ready = p < 8 &&
+            (native_ready_mask & ((uint32_t)1u << p)) != 0;
+        if (!lv2_visible && !ntfs_bdiso_ready) continue;
         (*ndrives)++;
-        log_printf("scan: USB drive %s", dev);
+        if (ntfs_bdiso_ready && !lv2_visible)
+            log_printf("scan: native-only NTFS USB%03d: injecting /BDISO root (lv2 root absent)",p);
+        else
+            log_printf("scan: USB drive %s (native BDISO=%d)", dev,ntfs_bdiso_ready);
         for (i = 0; i < NU; i++) {
+            /* On an NTFS-only path, never add fake game roots; retain
+             * existing PS1/PS2/PS3 behavior and avoid unnecessary probes. */
+            if (!lv2_visible && k_usb[i].plat != PLAT_BDISO) continue;
             snprintf(paths[np], sizeof(paths[np]), "%s/%s", dev, k_usb[i].dir);
             roots[m].plat = k_usb[i].plat;
             roots[m].path = paths[np];
@@ -62,6 +86,15 @@ const ScanRoot *scanner_roots_with_usb(const ScanRoot *base, int nbase, FsListFn
     }
     *n = m;
     return roots;
+}
+
+/* Portable original API unchanged for previews, tests and other hosts.
+ * The PS3 host supplies native-ready ports with the dedicated variant. */
+const ScanRoot *scanner_roots_with_usb(const ScanRoot *base, int nbase,
+                                      FsListFn list, void *ctx,
+                                      int *n, int *ndrives)
+{
+    return scanner_roots_with_usb_native(base,nbase,list,ctx,0,n,ndrives);
 }
 
 void scanner_begin(Scanner *s, const ScanRoot *roots, int nroots)
