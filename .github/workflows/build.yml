@@ -111,12 +111,11 @@ jobs:
       # artifact ZIP/login) unlike some sandbox links in the chat client.
       - name: Publish direct-download PS3 PKG release
         if: github.ref == 'refs/heads/fix/bdiso-real-cover-download'
-        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           cp spookyflow.pkg MI_PKG_V6.pkg
-          gh release create mi-pkg-v6 MI_PKG_V5.pkg --target "$GITHUB_SHA" \
+          gh release create mi-pkg-v6 MI_PKG_V6.pkg --target "$GITHUB_SHA" \
             --title "MI PKG V6 - BDISO descarga de caratulas corregida" \
             --notes "Portadas BDISO automáticas con Cinemeta sin clave como respaldo; conserva PS3, PS2, PS1, lector NTFS, Cobra y estuche PS3/Blu-ray. Requiere pruebas de conexión en consola."
 
