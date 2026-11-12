@@ -18,6 +18,7 @@
 #include "log.h"
 #include "menu.h"
 #include "scanner.h"
+#include "bdiso_usb.h"
 #include "settings.h"
 #include "title.h"
 #include "ui.h"
@@ -1528,6 +1529,70 @@ static void test_usb_movie_hotplug(void)
     g_hotplug_mask=0;
 }
 
+/* V15.2 field regression: webMAN BDISO cache files with unusual or unreadable
+ * rawseciso headers must not hide a present disk's movies. */
+static void test_usb_index_presence(void)
+{
+    static const unsigned char be0[20]={
+        0x01,0x03,0x00,0x00,0x00,0x00,0x00,0x0a,0,0,0,1,0,0,0,1,0,0,0,0
+    };
+    static const unsigned char le0[20]={
+        0x0a,0x00,0x00,0x00,0x00,0x00,0x03,0x01,0,0,0,1,0,0,0,1,0,0,0,0
+    };
+    static const unsigned char unknown[20]={
+        0,0,0,0,0,0,0,0,0,0,0,1,0,0,0,1,0,0,0,0
+    };
+    printf("webMAN BDISO physical USB pointer compatibility\\n");
+    CHECK(bdiso_usb_pointer_port(be0,sizeof(be0))==0);
+    CHECK(bdiso_usb_pointer_port(le0,sizeof(le0))==0);
+    CHECK(bdiso_usb_pointer_port(unknown,sizeof(unknown))==-1);
+    CHECK(bdiso_usb_pointer_visible(be0,sizeof(be0),1));
+    CHECK(bdiso_usb_pointer_visible(le0,sizeof(le0),1));
+    CHECK(!bdiso_usb_pointer_visible(be0,sizeof(be0),2));
+    CHECK(bdiso_usb_pointer_visible(unknown,sizeof(unknown),1));
+    CHECK(bdiso_usb_pointer_visible(NULL,0,1));
+    CHECK(!bdiso_usb_pointer_visible(unknown,sizeof(unknown),0));
+    CHECK(!bdiso_usb_pointer_visible(NULL,0,0));
+}
+static uint32_t g_mock_ntfs_online_mask;
+static int mock_ntfs_visible(const unsigned char *data,size_t len)
+{
+    return bdiso_usb_pointer_visible(data,len,g_mock_ntfs_online_mask);
+}
+static int mock_index_dir(void *ctx,const char *dir,FsEntry *out,int max)
+{
+    (void)ctx;
+    if(strcmp(dir,NTFS_INDEX_DIR) || max<1) return -1;
+    memset(&out[0],0,sizeof(out[0]));
+    strcpy(out[0].name,"Under the Sea 3D.ntfs[BDISO]");
+    return 1;
+}
+static int mock_index_read(void *ctx,const char *path,uint64_t off,void *buf,uint32_t len)
+{
+    (void)ctx;(void)path;(void)off;(void)buf;(void)len;
+    return -1; /* historical pointer index unavailable while drive mounted */
+}
+static void test_ntfs_movie_pointer_fallback(void)
+{
+    Scanner scanner;
+    ScanRoot roots[1]={{ PLAT_PS3, NTFS_INDEX_DIR, SRC_NTFS_INDEX }};
+    printf("webMAN unreadable BDISO pointer with online/offline removable media\\n");
+    g_mock_ntfs_online_mask=1;
+    lib_clear(&g_lib);
+    scanner_begin(&scanner,roots,1);
+    scanner_set_reader(&scanner,mock_index_read,NULL);
+    scanner_set_bdiso_pointer_filter(&scanner,mock_ntfs_visible);
+    while(!scanner_step(&scanner,&g_lib,mock_index_dir,NULL)) { }
+    CHECK(g_lib.tab[PLAT_BDISO].count==1);
+    g_mock_ntfs_online_mask=0;
+    lib_clear(&g_lib);
+    scanner_begin(&scanner,roots,1);
+    scanner_set_reader(&scanner,mock_index_read,NULL);
+    scanner_set_bdiso_pointer_filter(&scanner,mock_ntfs_visible);
+    while(!scanner_step(&scanner,&g_lib,mock_index_dir,NULL)) { }
+    CHECK(g_lib.tab[PLAT_BDISO].count==0);
+}
+
 int main(void)
 {
     log_set_echo(0);
@@ -1557,6 +1622,8 @@ int main(void)
     test_bdiso_real_download();
     test_bdiso_flowmovie_manual_cover_paths();
     test_usb_movie_hotplug();
+    test_usb_index_presence();
+    test_ntfs_movie_pointer_fallback();
     test_bdiso_cinema_crop_fill();
     test_cover_process();
     test_cover_loader();
