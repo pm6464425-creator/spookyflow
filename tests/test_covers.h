@@ -414,8 +414,12 @@ static void test_ps1_cover_download_retry(void)
     d.http=test_ps1_http;
     d.auto_mode=1;
     cover_dl_run(&d);
-    CHECK(d.finished && d.n_noid==1 && d.n_got==0);
-    CHECK(g_ps1_http_calls==1); /* no guessed URLs for unidentifiable games */
+    /* No serial: V15.9 tries only the exact game filename on Libretro.
+     * A 404 never fabricates a cover and does not write a blank-ID marker. */
+    CHECK(d.finished && d.n_missing==1 && d.n_got==0);
+    CHECK(g_ps1_http_calls==1); /* no guessed serial; only an exact title request */
+    CHECK(memfs_find(COVER_DL_DIR "/Unknown Game.png")==NULL);
+    CHECK(memfs_find(COVER_DL_DIR "/.missing")==NULL);
     memfs_reset();
 }
 
