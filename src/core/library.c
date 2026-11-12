@@ -69,6 +69,26 @@ const char *lib_str(const Library *lib, uint32_t off)
     return lib->pool + off;
 }
 const char *lib_title(const Library *lib, const Game *g) { return lib_str(lib, g->title); }
+
+/* Reuse the existing string pool; no heap allocations or media-file renames. */
+int lib_set_title(Library *lib, int plat, int index, const char *title)
+{
+    char clean[TITLE_MAX];
+    uint32_t oldoff,off;
+    Game *g;
+    if (!lib || !title || !title[0] || plat<0 || plat>=PLAT_COUNT ||
+        index<0 || index>=lib->tab[plat].count) return -1;
+    title_clean(title,clean,sizeof(clean));
+    if (!clean[0])return -1;
+    g=&lib->tab[plat].games[index];
+    if(strcmp(lib_title(lib,g),clean)==0)return 0;
+    oldoff=g->title;
+    off=pool_add(lib,clean);
+    if(!off || off==oldoff)return -1;
+    g->title=off;
+    g->bucket=(uint8_t)title_bucket(clean,0);
+    return 0;
+}
 const char *lib_path(const Library *lib, const Game *g)  { return lib_str(lib, g->path); }
 const char *lib_id(const Library *lib, const Game *g)    { return lib_str(lib, g->id); }
 

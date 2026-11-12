@@ -61,6 +61,8 @@ int  lib_add(Library *lib, int plat, const char *path, const char *raw_name, uin
              const char *genre, int pmin, int pmax, int flags);
 const char *lib_str(const Library *lib, uint32_t off);
 const char *lib_title(const Library *lib, const Game *g);
+/* Dynamic display name, used by BDISO Spanish metadata after cover fetch. */
+int lib_set_title(Library *lib, int plat, int index, const char *title);
 const char *lib_path(const Library *lib, const Game *g);
 const char *lib_id(const Library *lib, const Game *g);
 /* Key for per-game settings: title ID if known, else the file name. */

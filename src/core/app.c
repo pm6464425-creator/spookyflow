@@ -36,11 +36,46 @@ static int load_cover(void *user, int tab, int index, int slot_id, CcSlot *slot)
 CcLoadFn app_cover_loader(void) { return load_cover; }
 
 /* the cover worker found a game's release year (from its title ID) */
+/* When Spanish metadata arrives after a cover download, refresh only
+ * the selected movie title. This performs one 128-byte read per finished
+ * cover, not per frame, and never rewrites the movie ISO. */
+static void movie_title_from_usb(App *a, int index)
+{
+    char path[SCAN_PATH_MAX],stem[FS_NAME_MAX],sidecar[SCAN_PATH_MAX];
+    char translated[TITLE_MAX+1];
+    const char *movie,*base,*slash;
+    size_t n,len;
+    int rc,i;
+    if(!a || !a->host.read_at || index<0 ||
+       index>=a->lib->tab[PLAT_BDISO].count)return;
+    movie=lib_path(a->lib,&a->lib->tab[PLAT_BDISO].games[index]);
+    if(strncmp(movie,"/dev_usb00",10)!=0 || movie[10]<'0'||movie[10]>'7')return;
+    slash=strrchr(movie,'/');
+    if(!slash)return;
+    base=slash+1;
+    sf_strlcpy(stem,base,sizeof(stem));
+    len=strlen(stem);
+    if(len>6 && sf_ends_with_i(stem,".iso.0"))stem[len-6]=0;
+    else if(len>4 && sf_ends_with_i(stem,".iso"))stem[len-4]=0;
+    else return;
+    n=(size_t)(slash-movie);
+    if(n>=sizeof(path))return;
+    memcpy(path,movie,n);path[n]=0;
+    if(snprintf(sidecar,sizeof(sidecar),"%s/COVERS/%s.title",path,stem)>=(int)sizeof(sidecar))return;
+    rc=a->host.read_at(a->host.fs_ctx,sidecar,0,translated,sizeof(translated)-1);
+    if(rc<=1 || rc>=TITLE_MAX)return;
+    translated[rc]=0;
+    for(i=0;i<rc;i++)
+        if(translated[i]=='\r'||translated[i]=='\n'){translated[i]=0;break;}
+    if(translated[0]) (void)lib_set_title(a->lib,PLAT_BDISO,index,translated);
+}
 static void cover_result(void *user, int tab, int index, int year)
 {
     App *a = (App *)user;
-    if (year <= 0 || tab < 0 || tab >= PLAT_COUNT || index < 0 || index >= a->lib->tab[tab].count) return;
-    a->lib->tab[tab].games[index].year = (uint16_t)year;
+    if(tab<0||tab>=PLAT_COUNT || index<0||
+       index>=a->lib->tab[tab].count)return;
+    if(year>0)a->lib->tab[tab].games[index].year=(uint16_t)year;
+    if(tab==PLAT_BDISO)movie_title_from_usb(a,index);
 }
 
 static void drop_covers(App *a)
