@@ -797,6 +797,10 @@ static void loading_update(App *a, float dt)
         break;
     case LOAD_SORT:
         finish_library(a);
+        if(a->host.usb_diag)
+            a->host.usb_diag(!a->rescan?"INITIAL_SCAN":
+                              a->usb_auto_rescan?"HOTPLUG_RESCAN":"MANUAL_RESCAN",
+                              a->lib,&a->scanner,a->usb_last_mask);
         a->auto_covers_started = 0;
         sizes_start(a);
         scan_music(a);
