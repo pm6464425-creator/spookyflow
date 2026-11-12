@@ -29,6 +29,9 @@ jobs:
         run: make -f Makefile.host test
       - name: Cobra launch integration static checks
         run: python3 tests/test_cobra_integration.py
+      - name: Investigate authentic 3D poster websites (nonblocking)
+        continue-on-error: true
+        run: python3 tests/probe_cover_sources.py
       - name: BDISO integration checks (fourteen independent reviews)
         run: python3 tests/test_bdiso_integration.py
       - name: Direct BDISO NTFS regression checks (29)
