@@ -1,5 +1,6 @@
 /* coverart.c - find, decode, fit, cache and stream cover art (coverart.h). */
 #include "coverart.h"
+#include "ps1_name_match.h"
 #include "layout.h"
 #include "log.h"
 #include "cover_diag.h"
@@ -894,6 +895,8 @@ void cover_dl_run(CoverDl *d)
     const CoverIO *io = d->io;
     uint8_t *buf = (uint8_t *)malloc(COVER_DL_MAX_BYTES);
     int i, streak = 0, logged_tls = 0, odd = 0;
+    char *ps1_catalog=NULL;
+    size_t ps1_catalog_len=0;
     char (*urls)[COVER_URL_MAX] = (char (*)[COVER_URL_MAX])malloc((size_t)COVER_DL_URLS * COVER_URL_MAX);
     if (!buf || !urls || !io || !d->http) {
         sf_strlcpy(d->note, "Not enough memory to download", sizeof(d->note));
@@ -908,6 +911,32 @@ void cover_dl_run(CoverDl *d)
     if (!d->auto_mode && io->reset_movie_attempts)
         io->reset_movie_attempts(io->ctx);
     log_printf("covers: downloading missing covers (%d games and movies to check)", d->n);
+    /* The PS1 game-cover catalogue is a local text file bundled in the
+     * installed PKG, not a live website scrape performed on the console.
+     * It is loaded ONCE per cover pass, then source URLs are chosen only
+     * from names that actually exist in Libretro's regional archive.
+     * This is crucial for "Disney Tarzan Latino.cue": no cover image is
+     * hosted under that literal dump name, but Disney Tarzan (Spain).png
+     * is present in the real Libretro PS1 index. */
+    if(io->read_at) {
+        for(i=0;i<d->n;i++)if(d->item[i].plat==PLAT_PS1)break;
+        if(i<d->n) {
+            ps1_catalog=(char *)malloc(PS1_BOXART_INDEX_MAX+1u);
+            if(ps1_catalog) {
+                int nr=io->read_at(io->ctx,PS1_BOXART_INDEX,0,ps1_catalog,
+                                   PS1_BOXART_INDEX_MAX);
+                if(nr>=1000 && nr<(int)PS1_BOXART_INDEX_MAX) {
+                    ps1_catalog[nr]='\\0';
+                    ps1_catalog_len=(size_t)nr;
+                    log_printf("covers: ps1 CATALOG_LOADED bytes=%d",nr);
+                }else {
+                    log_printf("covers: ps1 CATALOG_UNAVAILABLE path=%s rc=%d",
+                               PS1_BOXART_INDEX,nr);
+                    free(ps1_catalog);ps1_catalog=NULL;
+                }
+            }else log_printf("covers: ps1 CATALOG_NO_MEMORY");
+        }
+    }
     for (i = 0; i < d->n && !d->cancel; i++) {
         CoverDlItem *it = &d->item[i];
         int nu, u, got = 0, neterr = 0, offline = 1, not_found_only = 1;
@@ -976,12 +1005,26 @@ void cover_dl_run(CoverDl *d)
          * No title guessing and NO effect on PS2, PS3 or BDISO. */
         nu=valid_serial ? cover_dl_urls(it->plat,it->id,urls,COVER_DL_URLS) : 0;
         if(it->plat==PLAT_PS1) {
-            if(nu<COVER_DL_URLS &&
+            int matched=0;
+            char real_cover_name[256];
+            if(ps1_catalog_len &&
+               ps1_name_catalog_match(it->path,ps1_catalog,ps1_catalog_len,
+                                      real_cover_name,sizeof(real_cover_name)) &&
+               nu<COVER_DL_URLS &&
+               ps1_name_catalog_url(real_cover_name,urls[nu],COVER_URL_MAX)) {
+                ps1_title_url_index=nu++;
+                matched=1;
+                log_printf("covers: ps1 NAME_MATCH local=%s remote=%s",
+                           it->path,real_cover_name);
+            }
+            if(!matched && nu<COVER_DL_URLS &&
                cover_dl_ps1_title_url(it->path,urls[nu],COVER_URL_MAX)) {
                 ps1_title_url_index=nu++;
+                log_printf("covers: ps1 NAME_NOT_IN_CATALOG exact_file_fallback=%s",
+                           it->path);
             }
-            log_printf("covers: ps1 SEARCH serial=%s exact_title_fallback=%d sources=%d path=%s",
-                       valid_serial?it->id:"NONE",ps1_title_url_index>=0,nu,it->path);
+            log_printf("covers: ps1 SEARCH serial=%s title_catalog=%d sources=%d path=%s",
+                       valid_serial?it->id:"NONE",matched,nu,it->path);
         }
         if(nu<=0) {
             it->state=DL_NOID;d->n_noid++;
@@ -1082,6 +1125,7 @@ void cover_dl_run(CoverDl *d)
     log_printf("covers: download done: %d added, %d not found online, %d already had one, %d with no title ID, %d failed%s%s",
                d->n_got, d->n_missing, d->n_have, d->n_noid, d->n_error, d->tls_needed ? " (some sources need HTTPS)" : "",
                d->cancel ? " (stopped)" : "");
+    free(ps1_catalog);
     free(buf); free(urls);
     __sync_synchronize();
     d->finished = 1;
