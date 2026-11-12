@@ -27,6 +27,18 @@ jobs:
       - uses: actions/checkout@v4
       - name: Unit tests (portable core, ASan + UBSan)
         run: make -f Makefile.host test
+      - name: Ensure fourth BDISO cover tab cannot be excluded again
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          h=Path("src/core/cover_cache.h").read_text()
+          c=Path("src/core/cover_cache.c").read_text()
+          t=Path("tests/test_core.c").read_text()
+          assert '#define CC_TABS             PLAT_COUNT' in h
+          assert 'if (count <= 0 || tab < 0 || tab >= CC_TABS) return;' in c
+          assert 'test_bdiso_cache_fourth_tab();' in t
+          print("PASS: BDISO index 3 included in cover cache and regression test")
+          PY
       - name: Cobra launch integration static checks
         run: python3 tests/test_cobra_integration.py
       - name: Real 3D release website and JPEG smoke checks
@@ -143,14 +155,14 @@ jobs:
       # GitHub release assets can be downloaded directly (without Actions
       # artifact ZIP/login) unlike some sandbox links in the chat client.
       - name: Publish direct-download PS3 PKG release
-        if: github.ref == 'refs/heads/diagnostic/bdiso-end-to-end-trace'
+        if: github.ref == 'refs/heads/fix/bdiso-fourth-tab-cover-cache'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp spookyflow.pkg MI_PKG_DIAGNOSTICO_V11.pkg
-          gh release create mi-pkg-diagnostico-v11 MI_PKG_DIAGNOSTICO_V11.pkg --target "$GITHUB_SHA" \
-            --title "MI PKG Diagnostico V11 - Diagnostico portadas BDISO" \
-            --notes "Compilacion de DIAGNOSTICO, sin cambios en estuches ni prioridades de arte. Instala, abre BDISO, selecciona 2 peliculas y pulsa Download Missing Covers. Envia /dev_hdd0/tmp/spookyflow/diagnostico_portadas.txt. El archivo registra SCAN/NTFS/HTTP/JPG/decodificacion/textura/carrusel para encontrar el primer fallo real en tu PS3."
+          cp spookyflow.pkg MI_PKG_V12_BDISO_FIX.pkg
+          gh release create mi-pkg-v12-bdiso-fix MI_PKG_V12_BDISO_FIX.pkg --target "$GITHUB_SHA" \
+            --title "MI PKG V12 - Solucion real caratulas BDISO" \
+            --notes "SOLUCION del fallo confirmado por diagnostico de PS3: la cache visual admitia solo 3 pestanas, mientras BDISO es la cuarta (indice 3). Ahora CC_TABS usa PLAT_COUNT=4 y se prueban las 26 caratulas en la cuarta pestana. Preserva estuche sin franjas, lector NTFS, covers manuales y busqueda 3D ES/EN. No borres las caratulas descargadas. Incluye diagnostico_portadas.txt para verificar que aparecen SOLICITUD / DECOD_OK / TEXTURA_OK / PANTALLA_OK."
 
   ps3-pkg-docker:
     needs: host-tests
