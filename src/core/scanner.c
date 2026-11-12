@@ -25,6 +25,13 @@ static FsEntry s_ent[SCAN_DIR_MAX];
 static char s_cue_title[CUE_MAX][TITLE_MAX];
 static int s_cue_game[CUE_MAX];
 
+/* PS1-only per-folder scratch. No stack allocation on the PS3 scan thread.
+ * A referenced BIN track is part of its CUE, not a second "game" that
+ * needs a separate cover. 32 KiB covers large Redump multi-track sheets. */
+static uint8_t s_ps1_cue_track[SCAN_DIR_MAX];
+static char s_ps1_cue_text[32768];
+static char s_ps1_cue_files[PS1_CUE_REF_MAX][PS1_CUE_REF_NAME_MAX];
+
 const ScanRoot *scanner_default_roots(int *n)
 {
     *n = SF_ARRAY_LEN(k_roots);
@@ -295,6 +302,8 @@ static void scan_iso_dir(Scanner *s, Library *lib, int plat, const char *dir, in
     int i, j, ncue = 0;
     char path[SCAN_PATH_MAX];
 
+    if(plat==PLAT_PS1)
+        memset(s_ps1_cue_track,0,sizeof(s_ps1_cue_track));
     for (i = 0; i < n; i++) {
         const FsEntry *e = &s_ent[i];
         if (e->name[0] == '.' ) continue;
@@ -308,12 +317,40 @@ static void scan_iso_dir(Scanner *s, Library *lib, int plat, const char *dir, in
             if (sf_ends_with_i(e->name, ".cue") && join(path, sizeof(path), dir, e->name)) {
                 int gi = lib_add(lib, plat, path, e->name, e->size, NULL, 0, 0, 0);
                 if (gi >= 0) {
+                    int linked=0;
                     s->found[plat]++;
                     if (ncue < CUE_MAX) {
                         title_clean(e->name, s_cue_title[ncue], TITLE_MAX);
                         s_cue_game[ncue] = gi;
                         ncue++;
                     }
+                    if(s->rd) {
+                        int nr,got=s->rd(s->rd_ctx,path,0,s_ps1_cue_text,
+                                        sizeof(s_ps1_cue_text)-1);
+                        if(got>0) {
+                            nr=discid_cue_files(s_ps1_cue_text,(size_t)got,
+                                                s_ps1_cue_files,PS1_CUE_REF_MAX);
+                            for(j=0;j<n;j++) {
+                                const FsEntry *track=&s_ent[j];
+                                int k;
+                                if(s_ps1_cue_track[j] || track->is_dir ||
+                                   !is_ps1_image(track->name))continue;
+                                for(k=0;k<nr;k++)
+                                    if(sf_stricmp(track->name,s_ps1_cue_files[k])==0) {
+                                        s_ps1_cue_track[j]=1;
+                                        lib->tab[plat].games[gi].size+=track->size;
+                                        linked++;
+                                        break;
+                                    }
+                            }
+                        }
+                    }
+                    if(linked)
+                        log_printf("scan: PS1 CUE %s owns %d BIN/IMG tracks (one game, one cover)",
+                                   e->name,linked);
+                    else
+                        log_printf("scan: PS1 CUE %s no matched data files (check FILE filenames)",
+                                   e->name);
                 }
             }
         } else {
@@ -373,7 +410,8 @@ static void scan_iso_dir(Scanner *s, Library *lib, int plat, const char *dir, in
             const FsEntry *e = &s_ent[i];
             char t[TITLE_MAX];
             int matched = 0;
-            if (e->is_dir || e->name[0] == '.' || !is_ps1_image(e->name)) continue;
+            if (e->is_dir || e->name[0] == '.' || !is_ps1_image(e->name) ||
+                s_ps1_cue_track[i]) continue;
             title_clean(e->name, t, sizeof(t));
             for (j = 0; j < ncue; j++) {
                 if (sf_stricmp(t, s_cue_title[j]) == 0) {
