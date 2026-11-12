@@ -60,6 +60,8 @@ jobs:
           ./build-host/test_movie_edition
       # Includes the V13 regular-poster migration, Spanish-first policy,
       # manually supplied cover priority and the watermark-only visual gate.
+      - name: BDISO physical USB auto-sync and stale NTFS-pointer regressions
+        run: python3 tests/test_bdiso_hotplug.py
       - name: Under the Sea 2009 IMDb identity and no-key poster regressions
         run: python3 tests/test_bdiso_undersea.py
       - name: Probe public poster for Under the Sea 2009 (nonblocking)
@@ -208,6 +210,16 @@ jobs:
           gh release create spookyflow-v15-1-bajo-el-mar-fix SPOOKYFLOW_V15_1_BAJO_EL_MAR_FIX.pkg --target "$GITHUB_SHA" \
             --title "SpookyFlow V15.1 - Bajo el mar 3D (2009)" \
             --notes "V15.1: agrega fuente sin API key mediante IMDb verificado tt1020876 para Under the Sea 3D (2009), también reconocido como Bajo el mar. Preserva carátulas manuales, posters 2:3, juegos y funcionamiento V15 sin cambios. Pruebas automatizadas aprobadas; verificación real en PS3 pendiente."
+
+      - name: Publish direct-download V15.2 USB hotplug PKG
+        if: github.ref == 'refs/heads/fix/bdiso-usb-hotplug-auto-sync'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp spookyflow.pkg SPOOKYFLOW_V15_2_USB_AUTO_DETECT.pkg
+          gh release create spookyflow-v15-2-usb-auto-detect SPOOKYFLOW_V15_2_USB_AUTO_DETECT.pkg --target "$GITHUB_SHA" \
+            --title "SpookyFlow V15.2 - Detectar peliculas al conectar/desconectar USB" \
+            --notes "V15.2: detecta conexion/desconexion USB en tiempo real con debounce; rescan automatico de BDISO sin prepNTFS bloqueante; elimina referencias BDISO de webMAN para discos retirados; vuelve a detectar peliculas al reconectar. Mantiene V15.1 (Bajo el mar), carteles 2:3 y PS1/PS2/PS3. Compilacion y pruebas host verificadas; comprobacion en PS3 pendiente."
 
   ps3-pkg-docker:
     needs: host-tests
