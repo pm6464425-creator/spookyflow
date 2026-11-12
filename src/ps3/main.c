@@ -44,6 +44,19 @@ static int g_saved_on_exit;
 
 /* Poll presence without touching native NTFS mount handles or files.
  * Port 0..7: native storage probe for NTFS; 0..10: LV2 sysFs FAT drives. */
+/* This is done ONCE when library loading prepares its USB roots, not
+ * every frame. libntfs can see disks that lv2 sysFs cannot enumerate. */
+static uint32_t native_bdiso_ready_mask(void)
+{
+    uint32_t mask=0;
+    int p,mounted=sf_bdntfs_start();
+    for(p=0;p<8;p++)
+        if(sf_bdntfs_has_port(p))mask|=(uint32_t)1u<<p;
+    log_printf("bdiso: native roots probe mounted=%d ready_mask=0x%02x",
+               mounted,(unsigned)mask);
+    return mask;
+}
+
 static uint32_t usb_media_mask(void)
 {
     uint32_t mask=sf_bdntfs_usb_present_mask();
