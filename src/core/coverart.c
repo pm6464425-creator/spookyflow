@@ -133,17 +133,25 @@ int cover_candidates(int plat, const char *game_path, int is_dir, const char *id
         if (npath && npath + 9 < sizeof(dir)) {
             memcpy(dir, game_path, npath); dir[npath] = '\0';
             memcpy(covers,dir,npath); memcpy(covers+npath,"/COVERS",8);
-            /* FlowMovie 3D already accepted manually placed JPGs matching
-             * the ISO name in the BDISO directory. Prefer that custom
-             * artwork to any previously automatically downloaded image. */
+            /* Two manual cover names alongside the ISO always win.
+             * Downloaded standard movie posters go in a NEW subfolder to
+             * supersede automatically fetched 3D-edition artwork without
+             * deleting any existing JPG in the legacy COVERS folder. */
             n=add(out,n,max,dir,"/",name);
-            n=add(out,n,max,covers,"/",name);
-            /* Some users name artwork with the full ISO filename, e.g.
-             * "Avatar 3D.iso.jpg" instead of "Avatar 3D.jpg". */
-            if (slash && slash[1]) {
+            if (slash && slash[1])
                 n=add(out,n,max,dir,"/",slash+1);
-                n=add(out,n,max,covers,"/",slash+1);
+            {
+                char normal[COVER_PATH_MAX];
+                if(snprintf(normal,sizeof(normal),"%s/NORMAL",covers)<(int)sizeof(normal)){
+                    n=add(out,n,max,normal,"/",name);
+                    if(slash && slash[1])
+                        n=add(out,n,max,normal,"/",slash+1);
+                }
             }
+            /* Old covers remain usable until the new normal one exists. */
+            n=add(out,n,max,covers,"/",name);
+            if (slash && slash[1])
+                n=add(out,n,max,covers,"/",slash+1);
         }
         return n;
     }
@@ -524,6 +532,7 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
         cover_diag("BUSQUEDA","ISO=%s | rutas_generadas=%d | base0=%s",
                    j->path,nc,nc?cand[0].base:"SIN RUTAS");
     if (j->plat == PLAT_BDISO && L->io.ensure_movie_art && L->io.is_file) {
+        int preferred=movie_has_normal_art(&L->io,j->path,j->is_dir,id);
         for(c=0;c<nc && !had_movie_art;c++) {
             for(e=0;e<SF_ARRAY_LEN(k_exts);e++) {
                 snprintf(f,sizeof(f),"%s%s",cand[c].base,k_exts[e]);
@@ -534,9 +543,9 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
                 }
             }
         }
-        if(!had_movie_art){
+        if(!preferred){
             int rc;
-            cover_diag("DESCARGA","No existia JPG/PNG. Buscando online ISO=%s",j->path);
+            cover_diag("DESCARGA","Sin portada normal preferida. Buscando online ISO=%s (legacy=%d)",j->path,had_movie_art);
             rc=L->io.ensure_movie_art(L->io.ctx,j->path);
             cover_diag("DESCARGA","Fin busqueda rc=%d (0=guardado,1=ya_existe; otros=fallo) ISO=%s",rc,j->path);
         }
@@ -722,6 +731,26 @@ int cover_dl_urls(int plat, const char *id, char out[][COVER_URL_MAX], int max)
     return n;
 }
 
+/* The legacy COVERS/*.jpg may be a previously downloaded 3D release.
+ * It is a fallback, not proof that the NEW regular-poster download ran.
+ * Only explicit manual artwork beside the ISO and COVERS/NORMAL count as
+ * preferred when refreshing the BDISO library. */
+static int movie_has_normal_art(const CoverIO *io,const char *path,int is_dir,
+                                const char *id)
+{
+    CoverCand c[6];
+    int n,i,e;
+    char file[COVER_PATH_MAX+16];
+    if(!io || !io->is_file)return 0;
+    n=cover_candidates(PLAT_BDISO,path,is_dir,id,NULL,c,6);
+    for(i=0;i<n && i<4;i++)
+        for(e=0;e<SF_ARRAY_LEN(k_exts);e++){
+            snprintf(file,sizeof(file),"%s%s",c[i].base,k_exts[e]);
+            if(io->is_file(io->ctx,file))return 1;
+        }
+    return 0;
+}
+
 int cover_has_art(const CoverIO *io, int plat, const char *path, int is_dir, uint64_t size, const char *id)
 {
     char f[COVER_PATH_MAX + 16];
@@ -780,9 +809,9 @@ void cover_dl_run(CoverDl *d)
         if (it->plat == PLAT_BDISO) {
             int result;
             cover_diag("DESCARGA_BTN","Comprobando %s",it->path);
-            if (cover_has_art(io, it->plat, it->path, it->is_dir, it->size, it->id)) {
+            if (movie_has_normal_art(io,it->path,it->is_dir,it->id)) {
                 it->state = DL_HAVE; d->n_have++;
-                cover_diag("DESCARGA_BTN","ALREADY_HAS_ART=%s (esto solo comprueba existencia, NO imagen visible)",it->path);
+                cover_diag("DESCARGA_BTN","NORMAL_OR_MANUAL=%s",it->path);
                 goto next;
             }
             if (!io->ensure_movie_art) {
@@ -792,7 +821,7 @@ void cover_dl_run(CoverDl *d)
             }
             result = io->ensure_movie_art(io->ctx, it->path);
             if ((result == 0 || result == 1) &&
-                cover_has_art(io, it->plat, it->path, it->is_dir, it->size, it->id)) {
+                movie_has_normal_art(io,it->path,it->is_dir,it->id)) {
                 it->state = DL_GOT; d->n_got++;
                 log_printf("bdiso: movie poster found/created for %s", it->path);
                 cover_diag("DESCARGA_BTN","ARCHIVO_GUARDADO=%s",it->path);
