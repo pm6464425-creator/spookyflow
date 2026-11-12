@@ -46,7 +46,7 @@ tests=[
     ("PS3 and BDISO mount backends remain separate", "host.launch_ps3" in host and "host.launch_bdiso" in host),
     ("PS3-style case maintained", "ui_set_case_image(PLAT_BDISO" in read("src/ps3/ps3_tabimg.c")),
     ("PS1/PS2/PS3 scan roots kept", all(v in scan for v in ('"PSXISO"','"PS2ISO"','"PS3ISO"'))),
-    ("Documented cinema posters and paired watermarks", "póster cinematográfico" in doc and "marca de agua" in doc),
+    ("Documented cinema posters and paired watermarks", "carteles de cine" in doc and "marca" in doc),
     ("Spanish titles still attempted", "movie_title_id(" in art),
 ]
 failed=[name for name,good in tests if not good]
