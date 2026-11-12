@@ -17,7 +17,7 @@ checks=[
  ("Never download Blu-ray 3D edition art",
    all(x not in art for x in ['"3D-ES-Mubis"', '"3D-ES-Edition"',
                               '"3D-EN-Edition"', '"2D-ES-Mubis"'])),
- ("Strict image poster HTML selector", 'alt="Cartel de' in poster and
+ ("Strict image poster HTML selector", '"Cartel de "' in poster and
     "title_score(" in poster),
  ("Only original SensaCine poster image host accepted",
    '"https://es.web.img"' in poster and '".acsta.net/"' in poster),
@@ -34,11 +34,11 @@ checks=[
  ("Manual poster can be placed alongside ISO",
    'n=add(out,n,max,dir,"/",name)' in covers),
  ("COVERS/MANUAL is explicitly supported",
-   '"/MANUAL"' in covers),
+   '"%s/MANUAL"' in covers),
  ("New SensaCine poster file path preferred over legacy artwork",
-   '"/CINE"' in covers and
+   '"%s/CINE"' in covers and
    'n=add(out,n,max,covers,"/",name)' not in covers and
-   '"/NORMAL"' not in covers),
+   '"%s/NORMAL"' not in covers),
  ("Old Blu-ray JPGs are not deleted",
    'movie_usb_write(cover,port,jpeg,bytes)' in art and
    '"%s/%s.jpg",normaldir,stem' in art),
