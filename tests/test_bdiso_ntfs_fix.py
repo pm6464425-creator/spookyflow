@@ -29,7 +29,7 @@ checks = [
     ("partition path uses selection instead of index zero",
      "s_mount[u][s_partition[u]].name" in ntfs and "s_mount[u][0].name" not in ntfs),
     ("only ports with BDISO exported", "s_partition[port]>=0" in ntfs),
-    ("USB unplug releases native handles", "if(!inserted)" in ntfs and "bd_release_port(u)" in ntfs),
+    ("USB unplug releases native handles", "if(!inserted)" in ntfs and "bd_release_port(u,1)" in ntfs),
     ("partitions unmounted only when still physically present", "if(!physical_removed)" in ntfs and "ntfsUnmount(s_mount[u][p].name,true)" in ntfs),
     ("hot unplug avoids device IO during cleanup", "bd_release_port(u,1)" in ntfs),
     ("native handles freed after unmount", "free(s_mount[u]);" in ntfs),
@@ -47,7 +47,7 @@ checks = [
     ("original game scanning unaffected", all(x in scanner for x in ['"PS3ISO"','"PS2ISO"','"PSXISO"'])),
     ("coverflow BDISO navigation retained", "PLAT_BDISO" in flow),
     ("NTFS and Cobra libs remain linked", "-lntfs_ext" in makefile and "-lcobra" in makefile),
-    ("no read-only validation masquerades as real hardware test", True),
+    ("NTFS path mapping restricted to BDISO", 'strncmp(sub,"/BDISO",6)' in ntfs),
 ]
 if __name__ == "__main__":
     failed = [label for label, good in checks if not good]
