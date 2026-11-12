@@ -98,7 +98,7 @@ int movie_edition_mubis_normal_html(const char *page,char *poster,size_t cap)
  */
 typedef struct {const char *name;int year;int es,en;} Edition;
 static const Edition k_editions[]={
- {"avatar",2009,0,210144},
+ {"avatar",2009,0,0}, /* Russian release excluded: not English text */
  {"thor",2011,0,82808},
  {"shrek",2001,0,30402},
  {"cars",2006,0,82250},
