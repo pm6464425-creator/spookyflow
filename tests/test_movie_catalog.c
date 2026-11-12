@@ -39,7 +39,11 @@ int main(void)
     test_movie("How to Train Your Dragon 2","How to Train Your Dragon II",2014,1);
     test_movie("Batman v Superman: Dawn of Justice","Batman v Superman Dawn of Justice",2016,1);
     test_movie("Terminator 2: Judgment Day","Terminator 2 el Juicio Final",1991,1);
-    test_movie("Thor","Thor",2012,0);
+    /* A genuine year mismatch: response says 2011, ISO says 2012. */
+    CHECK(!movie_catalog_pick("{\"metas\":[{\"name\":\"Thor\","
+        "\"releaseInfo\":\"2011\","
+        "\"poster\":\"https://image.tmdb.org/t/p/w500/thor.jpg\"}]}",
+        "Thor",2012,poster,sizeof(poster),title,sizeof(title)));
     test_movie("Avengers","Thor",2011,0);
     CHECK(!movie_catalog_pick("{\"metas\":[{\"name\":\"Thor\","
         "\"poster\":\"https://evil.example/test.jpg\","
