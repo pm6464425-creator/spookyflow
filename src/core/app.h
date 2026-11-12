@@ -169,6 +169,14 @@ typedef struct {
     uint32_t usb_candidate_mask;
     float usb_poll_t;
     int usb_candidate_hits;
+    /* Original FlowMovie 3D periodically retries native NTFS mounting after
+     * insertion. Preserve newly attached ports until their BDISO partition
+     * is mounted; never decide final scan roots from the first failed probe. */
+    uint32_t usb_ntfs_pending_mask;
+    uint32_t usb_ntfs_probed_mask;
+    float usb_ntfs_retry_t;
+    int usb_ntfs_retry_attempts;
+    int usb_ntfs_probed_valid;
     int scan_async;         /* scan running on a worker thread */
     void *sizes;            /* 0.9.0: the folder games' sizes being worked out (SizeJob, app.c) */
     void *sizes_orphan;     /* a job a rescan cancelled, freed when its thread is done */
