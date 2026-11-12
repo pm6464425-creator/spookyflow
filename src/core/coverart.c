@@ -476,7 +476,7 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
 {
     char stem[COVER_PATH_MAX], f[COVER_PATH_MAX + 16], id[16];
     CoverCand *cand;
-    int nc, c, e, ok = 0;
+    int nc, c, e, pass, ok = 0, had_movie_art = 0;
     int cache = j->plat != PLAT_BDISO && L->io.cache_dir && L->io.write_file;
 
     if (cache) {
@@ -504,35 +504,45 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
     if (!cand) return 0;
     nc = cover_candidates(j->plat, j->path, j->is_dir, id, L->dir_ok, cand, COVER_MAX_CANDS);
     if (j->plat == PLAT_BDISO && L->io.ensure_movie_art && L->io.is_file) {
-        int found=0;
-        for(c=0;c<nc && !found;c++) {
+        for(c=0;c<nc && !had_movie_art;c++) {
             for(e=0;e<SF_ARRAY_LEN(k_exts);e++) {
                 snprintf(f,sizeof(f),"%s%s",cand[c].base,k_exts[e]);
-                if(L->io.is_file(L->io.ctx,f)) { found=1; break; }
+                if(L->io.is_file(L->io.ctx,f)) { had_movie_art=1; break; }
             }
         }
-        if(!found) (void)L->io.ensure_movie_art(L->io.ctx,j->path);
+        if(!had_movie_art)(void)L->io.ensure_movie_art(L->io.ctx,j->path);
     }
-    for (c = 0; c < nc && !ok; c++) {
-        for (e = 0; e < SF_ARRAY_LEN(k_exts) && !ok; e++) {
-            uint8_t *rgba = NULL;
-            int w = 0, h = 0;
-            snprintf(f, sizeof(f), "%s%s", cand[c].base, k_exts[e]);
-            if (!L->io.is_file || !L->io.is_file(L->io.ctx, f)) continue;
-            if (!png_size_ok(L, f)) break;
-            if (!L->io.decode || L->io.decode(L->io.ctx, f, &w, &h, &rgba) != 0 || !rgba) {
-                log_printf("covers: could not decode %s", f);
+    /* A saved movie JPEG can exist yet be unrenderable on PS3 (for
+     * example a progressive JPEG). Retry once to obtain an equivalent
+     * compatible PNG without deleting or modifying the original JPG. */
+    for(pass=0;pass<2 && !ok;pass++) {
+        if(pass==1) {
+            if(j->plat!=PLAT_BDISO || !had_movie_art ||
+               !L->io.ensure_movie_art)break;
+            log_printf("bdiso: stored cover could not decode, trying compatible PNG: %s",j->path);
+            (void)L->io.ensure_movie_art(L->io.ctx,j->path);
+        }
+        for (c = 0; c < nc && !ok; c++) {
+            for (e = 0; e < SF_ARRAY_LEN(k_exts) && !ok; e++) {
+                uint8_t *rgba = NULL;
+                int w = 0, h = 0;
+                snprintf(f, sizeof(f), "%s%s", cand[c].base, k_exts[e]);
+                if (!L->io.is_file || !L->io.is_file(L->io.ctx, f)) continue;
+                if (!png_size_ok(L, f)) continue;
+                if (!L->io.decode || L->io.decode(L->io.ctx, f, &w, &h, &rgba) != 0 || !rgba) {
+                    log_printf("covers: could not decode %s", f);
+                    free(rgba);
+                    continue;  /* A compatible PNG may exist beside a JPEG. */
+                }
+                if (w > 0 && h > 0 && w <= COVER_SRC_MAX_DIM && h <= COVER_SRC_MAX_DIM) {
+                    cover_process(rgba, w, h, cover_art_aspect(j->plat), (uint16_t *)L->scratch, tw, th);
+                    snprintf(src, src_cap, "%s (%dx%d)", f, w, h);
+                    ok = 1;
+                } else {
+                    log_printf("covers: %s is %dx%d, skipped (max %d)", f, w, h, COVER_SRC_MAX_DIM);
+                }
                 free(rgba);
-                break;          /* other extensions of this name are unlikely to differ */
             }
-            if (w > 0 && h > 0 && w <= COVER_SRC_MAX_DIM && h <= COVER_SRC_MAX_DIM) {
-                cover_process(rgba, w, h, cover_art_aspect(j->plat), (uint16_t *)L->scratch, tw, th);
-                snprintf(src, src_cap, "%s (%dx%d)", f, w, h);
-                ok = 1;
-            } else {
-                log_printf("covers: %s is %dx%d, skipped (max %d)", f, w, h, COVER_SRC_MAX_DIM);
-            }
-            free(rgba);
         }
     }
     free(cand);
