@@ -114,9 +114,40 @@ static int launch_bdiso(const char *path)
         char enc[LAUNCH_CMD_MAX],request[LAUNCH_CMD_MAX];
         if(!sf_ends_with_i(path,".ntfs[BDISO]")) return -2;
         if(launch_url_encode(path,enc,sizeof(enc))!=0) return -3;
-        if(snprintf(request,sizeof(request),"/wait.ps3?xmb;/mount_ps3%s?random=0",enc)
+        /* webMAN MOD documents /mount.ps3/<path> for BDISO; no game syscall.
+           webMAN itself controls the raw-ISO plugin without unloading slot 0. */
+        if(snprintf(request,sizeof(request),"/mount.ps3%s",enc)
              >= (int)sizeof(request)) return -4;
         return ps3_webman_send(request);
+    }
+    if(!strncmp(path,"/dev_usb00",10) &&
+       path[10]>='0' && path[10]<='7' && sf_bdntfs_has_port(path[10]-'0')) {
+        /* Real NTFS paths cannot be passed to Cobra mount_bd_disc_image:
+           they need the sector index and raw_iso.sprx. Reuse the index
+           prepared by webMAN/prepISO so game plugins remain untouched. */
+        char index[LAUNCH_CMD_MAX],name[256],enc[LAUNCH_CMD_MAX],req[LAUNCH_CMD_MAX];
+        const char *base=strrchr(path,'/');
+        size_t n;
+        base=base?base+1:path;
+        snprintf(name,sizeof(name),"%s",base);
+        n=strlen(name);
+        if(n>6 && sf_ends_with_i(name,".iso.0"))name[n-6]=0;
+        else if(n>4 && sf_ends_with_i(name,".iso"))name[n-4]=0;
+        else return -5;
+        if(snprintf(index,sizeof(index),"%s/%s.ntfs[BDISO]",NTFS_INDEX_DIR,name)
+           >=(int)sizeof(index)) return -6;
+        if(!ps3_fs_exists(index)) {
+            char resp[280];
+            (void)ps3_webman_get_wait("/refresh.ps3?prepntfs",180,resp,sizeof(resp));
+        }
+        if(!ps3_fs_exists(index)) {
+            log_printf("bdiso: missing NTFS index for %s (prepISO needed)",path);
+            return -7;
+        }
+        if(launch_url_encode(index,enc,sizeof(enc))!=0) return -8;
+        if(snprintf(req,sizeof(req),"/mount.ps3%s",enc)>=(int)sizeof(req))
+            return -9;
+        return ps3_webman_send(req);
     }
     return sf_cobra_mount_bd_iso(path);
 }
