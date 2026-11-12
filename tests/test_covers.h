@@ -421,7 +421,7 @@ static void test_ps1_cover_download_retry(void)
 
 /* PS1 Redump CUE/BIN sets must appear as ONE cover per game.
  * Real dumps have FILE names different from CUE names, often 20+ tracks.
- * Earlier versions treated each "(Track NN).bin" as an independent game,
+ * Earlier versions treated differently named track BINs as independent games,
  * all with no serial/cover. Reading CUE FILE directives is authoritative. */
 static void test_ps1_cue_bin_track_grouping(void)
 {
@@ -429,34 +429,34 @@ static void test_ps1_cue_bin_track_grouping(void)
     ScanRoot root[1]={{PLAT_PS1,"/dev_hdd0/PSXISO",SRC_HDD_ISO_DIR}};
     const char *cue=
         "REM GENRE GAME\r\n"
-        "FILE \"Resident Evil 2 (USA) (Track 01).bin\" BINARY\r\n"
+        "FILE \"RE2 Track 01.bin\" BINARY\r\n"
         "  TRACK 01 MODE2/2352\r\n"
-        "FILE \"Resident Evil 2 (USA) (Track 02).bin\" BINARY\r\n"
+        "FILE \"RE2 Track 02.bin\" BINARY\r\n"
         "  TRACK 02 AUDIO\r\n"
-        "FILE \"Resident Evil 2 (USA) (Track 03).bin\" BINARY\r\n"
+        "FILE \"RE2 Track 03.bin\" BINARY\r\n"
         "  TRACK 03 AUDIO\r\n";
     const char *cue2=
-        "FILE \"Gran Turismo (USA).bin\" BINARY\n"
+        "FILE \"GT Dump Track 01.bin\" BINARY\n"
         "  TRACK 01 MODE2/2352\n";
     char names[PS1_CUE_REF_MAX][PS1_CUE_REF_NAME_MAX];
     int i,c1=0,c2=0,solo=0,n;
     printf("PS1 CUE BIN: authoritative multi-track grouping and no duplicate covers\\n");
     n=discid_cue_files(cue,strlen(cue),names,PS1_CUE_REF_MAX);
     CHECK(n==3);
-    CHECK_STR(names[0],"Resident Evil 2 (USA) (Track 01).bin");
-    CHECK_STR(names[1],"Resident Evil 2 (USA) (Track 02).bin");
-    CHECK_STR(names[2],"Resident Evil 2 (USA) (Track 03).bin");
+    CHECK_STR(names[0],"RE2 Track 01.bin");
+    CHECK_STR(names[1],"RE2 Track 02.bin");
+    CHECK_STR(names[2],"RE2 Track 03.bin");
     CHECK(discid_cue_files("FILE \"DIR\\\\Game (Track 01).bin\" BINARY\n",
                            strlen("FILE \"DIR\\\\Game (Track 01).bin\" BINARY\n"),
                            names,PS1_CUE_REF_MAX)==1);
     CHECK_STR(names[0],"Game (Track 01).bin");
     memfs_reset();
     memfs_put("/dev_hdd0/PSXISO/Resident Evil 2 (USA).cue",cue,(uint32_t)strlen(cue));
-    memfs_put("/dev_hdd0/PSXISO/Resident Evil 2 (USA) (Track 01).bin","one",3);
-    memfs_put("/dev_hdd0/PSXISO/Resident Evil 2 (USA) (Track 02).bin","audio",5);
-    memfs_put("/dev_hdd0/PSXISO/Resident Evil 2 (USA) (Track 03).bin","more",4);
+    memfs_put("/dev_hdd0/PSXISO/RE2 Track 01.bin","one",3);
+    memfs_put("/dev_hdd0/PSXISO/RE2 Track 02.bin","audio",5);
+    memfs_put("/dev_hdd0/PSXISO/RE2 Track 03.bin","more",4);
     memfs_put("/dev_hdd0/PSXISO/Gran Turismo (USA).cue",cue2,(uint32_t)strlen(cue2));
-    memfs_put("/dev_hdd0/PSXISO/Gran Turismo (USA).bin","original",8);
+    memfs_put("/dev_hdd0/PSXISO/GT Dump Track 01.bin","original",8);
     memfs_put("/dev_hdd0/PSXISO/Unrelated.bin","standalone",10);
     lib_clear(&g_lib);
     scanner_begin(&sc,root,1);
