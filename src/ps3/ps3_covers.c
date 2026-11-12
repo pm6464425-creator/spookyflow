@@ -26,6 +26,7 @@
 #include "ps3_platform.h"
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
+#include "ps3_jpeg_soft.h"
 #include "render.h"
 #include "util.h"
 
@@ -174,6 +175,7 @@ static int decode_any(const char *path, int min_w, int min_h, int max_dim, int *
     void *bmp = NULL;
     u32 pitch = 0, bw = 0, bh = 0;
     s32 rc;
+    int direct_rgba=0;
     *rgba = NULL;
     ps3_decode_lock();
     /* Native NTFS art is decoded straight from RAM, never copied to HDD. */
@@ -193,6 +195,20 @@ static int decode_any(const char *path, int min_w, int min_h, int max_dim, int *
             memset(&d,0,sizeof(d));
             rc=jpgLoadFromBuffer(data,nbytes,&d);
             bmp=d.bmp_out; pitch=d.pitch; bw=d.width; bh=d.height;
+            /* Covers such as the user's 250x372 Terminator 2 JPG have
+             * progressive scans. PS3 hardware JPGDEC is not guaranteed to
+             * support those; decode locally without modifying the JPG. */
+            if(rc!=0 || !bmp || !bw || !bh){
+                int sw=0,sh=0;
+                unsigned char *soft=NULL;
+                free(bmp);bmp=NULL;
+                if(ps3_jpeg_soft_decode(data,nbytes,max_dim,
+                                        &sw,&sh,&soft)==0){
+                    bmp=soft;bw=(u32)sw;bh=(u32)sh;
+                    pitch=bw*4u;rc=0;direct_rgba=1;
+                    log_printf("covers: recovered progressive JPEG from NTFS RAM: %s",path);
+                }
+            }
         }
         free(data);
     } else if (is_png) {
@@ -209,7 +225,7 @@ static int decode_any(const char *path, int min_w, int min_h, int max_dim, int *
     ps3_decode_unlock();
     if (rc != 0 || !bmp || bw == 0 || bh == 0 || pitch < bw * 4u) { free(bmp); return -1; }
     if ((int)bw > max_dim || (int)bh > max_dim) { free(bmp); *w = (int)bw; *h = (int)bh; return -1; }
-    argb_to_rgba_inplace((u8 *)bmp, pitch, bw, bh);
+    if(!direct_rgba) argb_to_rgba_inplace((u8 *)bmp, pitch, bw, bh);
     *rgba = (uint8_t *)bmp;              /* malloc'd by the decoder wrapper: free() is right */
     *w = (int)bw;
     *h = (int)bh;
