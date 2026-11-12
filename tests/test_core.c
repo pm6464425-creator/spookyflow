@@ -1839,6 +1839,7 @@ int main(void)
     test_imgscale();
     test_font_and_draw();
     test_discid();
+    test_ps1_cue_bin_track_grouping();
     test_ps1_covers_serial_and_sources();
     test_ps1_cover_download_retry();
     test_cover_lookup();
