@@ -666,6 +666,13 @@ static void test_bdiso_cache_fourth_tab(void)
         CHECK(cc.slot[slot].state==CC_READY);
         CHECK(cc.slot[slot].tex==200+slot);
         CHECK(cc_lookup(&cc,PLAT_BDISO,1)==slot);
+        /* V13: a downloaded normal JPG must replace an already resident
+         * old 3D JPG, never requiring deletion of the old image. */
+        cc_forget(&cc,PLAT_BDISO,1);
+        CHECK(cc_lookup(&cc,PLAT_BDISO,1)<0);
+        for(f=0;f<CC_GPU_FRAMES+6;f++)
+            cc_update(&cc,PLAT_BDISO,1,26);
+        CHECK(cc_lookup(&cc,PLAT_BDISO,1)>=0);
     }
     for(i=0;i<26;i++)CHECK(cc_lookup(&cc,PLAT_BDISO,i)>=0);
     /* Game tabs must retain their behavior when BDISO is active. */
