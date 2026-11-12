@@ -1461,6 +1461,73 @@ static void test_bdiso_flowmovie_manual_cover_paths(void)
     CHECK(strcmp(c[5].base,"/dev_usb000/BDISO/COVERS/POSTERS/2009 Avatar 3D-001.iso")==0);
 }
 
+/* Physical USB attach/detach integration: BDISO must follow the disk, with
+ * the flow remaining on the fourth tab and without a manual rescan. */
+static uint32_t g_hotplug_mask;
+static uint32_t test_usb_mask(void) { return g_hotplug_mask; }
+static int test_usb_list(void *ctx, const char *dir, FsEntry *out, int max)
+{
+    (void)ctx;
+    if (!g_hotplug_mask || max<1) return -1;
+    if (strcmp(dir,"/dev_usb000")==0) {
+        memset(&out[0],0,sizeof(out[0]));
+        strcpy(out[0].name,"BDISO");
+        out[0].is_dir=1;
+        return 1;
+    }
+    if (strcmp(dir,"/dev_usb000/BDISO")==0) {
+        memset(&out[0],0,sizeof(out[0]));
+        strcpy(out[0].name,"2009 Under the Sea IMAX 3D.iso");
+        out[0].is_dir=0;
+        out[0].size=42*1024*1024;
+        return 1;
+    }
+    return -1;
+}
+static void test_usb_movie_hotplug(void)
+{
+    AppHost host;
+    int ps3_before;
+    printf("BDISO physical hotplug: attach, detach, reattach\\n");
+    memset(&host,0,sizeof(host));
+    host.fs_list=test_usb_list;
+    host.usb_media_mask=test_usb_mask;
+    g_hotplug_mask=0;
+    app_init(&g_app,&g_lib,&host);
+    run_frames(0,LOAD_MIN_TIME+2.0f);
+    CHECK(g_app.mode==MODE_FLOW);
+    CHECK(g_lib.tab[PLAT_BDISO].count==0);
+    ps3_before=g_lib.tab[PLAT_PS3].count;
+    g_app.tab=PLAT_BDISO;
+    g_hotplug_mask=1;
+    run_frames(0,1.65f);
+    CHECK(g_app.mode==MODE_LOADING);
+    CHECK(g_app.usb_auto_rescan);
+    run_frames(0,3.0f);
+    CHECK(g_app.mode==MODE_FLOW);
+    CHECK(g_lib.tab[PLAT_BDISO].count==1);
+    CHECK(g_app.tab==PLAT_BDISO);
+    CHECK(g_lib.tab[PLAT_PS3].count==ps3_before);
+    CHECK(strstr(lib_path(&g_lib,&g_lib.tab[PLAT_BDISO].games[0]),"/dev_usb000/BDISO/")!=NULL);
+    run_frames(0,2.0f);
+    CHECK(g_app.mode==MODE_FLOW); /* no loop of rescans */
+    g_hotplug_mask=0;
+    run_frames(0,1.65f);
+    CHECK(g_app.mode==MODE_LOADING);
+    run_frames(0,3.0f);
+    CHECK(g_app.mode==MODE_FLOW);
+    CHECK(g_lib.tab[PLAT_BDISO].count==0); /* no ghost entries */
+    CHECK(g_lib.tab[PLAT_PS3].count==ps3_before);
+    CHECK(g_app.tab==PLAT_BDISO);
+    g_hotplug_mask=1;
+    run_frames(0,1.65f);
+    run_frames(0,3.0f);
+    CHECK(g_app.mode==MODE_FLOW);
+    CHECK(g_lib.tab[PLAT_BDISO].count==1);
+    CHECK(g_lib.tab[PLAT_PS3].count==ps3_before);
+    g_hotplug_mask=0;
+}
+
 int main(void)
 {
     log_set_echo(0);
@@ -1489,6 +1556,7 @@ int main(void)
     test_cover_lookup();
     test_bdiso_real_download();
     test_bdiso_flowmovie_manual_cover_paths();
+    test_usb_movie_hotplug();
     test_bdiso_cinema_crop_fill();
     test_cover_process();
     test_cover_loader();
