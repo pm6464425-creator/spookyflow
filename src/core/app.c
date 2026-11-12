@@ -735,6 +735,46 @@ static void loading_update(App *a, float dt)
         a->load_step = LOAD_PREPARE;
         break;
     case LOAD_PREPARE:
+        /* FlowMovie 3D reference source/main.cpp::refresh_usb_state:
+         * insertion is followed by two detection ticks, then the native
+         * mount is RETRIED on later ticks until it succeeds.
+         *
+         * Real V15.6 PS3 log: ntfsMountDevice returned 0 six times and
+         * succeeded only later, after scan roots had been frozen at mask=0.
+         * Wait for a stable native BDISO mount BEFORE building scan roots.
+         * Delay expensive mount attempts to 0.60s intervals; never mount on
+         * every UI frame. Recovery can continue in FLOW after the bounded
+         * loading phase (for FAT32/no-BDISO drives, do not hang loading). */
+        if (a->usb_auto_rescan && a->usb_ntfs_pending_mask &&
+            a->host.native_bdiso_ready_mask) {
+            uint32_t expected=a->usb_ntfs_pending_mask & a->usb_last_mask & 0xffu;
+            if (expected) {
+                a->usb_ntfs_retry_t += dt;
+                if (a->usb_ntfs_retry_t < 0.60f) {
+                    snprintf(a->load_status,sizeof(a->load_status),
+                             "Waiting for USB NTFS (%d/12)",
+                             a->usb_ntfs_retry_attempts);
+                    break;
+                }
+                a->usb_ntfs_retry_t=0.0f;
+                a->usb_ntfs_retry_attempts++;
+                a->usb_ntfs_probed_mask=a->host.native_bdiso_ready_mask();
+                a->usb_ntfs_probed_valid=1;
+                a->usb_ntfs_pending_mask &= ~a->usb_ntfs_probed_mask;
+                if ((expected & ~a->usb_ntfs_probed_mask) != 0) {
+                    log_printf("bdiso: FlowMovie mount retry %d/12, expected=%02x ready=%02x",
+                               a->usb_ntfs_retry_attempts,
+                               (unsigned)expected,
+                               (unsigned)a->usb_ntfs_probed_mask);
+                    if(a->usb_ntfs_retry_attempts < 12) break;
+                    log_printf("bdiso: scan continues; periodic native NTFS retries remain armed");
+                } else {
+                    log_printf("bdiso: native USB settled after %d attempts, ready=%02x",
+                               a->usb_ntfs_retry_attempts,
+                               (unsigned)a->usb_ntfs_probed_mask);
+                }
+            }
+        }
         if (a->host.prepare) a->host.prepare();
         scan_backgrounds(a);
         sync_bg_image(a);
@@ -744,8 +784,14 @@ static void loading_update(App *a, float dt)
             const ScanRoot *base = scanner_default_roots(&nb);
             const ScanRoot *r;
             uint32_t native_mask=0;
-            if(a->host.native_bdiso_ready_mask)
-                native_mask=a->host.native_bdiso_ready_mask();
+            if(a->host.native_bdiso_ready_mask) {
+                if(a->usb_ntfs_probed_valid) {
+                    native_mask=a->usb_ntfs_probed_mask; /* same sampled result */
+                    a->usb_ntfs_probed_valid=0;
+                } else {
+                    native_mask=a->host.native_bdiso_ready_mask();
+                }
+            }
             /* V15.4 physical diagnosis: USB000 was mounted as NTFS,
              * BDISO had ISO files, but /dev_usb000 was missing from the
              * lv2 root list so scanner_roots_with_usb created ZERO USB
@@ -1607,6 +1653,33 @@ static int usb_hotplug_poll(App *a, float dt)
     if (mask == a->usb_last_mask) {
         a->usb_candidate_mask = mask;
         a->usb_candidate_hits = 0;
+        /* Same FlowMovie 3D behavior after an initially failed native mount:
+         * physical USB stays connected, so there is no new hotplug edge.
+         * Keep trying every 1.5 seconds, and REBUILD the library when
+         * native NTFS finally exposes /BDISO. Otherwise a successful late
+         * mount is invisible until the application is restarted. */
+        if (a->usb_ntfs_pending_mask && a->host.native_bdiso_ready_mask) {
+            uint32_t expected=a->usb_ntfs_pending_mask & mask & 0xffu;
+            if (!expected) {
+                a->usb_ntfs_pending_mask=0;
+                a->usb_ntfs_retry_t=0.0f;
+            } else {
+                a->usb_ntfs_retry_t+=0.75f;
+                if(a->usb_ntfs_retry_t>=1.50f) {
+                    uint32_t ready;
+                    a->usb_ntfs_retry_t=0.0f;
+                    ready=a->host.native_bdiso_ready_mask();
+                    if(ready & expected) {
+                        log_printf("bdiso: late native NTFS mount became ready (expected=%02x ready=%02x), rescanning",
+                                   (unsigned)expected,(unsigned)ready);
+                        a->usb_auto_rescan=1;
+                        app_close_panel(a);
+                        start_loading(a,1);
+                        return 1;
+                    }
+                }
+            }
+        }
         return 0;
     }
     if (mask != a->usb_candidate_mask) {
@@ -1617,6 +1690,13 @@ static int usb_hotplug_poll(App *a, float dt)
     if (++a->usb_candidate_hits < 2) return 0;
     log_printf("usb: hotplug %08x -> %08x; automatically rescanning BDISO and removable library",
                (unsigned)a->usb_last_mask,(unsigned)mask);
+    /* On insertion, remember ports requiring a native BDISO mount.
+     * On removal, cancel retries for the absent port. */
+    a->usb_ntfs_pending_mask =
+        (a->usb_ntfs_pending_mask | ((mask & ~a->usb_last_mask) & 0xffu)) & mask;
+    a->usb_ntfs_retry_t=0.0f;
+    a->usb_ntfs_retry_attempts=0;
+    a->usb_ntfs_probed_valid=0;
     a->usb_last_mask = mask;
     a->usb_candidate_hits = 0;
     a->usb_auto_rescan = 1;
