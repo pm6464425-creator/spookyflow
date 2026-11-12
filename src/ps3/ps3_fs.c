@@ -8,6 +8,7 @@
 #include <sys/file.h>
 #include "ps3_platform.h"
 #include "sf_bdiso_ntfs.h"
+#include <sys/stat.h>
 #include "log.h"
 #include "util.h"
 
@@ -94,3 +95,4 @@ int ps3_fs_write_file(const char *path, const void *data, uint32_t len)
 }
 
 int ps3_fs_remove_file(const char *path) { return sysFsUnlink(path) == 0 ? 0 : -1; }
+int sf_bdiso_fat_mkdir(const char *path) { return sysFsMkdir(path,0777)==0 ? 0 : -1; }

@@ -131,7 +131,7 @@ int cover_candidates(int plat, const char *game_path, int is_dir, const char *id
         size_t npath = sep ? (size_t)(sep - game_path) : 0;
         if (npath && npath + 9 < sizeof(dir)) {
             memcpy(dir, game_path, npath); dir[npath] = '\0';
-            snprintf(covers,sizeof(covers),"%s/COVERS",dir);
+            memcpy(covers,dir,npath); memcpy(covers+npath,"/COVERS",8);
             n=add(out,n,max,covers,"/",name);
         }
         return n;
@@ -503,6 +503,16 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
     cand = (CoverCand *)malloc(sizeof(CoverCand) * COVER_MAX_CANDS);
     if (!cand) return 0;
     nc = cover_candidates(j->plat, j->path, j->is_dir, id, L->dir_ok, cand, COVER_MAX_CANDS);
+    if (j->plat == PLAT_BDISO && L->io.ensure_movie_art && L->io.is_file) {
+        int found=0;
+        for(c=0;c<nc && !found;c++) {
+            for(e=0;e<SF_ARRAY_LEN(k_exts);e++) {
+                snprintf(f,sizeof(f),"%s%s",cand[c].base,k_exts[e]);
+                if(L->io.is_file(L->io.ctx,f)) { found=1; break; }
+            }
+        }
+        if(!found) (void)L->io.ensure_movie_art(L->io.ctx,j->path);
+    }
     for (c = 0; c < nc && !ok; c++) {
         for (e = 0; e < SF_ARRAY_LEN(k_exts) && !ok; e++) {
             uint8_t *rgba = NULL;

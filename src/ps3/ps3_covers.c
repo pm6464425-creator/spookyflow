@@ -25,6 +25,7 @@
 #include "log.h"
 #include "ps3_platform.h"
 #include "sf_bdiso_ntfs.h"
+#include "sf_bdiso_art.h"
 #include "render.h"
 #include "util.h"
 
@@ -215,6 +216,12 @@ static int decode_any(const char *path, int min_w, int min_h, int max_dim, int *
     return 0;
 }
 
+static int sf_bdiso_art_cb(void *ctx,const char *path)
+{
+    (void)ctx;
+    return sf_bdiso_ensure_art(path);
+}
+
 static int io_decode(void *ctx, const char *path, int *w, int *h, uint8_t **rgba)
 {
     (void)ctx;
@@ -246,7 +253,7 @@ static int io_write(void *ctx, const char *path, const void *a, uint32_t alen, c
 }
 
 static int io_remove(void *ctx, const char *path) { (void)ctx; return sysFsUnlink(path) == 0 ? 0 : sf_bdntfs_unlink(path); }
-static int io_mkdir(void *ctx, const char *path) { (void)ctx; return sysFsMkdir(path, 0777) == 0 ? 0 : sf_bdntfs_mkdir(path); }
+static int io_mkdir(void *ctx, const char *path) { (void)ctx; if (sf_bdntfs_is_dir(path)) return 0; if (sf_bdntfs_mkdir(path)==0) return 0; sysFsMkdir(path,0777); return 0; }
 static void io_sleep(void *ctx, int ms) { (void)ctx; sysUsleep(ms > 0 ? (u32)ms * 1000u : 100u); }
 
 static void worker_entry(void *arg)
@@ -259,12 +266,14 @@ CoverLoader *ps3_covers_start(void)
 {
     CoverIO io;
     memset(&io, 0, sizeof(io));
+    io.ensure_movie_art = (int (*)(void *, const char *))NULL;
     if (!r_cover_pixels(0)) { log_printf("covers: no texture memory, showing placeholders"); return NULL; }
     if (sysModuleIsLoaded(SYSMODULE_JPGDEC) != 0 && sysModuleLoad(SYSMODULE_JPGDEC) != 0)
         log_printf("covers: JPEG decoder module failed to load");
     if (sysModuleIsLoaded(SYSMODULE_PNGDEC) != 0 && sysModuleLoad(SYSMODULE_PNGDEC) != 0)
         log_printf("covers: PNG decoder module failed to load");
     io.read_at = ps3_read_at;
+    io.ensure_movie_art = sf_bdiso_art_cb;
     io.is_file = io_is_file;
     io.is_dir = io_is_dir;
     io.decode = io_decode;
