@@ -147,7 +147,7 @@ int cover_candidates(int plat, const char *game_path, int is_dir, const char *id
                     n=add(out,n,max,manual,"/",name);
                     if(slash && slash[1])n=add(out,n,max,manual,"/",slash+1);
                 }
-                if(snprintf(cinema,sizeof(cinema),"%s/CINE",covers)<(int)sizeof(cinema)){
+                if(snprintf(cinema,sizeof(cinema),"%s/POSTERS",covers)<(int)sizeof(cinema)){
                     n=add(out,n,max,cinema,"/",name);
                     if(slash && slash[1])n=add(out,n,max,cinema,"/",slash+1);
                 }
