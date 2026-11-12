@@ -7,6 +7,7 @@
 #include "render.h"
 #include "log.h"
 #include "title.h"
+#include "movie_spanish.h"
 #include "util.h"
 #include <math.h>
 #include <stdio.h>
@@ -67,7 +68,14 @@ static void movie_title_from_usb(App *a, int index)
     translated[rc]=0;
     for(i=0;i<rc;i++)
         if(translated[i]=='\r'||translated[i]=='\n'){translated[i]=0;break;}
-    if(translated[0]) (void)lib_set_title(a->lib,PLAT_BDISO,index,translated);
+    if(translated[0]) {
+        char local[TITLE_MAX];
+        /* Sidecars produced by older PKGs can contain English names. */
+        if(movie_spanish_title(base,translated,local,sizeof(local)))
+            (void)lib_set_title(a->lib,PLAT_BDISO,index,local);
+        else
+            (void)lib_set_title(a->lib,PLAT_BDISO,index,translated);
+    }
 }
 static void cover_result(void *user, int tab, int index, int year)
 {
