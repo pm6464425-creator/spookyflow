@@ -24,6 +24,13 @@ static const char *const k_plat_dir[PLAT_COUNT] = { "ps1", "ps2", "ps3", "bdiso"
 
 #define CVR_HEADER 16
 #define CVR_VERSION 6     /* source-policy change: invalidate old cached 320x176 sidecar icons */
+/* PS1 changed its CUE/BIN association and gained HDD progressive-JPEG
+ * recovery in V15.9. Only PS1 processed cover/none markers are invalidated.
+ * Preserve PS2/PS3 cache version 6 and the separately managed BDISO art. */
+static uint8_t cvr_version(int plat)
+{
+    return (uint8_t)(plat==PLAT_PS1 ? 7 : CVR_VERSION);
+}
 
 int cover_folder_count(void) { return F_COUNT; }
 const char *cover_folder(int i) { return (i >= 0 && i < F_COUNT) ? k_folders[i] : ""; }
@@ -464,14 +471,14 @@ static void wipe(CoverLoader *L)
     log_printf("covers: explicit rescan invalidated %d processed images/markers", removed);
 }
 
-static int read_cache(CoverLoader *L, const char *cvr, int tw, int th, int *year)
+static int read_cache(CoverLoader *L, const char *cvr, int plat, int tw, int th, int *year)
 {
     unsigned char h[CVR_HEADER];
     uint16_t bom;
     uint32_t n = (uint32_t)tw * (uint32_t)th * 2u;
     if (!L->io.read_at || L->io.read_at(L->io.ctx, cvr, 0, h, CVR_HEADER) != CVR_HEADER) return 0;
     memcpy(&bom, h + 10, 2);
-    if (memcmp(h, "SFCV", 4) != 0 || h[4] != CVR_VERSION || bom != 0xFEFF) return 0;
+    if (memcmp(h, "SFCV", 4) != 0 || h[4] != cvr_version(plat) || bom != 0xFEFF) return 0;
     if (((h[6] << 8) | h[7]) != tw || ((h[8] << 8) | h[9]) != th) return 0;
     *year = 0;                     /* years in older caches are not shown */
     return L->io.read_at(L->io.ctx, cvr, CVR_HEADER, L->scratch, n) == (int)n;
@@ -483,7 +490,7 @@ static void write_cache(CoverLoader *L, const char *cvr, int plat, int tw, int t
     uint16_t bom = 0xFEFF;
     memset(h, 0, sizeof(h));
     memcpy(h, "SFCV", 4);
-    h[4] = CVR_VERSION;
+    h[4] = cvr_version(plat);
     h[5] = (unsigned char)plat;
     h[6] = (unsigned char)(tw >> 8); h[7] = (unsigned char)tw;
     h[8] = (unsigned char)(th >> 8); h[9] = (unsigned char)th;
@@ -535,12 +542,12 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
     if (cache) {
         cover_cache_stem(L->io.cache_dir, j->plat, j->path, j->size, stem, sizeof(stem));
         snprintf(f, sizeof(f), "%s.cvr", stem);
-        if (read_cache(L, f, tw, th, year)) { sf_strlcpy(src, "cache", src_cap); L->n_cache++; return 1; }
+        if (read_cache(L, f, j->plat, tw, th, year)) { sf_strlcpy(src, "cache", src_cap); L->n_cache++; return 1; }
         snprintf(f, sizeof(f), "%s.none", stem);
         if (L->io.is_file && L->io.is_file(L->io.ctx, f)) {
             /* the marker keeps the year: [version, year hi, year lo]; an older marker is looked up again */
             unsigned char y[3];
-            if (L->io.read_at && L->io.read_at(L->io.ctx, f, 0, y, 3) == 3 && y[0] == CVR_VERSION) {
+            if (L->io.read_at && L->io.read_at(L->io.ctx, f, 0, y, 3) == 3 && y[0] == cvr_version(j->plat)) {
                 *year = 0;
                 sf_strlcpy(src, "none (cached)", src_cap);
                 return 0;
@@ -641,7 +648,7 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
             write_cache(L, f, j->plat, tw, th, *year);
         } else {
             unsigned char y[3];
-            y[0] = CVR_VERSION; y[1] = (unsigned char)(*year >> 8); y[2] = (unsigned char)*year;
+            y[0] = cvr_version(j->plat); y[1] = (unsigned char)(*year >> 8); y[2] = (unsigned char)*year;
             snprintf(f, sizeof(f), "%s.none", stem);
             L->io.write_file(L->io.ctx, f, y, 3, "", 0);   /* the marker keeps the year */
         }
