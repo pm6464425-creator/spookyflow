@@ -27,14 +27,16 @@ static int s_count[8];
 static int s_partition[8] = {-1,-1,-1,-1,-1,-1,-1,-1};
 
 /* Do not disturb mounted game volumes; these handles belong only to BDISO. */
-static void bd_release_port(int u)
+static void bd_release_port(int u,int physical_removed)
 {
     int p;
     if(u<0 || u>=8) return;
     if(s_mount[u]) {
-        for(p=0;p<s_count[u];p++)
-            if(s_mount[u][p].name[0])
-                ntfsUnmount(s_mount[u][p].name,true);
+        /* A physically removed disk must not be accessed during cleanup. */
+        if(!physical_removed)
+            for(p=0;p<s_count[u];p++)
+                if(s_mount[u][p].name[0])
+                    ntfsUnmount(s_mount[u][p].name,true);
         free(s_mount[u]);
         s_mount[u]=NULL;
     }
@@ -74,7 +76,7 @@ int sf_bdntfs_start(void)
         if(!inserted) {
             if(s_count[u]>0) {
                 log_printf("bdiso: USB%03d removed; releasing native NTFS handles",u);
-                bd_release_port(u);
+                bd_release_port(u,1);
             }
             continue;
         }
