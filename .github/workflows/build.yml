@@ -25,6 +25,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Verify SensaCine theatrical poster markup is publicly available (nonblocking)
+        continue-on-error: true
+        run: python3 tests/probe_sensacine.py
       - name: Unit tests (portable core, ASan + UBSan)
         run: make -f Makefile.host test
       - name: Ensure fourth BDISO cover tab cannot be excluded again
