@@ -19,7 +19,13 @@ static struct { int set; float aspect; CaseWindow win; } g_case_img[PLAT_COUNT];
 static int g_cases_on = 1;
 
 void layout_use_case_images(int on) { g_cases_on = on != 0; }
-int  layout_case_image_active(int plat) { return plat >= 0 && plat < PLAT_COUNT && g_cases_on && g_case_img[plat].set; }
+/* Movies have a permanent case, as they did before this visual update.
+ * The Custom Cases toggle still controls PS1/PS2/PS3 exactly as before. */
+int  layout_case_image_active(int plat)
+{
+    return plat >= 0 && plat < PLAT_COUNT && g_case_img[plat].set &&
+           (plat == PLAT_BDISO || g_cases_on);
+}
 
 void layout_set_case_image(int plat, float img_w, float img_h, float cx, float cy, float cw, float ch)
 {
