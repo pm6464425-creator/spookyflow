@@ -20,6 +20,31 @@ static const DISC_INTERFACE *const s_devices[8] = {
     &__io_ntfs_usb000,&__io_ntfs_usb001,&__io_ntfs_usb002,&__io_ntfs_usb003,
     &__io_ntfs_usb004,&__io_ntfs_usb005,&__io_ntfs_usb006,&__io_ntfs_usb007
 };
+/* Physical presence only; mounting/releasing remains on the scan thread. */
+uint32_t sf_bdntfs_usb_present_mask(void)
+{
+    uint32_t mask=0;
+    int port;
+    for(port=0;port<8;port++)
+        if(PS3_NTFS_IsInserted(port))mask |= (uint32_t)1u<<port;
+    return mask;
+}
+
+/* rawseciso webMAN pointer header: big-endian u64 USB device ID.
+ * Never trust an index file saved in /dev_hdd0 after its USB was removed.
+ * Unknown/invalid IDs are not proof that the drive is connected. */
+int sf_bdntfs_index_online(const unsigned char *data, size_t len)
+{
+    uint64_t id=0;
+    int port,i;
+    if(!data || len<20)return 0;
+    for(i=0;i<8;i++)id=(id<<8)|data[i];
+    for(port=0;port<8;port++)
+        if(id==(uint64_t)USB_MASS_STORAGE(port) && PS3_NTFS_IsInserted(port))
+            return 1;
+    return 0;
+}
+
 static ntfs_md *s_mount[8];
 static int s_count[8];
 /* FLOW MOVIE scans every partition of each attached USB device.  Keep the
