@@ -41,7 +41,7 @@ checks=[
  ("PS1 network errors distinguished",
   'covers: ps1 NETWORK_ERROR serial=' in art),
  ("PS1 multi-file CUE end-to-end host test",
-  '"Data Track.bin"' in test and 'test_ps1_covers_serial_and_sources();' in calls),
+  'Data Track.bin' in test and 'test_ps1_covers_serial_and_sources();' in calls),
  ("PS1 automatic downloader recheck host test",
   'test_ps1_cover_download_retry();' in calls and 'SLUS00594.missing' in test),
  ("PS2 archive first source unchanged",
