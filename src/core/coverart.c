@@ -729,6 +729,29 @@ int cover_dl_urls(int plat, const char *id, char out[][COVER_URL_MAX], int max)
      * console): PS3 by its ID (BLUS30177), PS1/PS2 the way SYSTEM.CNF names
      * them (SLUS_209.14). ManaGunZ/source/main.c, Download_covers(). */
     if (plat == PLAT_BDISO) return 0;
+    /* PS1: xlenore's official default-cover collection is confirmed live
+     * and is explicitly keyed by the hyphenated disc serial, e.g.
+     * SLUS-00594.jpg. Old 0.9.x put unreliable plain-HTTP sources ahead
+     * of this HTTPS collection, so valid PS1 games often stayed blank.
+     * Change PS1 order ONLY; PS2/PS3/BDISO keep their existing order. */
+    if (plat == PLAT_PS1) {
+        char serial[16],pre[5],cnf[16];
+        int i;
+        snprintf(serial,sizeof(serial),"%.4s-%s",id,id+4);
+        snprintf(pre,sizeof(pre),"%.4s",id);
+        snprintf(cnf,sizeof(cnf),"%.4s_%.3s.%.2s",id,id+4,id+7);
+        for(i=0;serial[i];i++)serial[i]=(char)sf_toupper(serial[i]);
+        for(i=0;cnf[i];i++)cnf[i]=(char)sf_toupper(cnf[i]);
+        if(n<max)snprintf(out[n++],COVER_URL_MAX,
+            "https://raw.githubusercontent.com/xlenore/psx-covers/main/covers/default/%s.jpg",serial);
+        if(n<max)snprintf(out[n++],COVER_URL_MAX,
+            "https://rpdbs3.gerbilsoft.com/ps1/cover/%s/%s.jpg",pre,serial);
+        if(n<max)snprintf(out[n++],COVER_URL_MAX,
+            "http://rpdb.gerbilsoft.com/ps1/cover/%s/%s.jpg",pre,serial);
+        if(n<max)snprintf(out[n++],COVER_URL_MAX,
+            "http://gamecovers.free.fr/download.php?file=%s.jpg",cnf);
+        return n;
+    }
     if (plat == PLAT_PS3) snprintf(out[n++], COVER_URL_MAX, "http://gamecovers.free.fr/download.php?file=%s.jpg", id);
     else if (plat == PLAT_PS1 || plat == PLAT_PS2) {
         char cnf[16];
@@ -867,14 +890,25 @@ void cover_dl_run(CoverDl *d)
         if (!it->id[0]) discid_read(it->plat, it->path, it->is_dir, io->read_at, io->ctx, it->id, sizeof(it->id));
         /* A name-matched manual cover counts even when an ISO has no ID. */
         if (cover_has_art(io, it->plat, it->path, it->is_dir, it->size, it->id)) { it->state = DL_HAVE; d->n_have++; goto next; }
-        if (!id_ok(it->id)) { it->state = DL_NOID; d->n_noid++; goto next; }
+        if (!id_ok(it->id)) {
+            if(it->plat==PLAT_PS1)
+                log_printf("covers: ps1 NO_SERIAL %s (PS1 needs disc serial for safe automatic match)",
+                           it->path);
+            it->state = DL_NOID; d->n_noid++; goto next;
+        }
         if (cover_name_is_custom(it->path)) {
             it->state = DL_MISSING; d->n_missing++; goto next;
         }
         snprintf(miss_path, sizeof(miss_path), "%s/%s.missing", COVER_DL_DIR, it->id);
-        if (d->auto_mode && io->is_file && io->is_file(io->ctx, miss_path)) {
+        if (d->auto_mode && it->plat!=PLAT_PS1 &&
+            io->is_file && io->is_file(io->ctx, miss_path)) {
             it->state = DL_MISSING; d->n_missing++; goto next;
         }
+        /* Existing PS1 .missing records were written before the source
+         * correction. Allow PS1 to retry those once per launch; no disk
+         * images are modified and other platforms keep their 404 cache. */
+        if(it->plat==PLAT_PS1)
+            log_printf("covers: ps1 SEARCH serial=%s path=%s",it->id,it->path);
         nu = cover_dl_urls(it->plat, it->id, urls, COVER_DL_URLS);
         for (u = 0; u < nu && !got && !d->cancel; u++) {
             char url[COVER_URL_MAX], loc[COVER_URL_MAX];
@@ -918,6 +952,8 @@ void cover_dl_run(CoverDl *d)
                 io->remove(io->ctx, f);
             }
         } else if (neterr) {
+            if(it->plat==PLAT_PS1)
+                log_printf("covers: ps1 NETWORK_ERROR serial=%s path=%s",it->id,it->path);
             it->state = DL_ERROR; d->n_error++;
             /* 0.9.3: give up early only when nothing can be reached at all (no
              * internet); a site failing (one console's covers) doesn't stop the rest */
@@ -930,6 +966,8 @@ void cover_dl_run(CoverDl *d)
                 break;
             }
         } else {
+            if(it->plat==PLAT_PS1)
+                log_printf("covers: ps1 NO_ART_ON_SOURCES serial=%s path=%s",it->id,it->path);
             it->state = DL_MISSING; d->n_missing++; streak = 0;
             if (not_found_only && io->write_file)
                 (void)io->write_file(io->ctx, miss_path, "404", 3, "", 0);
