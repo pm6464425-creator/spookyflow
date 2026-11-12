@@ -93,6 +93,10 @@ typedef struct {
     /* Optional lightweight USB-port presence mask (one bit per port).
      * Called at most every 0.75 s on the UI thread; never mounts volumes. */
     uint32_t (*usb_media_mask)(void);
+    /* PS3-only: initialize native NTFS once per library scan and return
+     * ports whose BDISO partitions are truly mounted. Never called per frame.
+     * This recovers removable BDISO disks not exposed by lv2 sysFs. */
+    uint32_t (*native_bdiso_ready_mask)(void);
     /* Optional PS3-only read-only diagnostic at the end of a library scan. */
     void (*usb_diag)(const char *phase,const Library *lib,const Scanner *scanner,
                      uint32_t app_mask);
