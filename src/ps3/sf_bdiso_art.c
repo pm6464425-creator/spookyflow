@@ -10,6 +10,7 @@
 #include <sys/systime.h>
 #include "ps3_platform.h"
 #include "movie_catalog.h"
+#include "movie_spanish.h"
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
 #include "log.h"
@@ -21,6 +22,18 @@
 #define MOVIE_PATH_MAX 512
 static uint64_t s_attempted[64];
 static unsigned s_attempt_index;
+/* Independent retry guard for repairing previously saved JPEGs which are
+ * unsupported by the PS3 decoder (e.g. progressive cover scans). */
+static uint64_t s_repaired[64];
+static unsigned s_repair_index;
+static int repair_attempted(const char *path)
+{
+    uint64_t h=hash_key(path);
+    unsigned i;
+    for(i=0;i<64;i++)if(s_repaired[i]==h)return 1;
+    s_repaired[(s_repair_index++)%64]=h;
+    return 0;
+}
 /* The visible-case loader and Download Missing Covers can run on different
  * threads. Only one movie download may access its NTFS artwork and retry
  * table at a time. This prevents partially-written JPG files. */
@@ -37,6 +50,8 @@ void sf_bdiso_reset_attempts(void)
     art_lock();
     memset(s_attempted,0,sizeof(s_attempted));
     s_attempt_index=0;
+    memset(s_repaired,0,sizeof(s_repaired));
+    s_repair_index=0;
     art_unlock();
     log_printf("bdiso: poster lookup attempts reset for retry");
 }
@@ -379,6 +394,27 @@ static int movie_http_jpeg(const char *url,unsigned char *buf,uint32_t *len)
         return 0;
     return *len>=512 && buf[0]==0xff && buf[1]==0xd8 && buf[2]==0xff;
 }
+/* Download a standard PNG via a public resizing proxy. This is safe for
+ * native NTFS + PS3 PNGDEC and avoids progressive JPEG incompatibilities.
+ * Only known poster-image hosts are forwarded (never private API keys).
+ * A failed proxy does not replace a usable/manual JPEG. */
+static int movie_http_compatible_png(const char *source,unsigned char *buf,
+                                     uint32_t *len)
+{
+    char encoded[1200],url[1400];
+    int n;
+    if(!source || strncmp(source,"https://",8)!=0 || strchr(source,'?'))return 0;
+    if(strncmp(source,"https://m.media-amazon.com/",27)!=0 &&
+       strncmp(source,"https://image.tmdb.org/",23)!=0 &&
+       strncmp(source,"https://images.metahub.space/",30)!=0)
+        return 0;
+    if(encode_query(source+8,encoded,sizeof(encoded))!=0)return 0;
+    n=snprintf(url,sizeof(url),
+      "https://images.weserv.nl/?url=%s&w=384&h=560&fit=contain&output=png",encoded);
+    if(n<=0 || n>=(int)sizeof(url) ||
+       remote_get(url,buf,MOVIE_JPEG_MAX,len)!=0)return 0;
+    return *len>=64 && memcmp(buf,"\x89PNG\r\n\x1a\n",8)==0;
+}
 static int movie_from_fanart(const char *json,char *url,size_t cap)
 {
     const char *a=strstr(json,"\"movieposter\""),*end;
@@ -461,7 +497,7 @@ static void movie_candidate(MovieCandidate *v,int *count,int max,const char *url
  * BDISO titles in the console log. */
 static int sf_bdiso_ensure_art_locked(const char *iso_path)
 {
-    char dir[MOVIE_PATH_MAX],stem[256],cover[MOVIE_PATH_MAX],titlepath[MOVIE_PATH_MAX];
+    char dir[MOVIE_PATH_MAX],stem[256],cover[MOVIE_PATH_MAX],coverpng[MOVIE_PATH_MAX],titlepath[MOVIE_PATH_MAX];
     char tmdb[80]="",fanart[100]="",fanart_client[100]="",omdb[100]="",mpdb[140]="";
     char query[240],encoded[560],title[256]="",poster[120]="",poster_es[120]="";
     char imdb[40]="",url[MOVIE_URL_MAX],tmp[MOVIE_URL_MAX],omdb_poster[MOVIE_URL_MAX]="";
@@ -470,7 +506,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     char catalog_title[256]="";
     MovieCandidate candidates[6];
     uint32_t n=0;
-    int year=0,id=0,is3d,port,status=-1,count=0,i,k;
+    int year=0,id=0,is3d,port,status=-1,count=0,i,k,repair=0;
     if(!iso_path || strncmp(iso_path,"/dev_usb00",10)!=0 ||
        iso_path[10]<'0'||iso_path[10]>'7'||iso_path[11]!='/')return -1;
     port=iso_path[10]-'0';
@@ -481,10 +517,15 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     iso_stem(iso_path,stem,sizeof(stem));
     if(!stem[0] ||
        snprintf(cover,sizeof(cover),"%s/COVERS/%s.jpg",dir,stem)>=(int)sizeof(cover) ||
+       snprintf(coverpng,sizeof(coverpng),"%s/COVERS/%s.png",dir,stem)>=(int)sizeof(coverpng) ||
        snprintf(titlepath,sizeof(titlepath),"%s/COVERS/%s.title",dir,stem)>=(int)sizeof(titlepath))
        return -4;
-    /* Manual art always wins. The worker invokes us only when art is missing. */
-    if(ps3_fs_is_file(NULL,cover))return 1;
+    /* Preserve manual art. If a previously downloaded JPEG could not
+     * decode, the cover loader invokes this callback again to create a
+     * compatible PNG next to it; the original JPG is never overwritten. */
+    if(ps3_fs_is_file(NULL,coverpng))return 1;
+    repair=ps3_fs_is_file(NULL,cover);
+    if(repair && repair_attempted(iso_path))return -2;
     movie_query(stem,query,sizeof(query),&year);
     movie_search_alias(query,sizeof(query));
     if(!query[0] || encode_query(query,encoded,sizeof(encoded))!=0)return -5;
@@ -505,7 +546,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
         movie_community_sources(dir,stem,query,year,port);
     if(!tmdb[0] && !omdb[0])
         log_printf("bdiso: no API key in USB BDISO/COVERS; trying keyless public movie catalog");
-    if(attempted(iso_path))return -2;
+    if(!repair && attempted(iso_path))return -2;
     log_printf("bdiso: starting online poster search for %s (TMDB=%s OMDb=%s)",
                stem,tmdb[0]?"yes":"no",omdb[0]?"yes":"no");
     json=(unsigned char*)malloc(MOVIE_JSON_MAX+1);
@@ -623,8 +664,22 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     }
     for(i=0;i<count;i++){
         uint32_t bytes=0;
+        /* PNG is the preferred on-console format: the old Cinemeta
+         * JPEG can be progressive, which PS3 JPGDEC may reject. */
+        if(movie_http_compatible_png(candidates[i].url,jpeg,&bytes)){
+            if(movie_covers_dir(dir,port)==0 &&
+               movie_usb_write(coverpng,port,jpeg,bytes)==0){
+                log_printf("bdiso: PS3-compatible PNG saved via %s, 3D=%d",
+                           candidates[i].provider,is3d);
+                status=0;break;
+            }
+            log_printf("bdiso: compatible PNG downloaded but USB write failed for %s",stem);
+        }
+        /* Existing JPG is preserved even if we cannot convert it. */
+        if(repair)continue;
+        bytes=0;
         if(!movie_http_jpeg(candidates[i].url,jpeg,&bytes)){
-            log_printf("bdiso: provider %s returned no usable JPEG for %s",
+            log_printf("bdiso: provider %s returned no usable image for %s",
                        candidates[i].provider,stem);
             continue;
         }
@@ -632,10 +687,8 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
             log_printf("bdiso: failed to create/read BDISO/COVERS on USB%03d",port);
             continue;
         }
-        if(ps3_fs_is_file(NULL,cover)){status=1;break;}
         if(movie_usb_write(cover,port,jpeg,bytes)==0){
-            log_printf("bdiso: poster source=%s, 3D=%d (edition not authenticated)",
-                       candidates[i].provider,is3d);
+            log_printf("bdiso: JPEG fallback source=%s, 3D=%d",candidates[i].provider,is3d);
             status=0;break;
         }
         log_printf("bdiso: JPEG downloaded but USB write failed for %s",stem);
@@ -654,19 +707,33 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
            movie_catalog_pick((const char*)json,query,year,
                                fallback_url,sizeof(fallback_url),
                                fallback_title,sizeof(fallback_title)) &&
-           movie_http_jpeg(fallback_url,jpeg,&bytes) &&
-           movie_covers_dir(dir,port)==0 &&
-           !ps3_fs_is_file(NULL,cover) &&
-           movie_usb_write(cover,port,jpeg,bytes)==0){
+           (movie_http_compatible_png(fallback_url,jpeg,&bytes) ?
+             (movie_covers_dir(dir,port)==0 &&
+              movie_usb_write(coverpng,port,jpeg,bytes)==0) :
+             (!repair && movie_http_jpeg(fallback_url,jpeg,&bytes) &&
+              movie_covers_dir(dir,port)==0 &&
+              movie_usb_write(cover,port,jpeg,bytes)==0))){
             if(!title[0])snprintf(title,sizeof(title),"%s",fallback_title);
             log_printf("bdiso: poster saved from public no-key fallback for %s",stem);
             status=0;
         }
     }
 save_title:
-    if(title[0] && !ps3_fs_is_file(NULL,titlepath) &&
-       movie_covers_dir(dir,port)==0)
-        (void)movie_usb_write(titlepath,port,title,(uint32_t)strlen(title));
+    {
+        char spanish[256],prior[256]="";
+        int existing=ps3_fs_is_file(NULL,titlepath);
+        int nread=existing?ps3_read_at(NULL,titlepath,0,prior,sizeof(prior)-1):0;
+        if(nread>0 && nread<(int)sizeof(prior))prior[nread]=0;
+        else prior[0]=0;
+        if(movie_spanish_title(stem,existing?prior:title,
+                               spanish,sizeof(spanish))){
+            if(movie_covers_dir(dir,port)==0 &&
+               movie_usb_write(titlepath,port,spanish,(uint32_t)strlen(spanish))==0)
+                log_printf("bdiso: Spanish title saved for %s",stem);
+        }else if(!existing && title[0] && movie_covers_dir(dir,port)==0){
+            (void)movie_usb_write(titlepath,port,title,(uint32_t)strlen(title));
+        }
+    }
 done:
     if(status!=0 && status!=1)
         log_printf("bdiso: cover fetch failed for %s, error=%d; check USB BDISO/COVERS and preceding HTTP messages",
