@@ -497,6 +497,10 @@ static int png_size_ok(CoverLoader *L, const char *path)
 }
 
 /* Returns 1 with pixels in L->scratch. *src describes where they came from. */
+/* Defined below, next to cover_has_art. */
+static int movie_has_normal_art(const CoverIO *io,const char *path,int is_dir,
+                                const char *id);
+
 static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src, size_t src_cap, int *year)
 {
     char stem[COVER_PATH_MAX], f[COVER_PATH_MAX + 16], id[16];
