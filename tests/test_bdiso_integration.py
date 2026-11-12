@@ -56,7 +56,7 @@ checks = [
      "jpgLoadFromBuffer" in loader and
      "pngLoadFromBuffer" in loader),
     ("8. BDISO raw artwork and metadata stored under external COVERS",
-     "/COVERS/%s.jpg" in art and
+     '"%s/%s.jpg",normaldir,stem' in art and
      "/COVERS/%s.title" in art and
      'j->plat != PLAT_BDISO' in covers),
     ("9. TMDB titles and images requested in Spanish",
@@ -64,8 +64,8 @@ checks = [
      '"iso_639_1"' in art and
      "json_utf8(" in art),
     ("10. 3D detection by filename remains independent of UI",
-     "static int movie_3d" in art and
-     "s[1]=='D'" in art and
+     "movie_filename_is_3d(lib_path(a->lib,g))" in ui and
+     '"3D", ALIGN_CENTER' in ui and
      "movie3d" not in ui),
     ("11. BDISO shares PS3 case without an added 3D stripe",
      "if (plat == PLAT_BDISO)" in ui and
