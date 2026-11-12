@@ -23,7 +23,7 @@ check("Only original Blu-ray case watermark kept",
       '"Blu-ray", ALIGN_CENTER' in ui)
 check("No extra source text files", 'COVERS/%s.sources.txt' not in art)
 check("Physical disc basename preserved in automatic JPG path",
-      '"/COVERS/%s.jpg",dir,stem' in art)
+      '"%s/COVERS/%s.jpg",dir,stem' in art)
 check("Older FlowMovie same-name root image accepted",
       'n=add(out,n,max,dir,"/",name)' in cover)
 check("BDISO/COVERS same-name image accepted",
