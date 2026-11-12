@@ -80,7 +80,7 @@ def verify(package):
     assert "USRDIR/EBOOT.BIN" in files
     assert "USRDIR/raw_iso.sprx" in files, "Integrated BDISO plugin missing"
     rawiso = files["USRDIR/raw_iso.sprx"]
-    assert len(rawiso) == 7930 and rawiso[:4] == b"SCE\\x00", (
+    assert len(rawiso) == 7930 and rawiso[:4] == b"SCE\x00", (
         "Invalid embedded raw_iso.sprx",len(rawiso))
 
     icon = files["ICON0.PNG"]
