@@ -11,6 +11,7 @@ static float window_shape(int plat)
     switch (plat) {
     case PLAT_PS1: return 1.00f;   /* PS1 fronts are square */
     case PLAT_PS2: return 0.70f;   /* PS2 DVD covers */
+    case PLAT_BDISO: return 2.0f/3.0f; /* film posters, not PS3 game fronts */
     default:       return 0.86f;   /* PS3 covers (webMAN COV packs) */
     }
 }
