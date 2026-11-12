@@ -506,7 +506,7 @@ static int tarzan_mock_http(void *ctx,const char *url,uint8_t *buf,uint32_t cap,
     if(strcmp(url,real)!=0){g_tarzan_unexpected++;return 404;}
     if(cap<100)return COVER_HTTP_BIG;
     memset(buf,0,100);
-    memcpy(buf,"\\x89PNG\\r\\n\\x1a\\n",8);
+    memcpy(buf,"\x89PNG\r\n\x1a\n",8);
     *len=100;
     g_tarzan_covers_requested++;
     return 200;
@@ -517,11 +517,11 @@ static void test_ps1_tarzan_latino_catalog_download(void)
     CoverDl d;
     CoverDlItem it;
     const char *index=
-       "Disney's Tarzan (USA).png\\n"
-       "Disney Tarzan (Spain).png\\n"
-       "Disney's Tarzan (Europe).png\\n"
-       "Gran Turismo (USA).png\\n";
-    printf("PS1 catalog download: Disney Tarzan Latino -> Disney Tarzan Spain\\n");
+       "Disney's Tarzan (USA).png\n"
+       "Disney Tarzan (Spain).png\n"
+       "Disney's Tarzan (Europe).png\n"
+       "Gran Turismo (USA).png\n";
+    printf("PS1 catalog download: Disney Tarzan Latino -> Disney Tarzan Spain\n");
     memfs_reset();
     mem_io(&io,"/cache");
     memfs_put(PS1_BOXART_INDEX,index,(uint32_t)strlen(index));
@@ -538,12 +538,12 @@ static void test_ps1_tarzan_latino_catalog_download(void)
         int yes=ps1_name_catalog_match(it.path,index,strlen(index),
                                        matched,sizeof(matched));
         if(yes)ps1_name_catalog_url(matched,url,sizeof(url));
-        printf("PS1 Tarzan catalog direct match=%d selected=%s url=%s\\n",
+        printf("PS1 Tarzan catalog direct match=%d selected=%s url=%s\n",
                yes,matched,url);
     }
     cover_dl_run(&d);
     printf("PS1 Tarzan worker downloaded=%d missing=%d noid=%d error=%d "
-           "HTTP matches=%d other=%d id=%s\\n",
+           "HTTP matches=%d other=%d id=%s\n",
            d.n_got,d.n_missing,d.n_noid,d.n_error,
            g_tarzan_covers_requested,g_tarzan_unexpected,it.id);
     CHECK(d.finished && d.n_got==1);
