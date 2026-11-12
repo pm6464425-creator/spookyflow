@@ -1093,7 +1093,8 @@ static int stbi__mad3sizes_valid(int a, int b, int c, int add)
 }
 
 // returns 1 if "a*b*c*d + add" has no negative terms/factors and doesn't overflow
-#if !defined(STBI_NO_LINEAR) || !defined(STBI_NO_HDR) || !defined(STBI_NO_PNM)
+/* JPEG-only builds also need this overflow helper for 8-to-16 conversion. */
+#if !defined(STBI_NO_LINEAR) || !defined(STBI_NO_HDR) || !defined(STBI_NO_PNM) || defined(STBI_ONLY_JPEG)
 static int stbi__mad4sizes_valid(int a, int b, int c, int d, int add)
 {
    return stbi__mul2sizes_valid(a, b) && stbi__mul2sizes_valid(a*b, c) &&
