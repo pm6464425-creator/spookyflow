@@ -60,6 +60,8 @@ jobs:
           ./build-host/test_movie_edition
       # Includes the V13 regular-poster migration, Spanish-first policy,
       # manually supplied cover priority and the watermark-only visual gate.
+      - name: V15.6 native NTFS detach and reconnection recovery regressions
+        run: python3 tests/test_bdiso_reconnect.py
       - name: Real PS3 V15.4 NTFS root discovery regression and hotplug integration
         run: python3 tests/test_native_bdiso_root.py
       - name: PS3 forensic USB/NTFS diagnostic report invariants
@@ -256,6 +258,16 @@ jobs:
           gh release create spookyflow-v15-5-native-bdiso-root-fix SPOOKYFLOW_V15_5_RECONOCIMIENTO_NTFS_REAL.pkg --target "$GITHUB_SHA" \
             --title "SpookyFlow V15.5 - Detecta BDISO NTFS visible solo en libntfs" \
             --notes "Corrige el problema identificado por diagnostico_usb_ntfs.txt de PS3: NTFS USB000 montado, cuatro ISO en BDISO leidos por libntfs, pero SCANNER_USB_MOVIE_ROOTS=0. Al preparar la biblioteca, detecta particiones BDISO NTFS realmente montadas e incorpora su raiz aunque /dev_usb000 no exista en lv2. Mantiene retirada/reconexion USB, correccion Bajo el mar (2009), carteles 2:3 y las otras plataformas. Incluye diagnostico en /dev_hdd0/tmp/spookyflow/diagnostico_usb_ntfs.txt. Pruebas simuladas del fallo y compilacion verificadas; confirmar comportamiento final en PS3."
+
+      - name: Publish direct V15.6 native NTFS reconnect recovery PKG
+        if: github.ref == 'refs/heads/fix/bdiso-ntfs-reconnect-v15-6'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp spookyflow.pkg SPOOKYFLOW_V15_6_RECONECTA_USB_NTFS.pkg
+          gh release create spookyflow-v15-6-ntfs-reconnect-fix SPOOKYFLOW_V15_6_RECONECTA_USB_NTFS.pkg --target "$GITHUB_SHA" \
+            --title "SpookyFlow V15.6 - Reconexion automatica USB NTFS" \
+            --notes "V15.6: recupera el montaje nativo libntfs al retirar y volver a conectar el disco. Registra la desconexion fisica, invalida montajes NTFS obsoletos y remonta la particion BDISO si su acceso falla. Incluye diagnostico_usb_ntfs.txt en /dev_hdd0/tmp/spookyflow, mantiene portadas 2:3 y correcciones V15.5. Pruebas de host y PKG completadas; la confirmacion con USB real en PS3 sigue pendiente."
 
   ps3-pkg-docker:
     needs: host-tests
