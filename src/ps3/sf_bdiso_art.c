@@ -608,8 +608,8 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
                 snprintf(omdb_poster,sizeof(omdb_poster),"%s",tmp);
         }
     }
-    /* TMDB Spanish first, then 3D-aware manual art, then fallbacks.
-       A normal poster is a fallback only, never claimed as an exact 3D edition. */
+    /* PRIORITY 3: Spanish normal posters, only after edition-specific 3D
+       artwork. Generic TMDB posters are never identified as 3D. */
     if(poster_es[0]=='/' && strlen(poster_es)<100){
         snprintf(url,sizeof(url),"https://image.tmdb.org/t/p/w500%s",poster_es);
         movie_candidate(candidates,&count,MOVIE_CAND_MAX,url,"TMDB-ES");
@@ -622,6 +622,16 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
        movie_http_json(url,json,&n) &&
        movie_edition_mubis_normal_html((const char*)json,tmp,sizeof(tmp))){
         movie_candidate(candidates,&count,MOVIE_CAND_MAX,tmp,"2D-ES-Mubis");
+    }
+    /* MoviePosterDB provides a documented stable image URL by IMDb id.
+       Its FREE tier may be only 200px; higher-quality images need the
+       owner's own plan. We never invent or embed any vendor API key. */
+    if(mpdb[0] && imdb[0]){
+        int v=snprintf(url,sizeof(url),
+          "https://posters.movieposterdb.com/m/%s?k=%s&s=s&cc=ES",
+          imdb,mpdb);
+        if(v>0 && v<(int)sizeof(url))
+            movie_candidate(candidates,&count,MOVIE_CAND_MAX,url,"MoviePosterDB");
     }
     /* fanart.tv's posters are linked by TMDB movie ID. API keys are optional. */
     if(id>0 && (fanart[0] || fanart_client[0])){
@@ -648,16 +658,6 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     if(omdb_poster[0])
         movie_candidate(candidates,&count,MOVIE_CAND_MAX,omdb_poster,"OMDb");
 
-    /* MoviePosterDB provides a documented stable image URL by IMDb id.
-       Its FREE tier may be only 200px; higher-quality images need the
-       owner's own plan. We never invent or embed any vendor API key. */
-    if(mpdb[0] && imdb[0]){
-        int v=snprintf(url,sizeof(url),
-          "https://posters.movieposterdb.com/m/%s?k=%s&s=s&cc=ES",
-          imdb,mpdb);
-        if(v>0 && v<(int)sizeof(url))
-            movie_candidate(candidates,&count,MOVIE_CAND_MAX,url,"MoviePosterDB");
-    }
     /* Automatic no-key fallback: one small search + one JPEG download,
      * and the same background cover loader used for PS3 games. This is
      * attempted only when configured providers found no candidate. */
