@@ -51,8 +51,6 @@ jobs:
         run: |
           cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -Isrc/core src/core/movie_spanish.c tests/test_movie_spanish.c -o build-host/test_movie_spanish
           ./build-host/test_movie_spanish
-      - name: PNG conversion of real progressive-style movie posters
-        run: python3 tests/test_bdiso_compatible_png_live.py
       - name: Public movie catalog live network smoke test (not PS3 hardware)
         continue-on-error: true
         run: python3 tests/test_bdiso_live_source.py
@@ -62,6 +60,15 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq python3-pil
           make -f Makefile.host preview
+      - name: Decode real-format progressive JPEG without external image services
+        run: |
+          python3 - <<'PY'
+          from PIL import Image
+          im=Image.new("RGB",(250,372),(45,80,110))
+          im.save("build-host/progressive.jpg",progressive=True,quality=88)
+          PY
+          cc -std=c99 -O2 -Wall -Wextra -Werror -Wno-unused-function -fsanitize=undefined -Isrc/ps3 -Ithird_party/include src/ps3/ps3_jpeg_soft.c tests/test_ps3_jpeg_soft.c -o build-host/test_ps3_jpeg_soft
+          ./build-host/test_ps3_jpeg_soft build-host/progressive.jpg
       - uses: actions/upload-artifact@v4
         with:
           name: previews
