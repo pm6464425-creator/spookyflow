@@ -532,7 +532,20 @@ static void test_ps1_tarzan_latino_catalog_download(void)
     memset(&d,0,sizeof(d));d.item=&it;d.n=1;d.io=&io;
     d.http=tarzan_mock_http;d.auto_mode=1;
     g_tarzan_covers_requested=g_tarzan_unexpected=0;
+    {
+        char matched[256]="";
+        char url[512]="";
+        int yes=ps1_name_catalog_match(it.path,index,strlen(index),
+                                       matched,sizeof(matched));
+        if(yes)ps1_name_catalog_url(matched,url,sizeof(url));
+        printf("PS1 Tarzan catalog direct match=%d selected=%s url=%s\\n",
+               yes,matched,url);
+    }
     cover_dl_run(&d);
+    printf("PS1 Tarzan worker downloaded=%d missing=%d noid=%d error=%d "
+           "HTTP matches=%d other=%d id=%s\\n",
+           d.n_got,d.n_missing,d.n_noid,d.n_error,
+           g_tarzan_covers_requested,g_tarzan_unexpected,it.id);
     CHECK(d.finished && d.n_got==1);
     CHECK(g_tarzan_covers_requested==1 && g_tarzan_unexpected==0);
     CHECK(memfs_find(COVER_DL_DIR "/Disney Tarzan Latino.png")!=NULL);
