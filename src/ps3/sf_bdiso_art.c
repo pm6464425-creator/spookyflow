@@ -396,7 +396,7 @@ static void movie_candidate(MovieCandidate *v,int *count,int max,const char *url
 int sf_bdiso_ensure_art(const char *iso_path)
 {
     char dir[MOVIE_PATH_MAX],stem[256],cover[MOVIE_PATH_MAX],titlepath[MOVIE_PATH_MAX];
-    char tmdb[80]="",fanart[100]="",omdb[100]="",mpdb[140]="";
+    char tmdb[80]="",fanart[100]="",fanart_client[100]="",omdb[100]="",mpdb[140]="";
     char query[240],encoded[560],title[256]="",poster[120]="",poster_es[120]="";
     char imdb[40]="",url[MOVIE_URL_MAX],tmp[MOVIE_URL_MAX],omdb_poster[MOVIE_URL_MAX]="";
     const char *slash;
@@ -426,6 +426,8 @@ int sf_bdiso_ensure_art(const char *iso_path)
     if(k!=32)tmdb[0]=0;
     else for(i=0;i<32;i++)if(!isxdigit((unsigned char)tmdb[i])){tmdb[0]=0;break;}
     if(!movie_key(dir,"FANART_KEY.TXT",fanart,sizeof(fanart)))fanart[0]=0;
+    if(!movie_key(dir,"FANART_PERSONAL_KEY.TXT",fanart_client,sizeof(fanart_client)))
+        fanart_client[0]=0;
     if(!movie_key(dir,"OMDB_KEY.TXT",omdb,sizeof(omdb)))omdb[0]=0;
     if(!movie_key(dir,"MOVIEPOSTERDB_KEY.TXT",mpdb,sizeof(mpdb)) ||
        strncmp(mpdb,"mpdb_pk_",8)!=0)mpdb[0]=0;
@@ -495,12 +497,22 @@ int sf_bdiso_ensure_art(const char *iso_path)
         movie_candidate(candidates,&count,6,url,"TMDB-ES");
     }
     /* fanart.tv's posters are linked by TMDB movie ID. API keys are optional. */
-    if(fanart[0] && id>0 &&
-       snprintf(url,sizeof(url),
-         "https://webservice.fanart.tv/v3.2/movies/%d?api_key=%s",id,fanart)
-       <(int)sizeof(url) && movie_http_json(url,json,&n) &&
-       movie_from_fanart((const char*)json,tmp,sizeof(tmp)))
-        movie_candidate(candidates,&count,6,tmp,"Fanart.tv");
+    if(id>0 && (fanart[0] || fanart_client[0])){
+        int v;
+        if(fanart[0] && fanart_client[0])
+            v=snprintf(url,sizeof(url),
+               "https://webservice.fanart.tv/v3.2/movies/%d?api_key=%s&client_key=%s",
+               id,fanart,fanart_client);
+        else if(fanart[0])
+            v=snprintf(url,sizeof(url),
+               "https://webservice.fanart.tv/v3.2/movies/%d?api_key=%s",id,fanart);
+        else
+            v=snprintf(url,sizeof(url),
+               "https://webservice.fanart.tv/v3.2/movies/%d?client_key=%s",id,fanart_client);
+        if(v>0 && v<(int)sizeof(url) && movie_http_json(url,json,&n) &&
+           movie_from_fanart((const char*)json,tmp,sizeof(tmp)))
+            movie_candidate(candidates,&count,6,tmp,"Fanart.tv");
+    }
 
     if(poster[0]=='/' && strlen(poster)<100){
         snprintf(url,sizeof(url),"https://image.tmdb.org/t/p/w500%s",poster);
