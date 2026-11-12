@@ -187,7 +187,7 @@ int sf_bdntfs_mkdir(const char *path)
 /* The exact sector-list format and EMU_BD value are inherited from
  * FLOW MOVIE 3D's validated raw_iso.sprx implementation. This works
  * independently of webMAN's .ntfs[BDISO] index once a free VSH plugin
- * slot is available. It never calls cobra_unload_vsh_plugin(). */
+ * slot is available. It never calls the VSH plugin unload syscall. */
 typedef struct {
     uint64_t device;
     uint32_t emu_mode;
