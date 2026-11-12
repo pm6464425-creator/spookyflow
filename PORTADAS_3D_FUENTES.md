@@ -1,61 +1,28 @@
-# Portadas BDISO automáticas para SpookyFlow
+# SpookyFlow — carátulas normales y marca de agua 3D
 
-## Comportamiento
+## Regla de imagen
 
-1. Si ya existe una carátula manual, se utiliza sin descargar otra. Compatible
-   con JPG/PNG junto al ISO o en «BDISO/COVERS», por ejemplo
-   «BDISO/COVERS/2009 Avatar 3D-001.jpg».
-2. Para una película marcada como 3D, se busca una **carátula frontal de una
-   edición Blu-ray 3D española** en Mubis, que publica esas ediciones.
-   Como respaldo, se consultan algunas ediciones 3D españolas verificadas
-   de Blu-ray.com.
-3. Si falta la española, se intentan **carátulas 3D inglesas** de ediciones
-   de Blu-ray.com verificadas (título y año). Hay una tabla de ediciones
-   conocidas: no es un buscador universal.
-4. Si falla la búsqueda 3D, se utiliza una **portada normal en español**:
-   TMDB (si hay clave personal) y ediciones españolas normales de Mubis.
-5. Finalmente se busca la **portada normal en inglés**, mediante otras
-   fuentes configuradas o Cinemeta sin clave.
+- **Primero** se usa una carátula personalizada colocada junto al ISO en `BDISO/`, con el mismo nombre del ISO (se admite `.jpg`, `.png` o `.iso.jpg`).
+- De forma automática se busca la **portada normal en español**: The Movie Database si tienes clave; ficha normal en español de Mubis sin clave; MoviePosterDB con clave.
+- **Después** se busca una portada normal en inglés: Cinemeta sin clave, TMDB, OMDb o fanart.tv si están disponibles.
+- **Nunca** se buscan carátulas comerciales de la *edición Blu-ray 3D*. Es el estuche del programa el que lleva dos marcas de agua pequeñas: «3D» a la izquierda (solo en ISO 3D) y «Blu-ray» a la derecha. No hay bandas ni fondos opacos.
 
-Las imágenes se descargan como JPG frontal, **sin marco/estuche incluido
-artificialmente por la app**. El estuche PS3/Blu-ray de SpookyFlow queda
-exactamente como antes: no se agrega franja ni texto «BLU-RAY 3D» sobre
-él. Una ficha comercial marcada 3D es una referencia de edición, pero
-no hay OCR de la propia foto: algunos diseños pueden no llevar un sello 3D
-visible en la imagen. Una portada manual tiene prioridad siempre.
+## Portadas anteriores
 
-## Almacenamiento
+Para evitar borrar las antiguas carátulas 3D o tus imágenes personalizadas, las portadas normales descargadas por esta versión se escriben automáticamente en:
 
-Con «/dev_usb000/BDISO/2009 Avatar 3D-001.iso» se guarda:
+`/dev_usb000/BDISO/COVERS/NORMAL/2009 Avatar 3D-001.jpg`
 
-  /dev_usb000/BDISO/COVERS/2009 Avatar 3D-001.jpg
+La imagen sigue teniendo el mismo nombre base que su ISO, solo cambia su subcarpeta. SpookyFlow lee en este orden:
 
-La misma imagen se reconoce al volver a abrir SpookyFlow. No se cambia
-el nombre de la ISO ni se escriben portadas originales en el HDD interno.
-Si ya has copiado una foto manual junto al ISO con el mismo nombre sin
-«.iso», SpookyFlow también la lee.
+1. Imagen manual junto al ISO.
+2. Nueva portada normal en `COVERS/NORMAL`.
+3. Antigua imagen en `COVERS` como respaldo si no hay conexión.
 
-El código anterior creaba ficheros «.sources.txt» con enlaces a foros:
-**ya no se crean esos archivos**. No son imágenes.
+Así la actualización puede reemplazar las carátulas 3D en pantalla **sin borrar archivos**. Si la carátula manual está dentro de `COVERS`, seguirá existiendo como respaldo; para hacer que tenga prioridad sobre la normal automática se puede colocar una copia junto al ISO en `BDISO/`.
 
-## Fuentes y claves
+La descarga automática se ejecuta en segundo plano cuando termina el escaneo; también está disponible **Download Missing Covers**. El PKG conserva el lector NTFS y los mismos estuches de SpookyFlow. No necesita cambiar los ISO ni descargar texturas desde el menú de PS3.
 
-- Ediciones 3D españolas: https://www.mubis.es/
-- Ediciones 3D españolas/inglesas verificadas: https://www.blu-ray.com/
-- Póster normal en español opcional: https://www.themoviedb.org/
-- Otros pósteres opcionales: https://fanart.tv/ , https://www.omdbapi.com/
-- Último recurso sin clave: https://v3-cinemeta.strem.io/
+## Limitaciones
 
-«TMDB_KEY.TXT», «FANART_KEY.TXT», «OMDB_KEY.TXT» y
-«MOVIEPOSTERDB_KEY.TXT» siguen siendo opcionales y nunca están
-incluidos en el PKG. Las conexiones a sitios externos pueden fallar
-o cambiar. Se respetan las restricciones del proveedor de imágenes;
-no se imitan credenciales, se fuerzan bloqueos ni se rehostean portadas.
-
-## Pruebas
-
-Las pruebas incluyen la selección de ediciones originales 3D,
-rechazo de imágenes no confiables, conservación de carátulas manuales,
-títulos en español, decodificación de JPEG progresivo, NTFS y
-compilación PS3. **La reproducción y conexión reales deben
-comprobarse en la consola del usuario**.
+La disponibilidad e idioma reales dependen de las fuentes externas. Los títulos en español ya localizados en la biblioteca no se modifican. Si no encuentra una portada nueva puede continuar mostrando la carátula antigua; nunca se declara éxito si no se guardó y detectó el JPG. El registro `/dev_hdd0/tmp/spookyflow/diagnostico_portadas.txt` permite verificar el estado real en PS3.
