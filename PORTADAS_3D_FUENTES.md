@@ -11,8 +11,11 @@ ni el logotipo Blu-ray. **La coincidencia exacta de edición comercial
    estándar si no hay más alternativas. Necesita la clave que ya
    utilizaba la aplicación: «BDISO/COVERS/TMDB_KEY.TXT».
 2. **Fanart.tv** — posters de su API oficial mediante el TMDB ID.
-   Clave opcional personal/de proyecto:
+   Clave opcional de **proyecto**:
    «BDISO/COVERS/FANART_KEY.TXT».
+   Si dispones de una clave **personal**, colócala en
+   «BDISO/COVERS/FANART_PERSONAL_KEY.TXT».
+   La API de fanart.tv usa «client_key» para las claves personales.
 3. **OMDb** — posters registrados en su API, como respaldo.
    Clave opcional «BDISO/COVERS/OMDB_KEY.TXT».
    *El servicio específico de posters de alta resolución de OMDb
