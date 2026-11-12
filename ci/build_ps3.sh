@@ -130,6 +130,20 @@ TLS=0
 if build_tls; then TLS=1; else echo "warning: mbedTLS could not be built; spookyflow is built without HTTPS"; fi
 end
 
+# --- BDISO native NTFS read/write, only for movie art on the external disk. --
+say "BDISO NTFS dependencies (IRISMAN)"
+mkdir -p third_party/include third_party/lib
+for FILE in include/ntfs.h include/cobra.h; do
+  curl --retry 3 --retry-delay 2 -fsSL "https://raw.githubusercontent.com/aldostools/IRISMAN/master/$FILE" \
+    -o "third_party/include/$(basename "$FILE")"
+done
+for FILE in lib/libcobra.a lib/libfatfs.a lib/libntfs_ext.a; do
+  curl --retry 3 --retry-delay 2 -fsSL "https://raw.githubusercontent.com/aldostools/IRISMAN/master/$FILE" \
+    -o "third_party/lib/$(basename "$FILE")"
+done
+test -s third_party/lib/libntfs_ext.a
+end
+
 # --- build ----------------------------------------------------------------------
 say "make pkg (SF_TLS=$TLS)"
 make clean >/dev/null 2>&1 || true

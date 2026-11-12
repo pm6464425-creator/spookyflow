@@ -24,6 +24,7 @@
 #include "coverart.h"
 #include "log.h"
 #include "ps3_platform.h"
+#include "sf_bdiso_ntfs.h"
 #include "render.h"
 #include "util.h"
 
@@ -49,7 +50,7 @@ int ps3_read_at(void *ctx, const char *path, uint64_t off, void *buf, uint32_t l
     s32 fd;
     u64 pos = 0, got = 0, total = 0;
     (void)ctx;
-    if (sysFsOpen(path, SYS_O_RDONLY, &fd, NULL, 0) != 0) return -1;
+    if (sysFsOpen(path, SYS_O_RDONLY, &fd, NULL, 0) != 0) return sf_bdntfs_read(path,off,buf,len);
     if (off && sysFsLseek(fd, (s64)off, 0 /* SEEK_SET */, &pos) != 0) { sysFsClose(fd); return -1; }
     while (total < len) {
         if (sysFsRead(fd, (u8 *)buf + total, len - total, &got) != 0) { sysFsClose(fd); return total ? (int)total : -1; }
@@ -64,14 +65,14 @@ static int io_is_file(void *ctx, const char *path)
 {
     sysFSStat st;
     (void)ctx;
-    return sysFsStat(path, &st) == 0 && (st.st_mode & SF_S_IFMT) != SF_S_IFDIR;
+    return (sysFsStat(path, &st) == 0 && (st.st_mode & SF_S_IFMT) != SF_S_IFDIR) || sf_bdntfs_is_file(path);
 }
 
 static int io_is_dir(void *ctx, const char *path)
 {
     sysFSStat st;
     (void)ctx;
-    return sysFsStat(path, &st) == 0 && (st.st_mode & SF_S_IFMT) == SF_S_IFDIR;
+    return (sysFsStat(path, &st) == 0 && (st.st_mode & SF_S_IFMT) == SF_S_IFDIR) || sf_bdntfs_is_dir(path);
 }
 
 /* ARGB rows (pitch bytes) -> tightly packed RGBA, in place (no second
@@ -174,7 +175,26 @@ static int decode_any(const char *path, int min_w, int min_h, int max_dim, int *
     s32 rc;
     *rgba = NULL;
     ps3_decode_lock();
-    if (is_png) {
+    /* Native NTFS art is decoded straight from RAM, never copied to HDD. */
+    if (strncmp(path,"/dev_usb00",10)==0 && sf_bdntfs_has_port(path[10]-'0')) {
+        unsigned char *data=NULL;
+        uint32_t nbytes=0;
+        if(sf_bdntfs_load(path,&data,&nbytes,3u*1024u*1024u)!=0) {
+            ps3_decode_unlock(); return -1;
+        }
+        if(is_png) {
+            pngData d;
+            memset(&d,0,sizeof(d));
+            rc=pngLoadFromBuffer(data,nbytes,&d);
+            bmp=d.bmp_out; pitch=d.pitch; bw=d.width; bh=d.height;
+        } else {
+            jpgData d;
+            memset(&d,0,sizeof(d));
+            rc=jpgLoadFromBuffer(data,nbytes,&d);
+            bmp=d.bmp_out; pitch=d.pitch; bw=d.width; bh=d.height;
+        }
+        free(data);
+    } else if (is_png) {
         pngData d;
         memset(&d, 0, sizeof(d));
         rc = pngLoadFromFile(path, &d);
@@ -216,7 +236,8 @@ static int io_write(void *ctx, const char *path, const void *a, uint32_t alen, c
     u64 n = 0;
     int ok = 1;
     (void)ctx;
-    if (sysFsOpen(path, SYS_O_WRONLY | SYS_O_CREAT | SYS_O_TRUNC, &fd, NULL, 0) != 0) return -1;
+    if (sysFsOpen(path, SYS_O_WRONLY | SYS_O_CREAT | SYS_O_TRUNC, &fd, NULL, 0) != 0)
+        return sf_bdntfs_write(path,a,alen,b,blen);
     if (alen && (sysFsWrite(fd, a, alen, &n) != 0 || n != alen)) ok = 0;
     if (ok && blen && (sysFsWrite(fd, b, blen, &n) != 0 || n != blen)) ok = 0;
     sysFsClose(fd);
@@ -224,8 +245,8 @@ static int io_write(void *ctx, const char *path, const void *a, uint32_t alen, c
     return 0;
 }
 
-static int io_remove(void *ctx, const char *path) { (void)ctx; return sysFsUnlink(path) == 0 ? 0 : -1; }
-static int io_mkdir(void *ctx, const char *path) { (void)ctx; sysFsMkdir(path, 0777); return 0; }
+static int io_remove(void *ctx, const char *path) { (void)ctx; return sysFsUnlink(path) == 0 ? 0 : sf_bdntfs_unlink(path); }
+static int io_mkdir(void *ctx, const char *path) { (void)ctx; return sysFsMkdir(path, 0777) == 0 ? 0 : sf_bdntfs_mkdir(path); }
 static void io_sleep(void *ctx, int ms) { (void)ctx; sysUsleep(ms > 0 ? (u32)ms * 1000u : 100u); }
 
 static void worker_entry(void *arg)

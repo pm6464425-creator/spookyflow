@@ -7,6 +7,7 @@
 #include <string.h>
 #include <sys/file.h>
 #include "ps3_platform.h"
+#include "sf_bdiso_ntfs.h"
 #include "log.h"
 #include "util.h"
 
@@ -46,7 +47,7 @@ int ps3_fs_list(void *ctx, const char *dir, FsEntry *out, int max)
     int n = 0, skipped = 0;
     char path[SCAN_PATH_MAX];
     (void)ctx;
-    if (sysFsOpendir(dir, &fd) != 0) return -1;
+    if (sysFsOpendir(dir, &fd) != 0) return sf_bdntfs_list(dir,out,max);
     while (n < max) {
         sysFSStat st;
         size_t len;
@@ -75,7 +76,8 @@ int ps3_fs_is_file(void *ctx, const char *path)
 {
     sysFSStat st;
     (void)ctx;
-    return sysFsStat(path, &st) == 0 && (st.st_mode & SF_S_IFMT) != SF_S_IFDIR;
+    return (sysFsStat(path, &st) == 0 && (st.st_mode & SF_S_IFMT) != SF_S_IFDIR) ||
+           sf_bdntfs_is_file(path);
 }
 
 int ps3_fs_write_file(const char *path, const void *data, uint32_t len)

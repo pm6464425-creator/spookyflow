@@ -26,6 +26,7 @@
 #include "sound.h"
 #include "ps3_platform.h"
 #include "sf_cobra_mount.h"
+#include "sf_bdiso_ntfs.h"
 #include "ui.h"
 
 #define VERTEX_BUFFER_BYTES (4u * 1024u * 1024u)
@@ -293,6 +294,8 @@ int main(int argc, const char *argv[])
 #else
     log_printf("network: plain HTTP only (this build has no mbedTLS)");
 #endif
+    /* Movie-only native NTFS discovery. Other platforms remain untouched. */
+    log_printf("bdiso: NTFS volumes discovered=%d",sf_bdntfs_start());
     (void)sf_cobra_diag_startup("BEFORE_APP_INIT");
     app_init(&g_app, &g_lib, &host);
     (void)sf_cobra_diag_startup("READY_FOR_GAME_SELECTION");
