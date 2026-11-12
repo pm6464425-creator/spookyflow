@@ -1,6 +1,7 @@
 /* test_covers.h - milestone 2 tests (title IDs, cover lookup, processing,
  * cache, worker). Included by test_core.c (shares CHECK and g_app). */
 #include "coverart.h"
+#include "ps1_name_match.h"
 #include "discid.h"
 #include "render.h"
 
