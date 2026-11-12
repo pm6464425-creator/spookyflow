@@ -60,6 +60,11 @@ jobs:
           ./build-host/test_movie_edition
       # Includes the V13 regular-poster migration, Spanish-first policy,
       # manually supplied cover priority and the watermark-only visual gate.
+      - name: SensaCine theatrical poster HTML parsing tests (real examples)
+        run: |
+          mkdir -p build-host
+          cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -Isrc/core src/core/movie_sensacine.c tests/test_movie_sensacine.c -o build-host/test_movie_sensacine
+          ./build-host/test_movie_sensacine
       - name: BDISO manual cover paths and clean-case priority checks
         run: python3 tests/test_bdiso_priority.py
       - name: BDISO integration checks (fourteen independent reviews)
@@ -160,14 +165,14 @@ jobs:
       # GitHub release assets can be downloaded directly (without Actions
       # artifact ZIP/login) unlike some sandbox links in the chat client.
       - name: Publish direct-download PS3 PKG release
-        if: github.ref == 'refs/heads/fix/bdiso-normal-posters-discreet-3d'
+        if: github.ref == 'refs/heads/fix/bdiso-sensacine-theatrical-posters'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp spookyflow.pkg MI_PKG_V13_NORMAL_3D.pkg
-          gh release create mi-pkg-v13-normal-3d MI_PKG_V13_NORMAL_3D.pkg --target "$GITHUB_SHA" \
-            --title "MI PKG V13 - Portadas normales + 3D discreto" \
-            --notes "V13: caratulas normales (ES primero, EN si no hay); no buscar caratulas de ediciones 3D. El estuche original mantiene Blu-ray a la derecha y suma una marca de agua 3D discreta a la izquierda SOLO para ISO 3D. No hay franja, banda ni cambios de proporcion. Nuevas portadas guardadas automaticamente en BDISO/COVERS/NORMAL con el mismo nombre del ISO; antiguas JPG quedan intactas como respaldo. Se conserva la correccion de la cuarta pestana BDISO y la deteccion NTFS. Codigo y compilacion probados; validar la consola fisica."
+          cp spookyflow.pkg MI_PKG_V14_CINE_POSTERS.pkg
+          gh release create mi-pkg-v14-cine-posters MI_PKG_V14_CINE_POSTERS.pkg --target "$GITHUB_SHA" \
+            --title "MI PKG V14 - Carteles de cine sin estuche" \
+            --notes "CORRECCION: SensaCine CARTEL cinematografico plano en espanol (como Avatar aportado), nunca imagen fotografiada con caja Blu-ray. Se quita fuente Mubis de ediciones en disco y se ignoran las portadas con caja de V11-V13 sin borrarlas. Se guardan carteles en BDISO/COVERS/CINE con nombre del ISO. Prioridad manual junto al ISO o BDISO/COVERS/MANUAL. Fallback TMDB ES / Cinemeta EN si SensaCine falla. El estuche propio conserva Blu-ray y marca pequena 3D al otro lado solo para ISOs 3D. Se mantiene arreglo de la 4a pestana y NTFS, pruebas del parser y PKG; prueba final sobre PS3 pendiente."
 
   ps3-pkg-docker:
     needs: host-tests
