@@ -109,7 +109,7 @@ void sf_usb_diag_snapshot(const char *phase, const Library *lib,
                 parts,part,mount_rc);
     }
     /* Probe only native volumes already mounted by the ordinary application.
-     * Do not invoke sf_bdntfs_start() or NTFS mount functions here. */
+     * No mounting, unmounting or NTFS initialization occurs here. */
     for(port=0;port<8;port++){
         if(sf_bdntfs_has_port(port)){
             char bd[48];
