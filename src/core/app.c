@@ -100,6 +100,10 @@ void app_init(App *a, Library *lib, const AppHost *host)
     memset(a, 0, sizeof(*a));
     a->lib = lib;
     if (host) a->host = *host;
+    /* Take the initial snapshot before the first scan. Changes are debounced
+     * while browsing; no expensive filesystem work occurs each frame. */
+    if (a->host.usb_media_mask)
+        a->usb_last_mask = a->usb_candidate_mask = a->host.usb_media_mask();
     if (!a->host.roots) { a->host.roots = scanner_default_roots(&a->host.nroots); a->usb_roots = 1; }
     settings_defaults(&a->settings);
     lib_clear(lib);
@@ -304,7 +308,9 @@ static void finish_library(App *a)
 static void refresh_ntfs(App *a)
 {
     int n;
-    if (!a->rescan || !a->host.ntfs_refresh) return;
+    /* A physical hotplug is not an explicit webMAN reindex request.
+     * Avoid blocking the scan for up to 180 seconds on a removed USB. */
+    if (!a->rescan || a->usb_auto_rescan || !a->host.ntfs_refresh) return;
     a->ntfs_busy = 1;
     __sync_synchronize();
     n = a->host.ntfs_refresh();
@@ -701,7 +707,8 @@ static void loading_update(App *a, float dt)
             if (a->load_t < RESCAN_OUT_TIME) break;      /* the cover flow is still fading out */
             drop_covers(a);
             /* "Rescan Library" also looks again for covers of games that had none (0.9.3: made covers are kept) */
-            if (a->host.covers) cover_wipe_cache(a->host.covers);
+            if (a->host.covers && !a->usb_auto_rescan)
+                cover_wipe_cache(a->host.covers);
         }
         sf_strlcpy(a->load_status, a->rescan ? "Rescanning library\xE2\x80\xA6" : "Loading settings\xE2\x80\xA6", sizeof(a->load_status));
         a->load_target = 0.06f;
@@ -741,6 +748,7 @@ static void loading_update(App *a, float dt)
         }
         scanner_begin(&a->scanner, a->host.roots, a->host.nroots);
         scanner_set_reader(&a->scanner, a->host.read_at, a->host.fs_ctx);
+        scanner_set_bdiso_pointer_filter(&a->scanner,a->host.ntfs_bdiso_online);
         a->scan_async = 0;
         a->scan_busy = 0;
         if (a->host.fs_list && a->host.run_async) {
@@ -800,6 +808,7 @@ static void loading_update(App *a, float dt)
         /* the loading screen can't be skipped: it always runs its full time */
         if (a->load_t >= (a->rescan ? RESCAN_MIN_TIME : LOAD_MIN_TIME) && a->load_shown >= 0.999f) {
             a->mode = MODE_FLOW;
+            a->usb_auto_rescan = 0;
             a->flow_t = 0.0f;
             a->intro = 0.0f;
             input_reset(&a->input);
@@ -1192,6 +1201,7 @@ static void apply_fx(App *a, RowKind k, int fx)
         break;
     case MENU_FX_RESCAN:
         log_printf("action: rescan library");
+        a->usb_auto_rescan = 0;
         app_close_panel(a);              /* 0.9.2: it slides away while the cover flow fades (loading_update) */
         start_loading(a, 1);
         break;
@@ -1564,6 +1574,39 @@ static void animate(App *a, float dt)
     cc_update(&a->covers, a->tab, a->view[a->tab].sel, a->lib->tab[a->tab].count);
 }
 
+/* Debounced physical USB changes, with no network and no directory scan in
+ * the 60-fps loop. Two equal polls are needed to avoid unstable attach
+ * events. A full background library scan then excludes removed BDISO media
+ * and detects new movies automatically (also updates other removable tabs). */
+static int usb_hotplug_poll(App *a, float dt)
+{
+    uint32_t mask;
+    if (!a->host.usb_media_mask || a->mode != MODE_FLOW || a->exiting) return 0;
+    a->usb_poll_t += dt;
+    if (a->usb_poll_t < 0.75f) return 0;
+    a->usb_poll_t = 0.0f;
+    mask = a->host.usb_media_mask();
+    if (mask == a->usb_last_mask) {
+        a->usb_candidate_mask = mask;
+        a->usb_candidate_hits = 0;
+        return 0;
+    }
+    if (mask != a->usb_candidate_mask) {
+        a->usb_candidate_mask = mask;
+        a->usb_candidate_hits = 1;
+        return 0;
+    }
+    if (++a->usb_candidate_hits < 2) return 0;
+    log_printf("usb: hotplug %08x -> %08x; automatically rescanning BDISO and removable library",
+               (unsigned)a->usb_last_mask,(unsigned)mask);
+    a->usb_last_mask = mask;
+    a->usb_candidate_hits = 0;
+    a->usb_auto_rescan = 1;
+    app_close_panel(a);
+    start_loading(a, 1);
+    return 1;
+}
+
 void app_update(App *a, uint32_t held, float dt)
 {
     int main_ctx;
@@ -1613,6 +1656,7 @@ void app_update(App *a, uint32_t held, float dt)
     sound_set_enabled(a->settings.sfx_volume > 0);
     sound_set_volume((float)a->settings.sfx_volume / 100.0f);
     if (a->mode == MODE_LOADING) { loading_update(a, dt); return; }
+    if (usb_hotplug_poll(a, dt)) return;
 
     /* evaluated BEFORE handling this frame's input, so a ◯ press that closes a
      * panel cannot arm the exit hold */
