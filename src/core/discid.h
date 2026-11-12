@@ -31,4 +31,14 @@ int discid_parse_system_cnf(const char *txt, size_t len, char *out, size_t cap);
 /* First FILE entry of a .cue sheet, joined to the cue's folder. Returns 1. */
 int discid_cue_first_file(const char *cue_path, const char *txt, size_t len, char *out, size_t cap);
 
+/* List actual filenames referenced by CUE FILE commands (basename only).
+ * Bounded output, including multiple BIN tracks. It lets the library scanner
+ * associate all BIN tracks with ONE PS1 game, even when their names have
+ * "(Track 01)", "(Track 02)" suffixes different from the .cue filename.
+ * This does NOT alter BDISO, PS2 or PS3 scanning. */
+#define PS1_CUE_REF_MAX 128
+#define PS1_CUE_REF_NAME_MAX 256
+int discid_cue_files(const char *txt,size_t len,
+                     char out[][PS1_CUE_REF_NAME_MAX],int max);
+
 #endif
