@@ -142,8 +142,9 @@ static int launch_bdiso(const char *path)
             (void)ps3_webman_get_wait("/refresh.ps3?prepntfs",180,resp,sizeof(resp));
         }
         if(!ps3_fs_exists(index)) {
-            log_printf("bdiso: missing NTFS index for %s (prepISO needed)",path);
-            return -7;
+            int raw=sf_bdntfs_mount_raw_iso(path);
+            log_printf("bdiso: webMAN NTFS pointer absent; independent raw ISO result=%d",raw);
+            return raw;
         }
         if(launch_url_encode(index,enc,sizeof(enc))!=0) return -8;
         if(snprintf(req,sizeof(req),"/mount.ps3%s",enc)>=(int)sizeof(req))
