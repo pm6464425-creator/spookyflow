@@ -125,6 +125,7 @@ static void movie_search_alias(char *query,size_t cap)
 {
     static const struct { const char *local,*catalog; } map[]={
         {"Yo Robot","I Robot"},
+        {"Bajo el mar","Under the Sea"},
         {"Terminator 2 el Juicio Final","Terminator 2 Judgment Day"},
         {"Final Destination V","Final Destination 5"},
         {"Warcraft The Beginning","Warcraft"},
@@ -595,6 +596,20 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     json=(unsigned char*)malloc(MOVIE_HTML_MAX+1);
     jpeg=(unsigned char*)malloc(MOVIE_JPEG_MAX);
     if(!json || !jpeg){status=-8;goto done;}
+
+    /* Fixed IMDb identity for the 2009 IMAX nature documentary. The
+     * regular public catalog can omit short documentary titles; when the
+     * verified title AND release year match, use the known poster ID
+     * directly, without a TMDB key. This does not change the ISO path,
+     * other movies' matches or manual artwork priority. MetaHub may
+     * redirect to its image CDN; remote_get follows HTTPS redirects. */
+    if(year==2009 && movie_title_exact(query,"Under the Sea")){
+        movie_candidate(candidates,&count,MOVIE_CAND_MAX,
+          "https://images.metahub.space/poster/medium/tt1020876/img",
+          "IMDb-verified-UnderTheSea2009");
+        cover_diag("ID_VERIFICADO",
+                   "Under the Sea IMAX 3D (2009), IMDb=tt1020876");
+    }
 
     /* Verified film-ID lookup for ambiguous titles: official
      * SensaCine film page, not text search (which returns 'Rio 2',
