@@ -6,6 +6,9 @@
 #include <stdint.h>
 #include "scanner.h"
 int sf_bdntfs_start(void);
+/* Pure media-presence probes; never mount a volume or touch a removed disk. */
+uint32_t sf_bdntfs_usb_present_mask(void);
+int sf_bdntfs_index_online(const unsigned char *data, size_t len);
 /* BDISO raw-sector Cobra mount: does not unload any existing plugin slot. */
 int sf_bdntfs_mount_raw_iso(const char *path);
 int sf_bdntfs_has_port(int port);
