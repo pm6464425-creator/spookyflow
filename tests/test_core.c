@@ -1424,10 +1424,10 @@ static void test_bdiso_flowmovie_manual_cover_paths(void)
     CHECK(n==6);
     CHECK(strcmp(c[0].base,"/dev_usb000/BDISO/2009 Avatar 3D-001")==0);
     CHECK(strcmp(c[1].base,"/dev_usb000/BDISO/2009 Avatar 3D-001.iso")==0);
-    CHECK(strcmp(c[2].base,"/dev_usb000/BDISO/COVERS/NORMAL/2009 Avatar 3D-001")==0);
-    CHECK(strcmp(c[3].base,"/dev_usb000/BDISO/COVERS/NORMAL/2009 Avatar 3D-001.iso")==0);
-    CHECK(strcmp(c[4].base,"/dev_usb000/BDISO/COVERS/2009 Avatar 3D-001")==0);
-    CHECK(strcmp(c[5].base,"/dev_usb000/BDISO/COVERS/2009 Avatar 3D-001.iso")==0);
+    CHECK(strcmp(c[2].base,"/dev_usb000/BDISO/COVERS/MANUAL/2009 Avatar 3D-001")==0);
+    CHECK(strcmp(c[3].base,"/dev_usb000/BDISO/COVERS/MANUAL/2009 Avatar 3D-001.iso")==0);
+    CHECK(strcmp(c[4].base,"/dev_usb000/BDISO/COVERS/CINE/2009 Avatar 3D-001")==0);
+    CHECK(strcmp(c[5].base,"/dev_usb000/BDISO/COVERS/CINE/2009 Avatar 3D-001.iso")==0);
 }
 
 int main(void)
