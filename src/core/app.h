@@ -93,6 +93,9 @@ typedef struct {
     /* Optional lightweight USB-port presence mask (one bit per port).
      * Called at most every 0.75 s on the UI thread; never mounts volumes. */
     uint32_t (*usb_media_mask)(void);
+    /* Optional PS3-only read-only diagnostic at the end of a library scan. */
+    void (*usb_diag)(const char *phase,const Library *lib,const Scanner *scanner,
+                     uint32_t app_mask);
     /* Reject stale webMAN BDISO pointers when their physical USB is gone. */
     int (*ntfs_bdiso_online)(const unsigned char *raw, size_t len);
     /* optional: folder with the background music (.mp3/.wav, see music.h);
