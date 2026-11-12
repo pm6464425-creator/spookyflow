@@ -141,7 +141,7 @@ static void mc_alias(const char *norm,char *out,size_t cap)
         {"yo robot","i robot"},
         {"terminator 2 el juicio final","terminator 2 judgment day"},
         {"final destination 5","final destination 5"},
-        {"final destination v","final destination 5"},
+        {"final destination","final destination 5"},
         {"warcraft the beginning","warcraft"},
         {"under the sea imax","under the sea"}
     };
