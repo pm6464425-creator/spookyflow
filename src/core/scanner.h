@@ -76,6 +76,13 @@ const ScanRoot *scanner_default_roots(int *n);
  * next call. *ndrives = drives found. */
 #define SCAN_USB_PORTS   11
 const ScanRoot *scanner_roots_with_usb(const ScanRoot *base, int nbase, FsListFn list, void *ctx, int *n, int *ndrives);
+/* PS3 native NTFS root repair: add the BDISO root for native-mounted USB
+ * ports absent from lv2 sysFs root enumeration. Does not fabricate game roots.
+ * native_ready_mask bit N means native NTFS /BDISO is really mounted on USB N. */
+const ScanRoot *scanner_roots_with_usb_native(const ScanRoot *base, int nbase,
+                                              FsListFn list, void *ctx,
+                                              uint32_t native_ready_mask,
+                                              int *n, int *ndrives);
 
 void  scanner_begin(Scanner *s, const ScanRoot *roots, int nroots);
 /* Let the scanner read files (call after scanner_begin). Without it, NTFS
