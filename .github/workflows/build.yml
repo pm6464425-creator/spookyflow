@@ -32,6 +32,12 @@ jobs:
       - name: Real 3D release website and JPEG smoke checks
         continue-on-error: true
         run: python3 tests/test_bdiso_edition_live.py
+      - name: True PS3 BDISO end-to-end diagnostic regressions
+        run: |
+          python3 tests/test_bdiso_trace.py
+          mkdir -p build-host
+          cc -std=c99 -O2 -Wall -Wextra -Werror -Isrc/core src/core/cover_diag.c tests/test_cover_diag.c -o build-host/test_cover_diag
+          ./build-host/test_cover_diag
       - name: Real Blu-ray 3D Spanish and English edition matching C tests
         run: |
           mkdir -p build-host
@@ -137,14 +143,14 @@ jobs:
       # GitHub release assets can be downloaded directly (without Actions
       # artifact ZIP/login) unlike some sandbox links in the chat client.
       - name: Publish direct-download PS3 PKG release
-        if: github.ref == 'refs/heads/fix/bdiso-authentic-3d-no-stripe'
+        if: github.ref == 'refs/heads/diagnostic/bdiso-end-to-end-trace'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp spookyflow.pkg MI_PKG_V10.pkg
-          gh release create mi-pkg-v10 MI_PKG_V10.pkg --target "$GITHUB_SHA" \
-            --title "MI PKG V10 - Caratulas 3D reales sin franjas" \
-            --notes "Busca carátulas frontales de ediciones Blu-ray 3D: España primero (Mubis), inglés después (Blu-ray.com), luego 2D español y por último inglés. Sin franjas añadidas al estuche. Respeta portadas manuales con el nombre del ISO tanto en BDISO como COVERS. Conserva NTFS, Cobra y títulos españoles. Código y PKG comprobados; ejecución física pendiente de validación."
+          cp spookyflow.pkg MI_PKG_DIAGNOSTICO_V11.pkg
+          gh release create mi-pkg-diagnostico-v11 MI_PKG_DIAGNOSTICO_V11.pkg --target "$GITHUB_SHA" \
+            --title "MI PKG Diagnostico V11 - Diagnostico portadas BDISO" \
+            --notes "Compilacion de DIAGNOSTICO, sin cambios en estuches ni prioridades de arte. Instala, abre BDISO, selecciona 2 peliculas y pulsa Download Missing Covers. Envia /dev_hdd0/tmp/spookyflow/diagnostico_portadas.txt. El archivo registra SCAN/NTFS/HTTP/JPG/decodificacion/textura/carrusel para encontrar el primer fallo real en tu PS3."
 
   ps3-pkg-docker:
     needs: host-tests
