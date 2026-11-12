@@ -448,38 +448,6 @@ static int movie_imdb_id(const char *json,char *out,size_t cap)
     for(i=2;out[i];i++)if(!isdigit((unsigned char)out[i]))return 0;
     return 1;
 }
-/* Community pages usually have real Blu-ray release scans but no documented,
- * stable, anonymous poster API. We provide useful searches instead of
- * silently selecting a random image from a protected forum. */
-static void movie_community_sources(const char *dir,const char *stem,
-                                    const char *title,int year,int port)
-{
-    char path[MOVIE_PATH_MAX],enc[560],text[2400],query[260];
-    int n;
-    if(snprintf(path,sizeof(path),"%s/COVERS/%s.sources.txt",dir,stem)>=(int)sizeof(path) ||
-       ps3_fs_is_file(NULL,path))return;
-    if(year)snprintf(query,sizeof(query),"%s %d 3D Blu-ray",title,year);
-    else snprintf(query,sizeof(query),"%s 3D Blu-ray",title);
-    if(encode_query(query,enc,sizeof(enc)))return;
-    n=snprintf(text,sizeof(text),
-        "BÚSQUEDA DE CARÁTULA BLU-RAY 3D - %s\n"
-        "Estas páginas son referencias de búsqueda, NO descargas automáticas.\n"
-        "Si encuentras la edición correcta, coloca su JPG con el nombre exacto:\n"
-        "BDISO/COVERS/%s.jpg\n\n"
-        "1) Catálogo de ediciones Blu-ray.com:\n"
-        "https://www.google.com/search?q=site%%3Ablu-ray.com+%s\n\n"
-        "2) Foro de diseños Blu-ray.com:\n"
-        "https://www.google.com/search?q=site%%3Aforum.blu-ray.com+%s\n\n"
-        "3) Comunidad CoverCity:\n"
-        "https://www.google.com/search?q=site%%3Acovercity.net+%s\n\n"
-        "4) Foro Swarzycustom de carátulas 3D:\n"
-        "https://www.google.com/search?q=site%%3Aswarzycustom.com+%s\n\n"
-        "Verifica país, año y edición 3D. Respeta los permisos de cada sitio.\n",
-        stem,stem,enc,enc,enc,enc);
-    if(n>0 && (size_t)n<sizeof(text))
-        (void)movie_usb_write(path,port,text,(uint32_t)n);
-}
-
 /* TMDB, fanart.tv, OMDb and MoviePosterDB are independent poster sources.
  * Only URLs from each service's documented image hosts are accepted. */
 typedef struct { char url[MOVIE_URL_MAX]; const char *provider; } MovieCandidate;
