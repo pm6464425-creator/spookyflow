@@ -210,7 +210,8 @@ static void make_taps(float c, float scale, Taps *t)
     for (i = 0; i < t->n; i++) t->w[i] /= sum;
 }
 
-void cover_process(const uint8_t *rgba, int w, int h, float aspect, uint16_t *dst, int tw, int th)
+static void cover_process_impl(const uint8_t *rgba, int w, int h, float aspect,
+                               uint16_t *dst, int tw, int th, int cinema_fill)
 {
     float cx, cy, cw, ch, sx, sy, src_aspect, ratio;
     int fit, x, y, row0, row1, nrows;
@@ -221,8 +222,16 @@ void cover_process(const uint8_t *rgba, int w, int h, float aspect, uint16_t *ds
     /* never cut anything off: a cover close to the case shape is stretched
      * slightly to fill it (as ManaGunZ does); something very different (a
      * wide banner) is shown whole on the dark backdrop */
-    fit = ratio > COVER_STRETCH_MAX;
-    if (!fit) { cw = (float)w; ch = (float)h; }
+    fit = !cinema_fill && ratio > COVER_STRETCH_MAX;
+    if (cinema_fill) {
+        /* BDISO movie posters are never stretched and never letterboxed.
+         * Crop from the center to match the exact visible 2:3 case window.
+         * Examples: a wide movie poster loses its side edges; a too-tall
+         * poster loses a small amount of top/bottom. No black bands. */
+        if (src_aspect > aspect) { ch = (float)h; cw = ch * aspect; }
+        else { cw = (float)w; ch = cw / aspect; }
+    }
+    else if (!fit) { cw = (float)w; ch = (float)h; }
     else if (src_aspect > aspect) { cw = (float)w; ch = cw / aspect; }
     else { ch = (float)h; cw = ch * aspect; }
     cx = ((float)w - cw) * 0.5f;
@@ -300,6 +309,21 @@ void cover_process(const uint8_t *rgba, int w, int h, float aspect, uint16_t *ds
         }
     }
     free(tmp);
+}
+
+/* Original image fitting, unchanged for PS1/PS2/PS3 games. */
+void cover_process(const uint8_t *rgba, int w, int h, float aspect,
+                   uint16_t *dst, int tw, int th)
+{
+    cover_process_impl(rgba,w,h,aspect,dst,tw,th,0);
+}
+
+/* BDISO-only: fills the actual case area by CROP, never by stretching or
+ * dark letterboxing. Produces a normal RGB texture at the usual dimensions. */
+void cover_process_fill(const uint8_t *rgba, int w, int h, float aspect,
+                        uint16_t *dst, int tw, int th)
+{
+    cover_process_impl(rgba,w,h,aspect,dst,tw,th,1);
 }
 
 /* ------------------------------------------------------------------ */
@@ -589,7 +613,12 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
                 if(j->plat==PLAT_BDISO)
                     cover_diag("DECOD_OK","path=%s %dx%d",f,w,h);
                 if (w > 0 && h > 0 && w <= COVER_SRC_MAX_DIM && h <= COVER_SRC_MAX_DIM) {
-                    cover_process(rgba, w, h, cover_art_aspect(j->plat), (uint16_t *)L->scratch, tw, th);
+                    if(j->plat == PLAT_BDISO)
+                        cover_process_fill(rgba,w,h,cover_art_aspect(j->plat),
+                                           (uint16_t *)L->scratch,tw,th);
+                    else
+                        cover_process(rgba,w,h,cover_art_aspect(j->plat),
+                                      (uint16_t *)L->scratch,tw,th);
                     snprintf(src, src_cap, "%s (%dx%d)", f, w, h);
                     ok = 1;
                 } else {
