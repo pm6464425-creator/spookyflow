@@ -80,7 +80,7 @@ int sf_bdntfs_list(const char *dir, FsEntry *out, int max)
     DIR_ITER *it;
     struct stat st;
     char path[512],name[FS_NAME_MAX];
-    int n=0,u;
+    int n=0;
     if(!dir || !out || max<=0) return -1;
     /* USB root probe: advertise the BDISO folder for the library scanner. */
     if(strlen(dir)==11 && strncmp(dir,"/dev_usb00",10)==0 &&
@@ -151,7 +151,6 @@ int sf_bdntfs_write(const char *path, const void *a, uint32_t alen, const void *
 {
     char native[512];
     int fd,r,ok=1;
-    uint32_t n;
     if(!strstr(path,"/BDISO/COVERS/") ||
        !sf_bdntfs_path(path,native,sizeof(native))) return -1;
     fd=ps3ntfs_open(native,O_WRONLY|O_CREAT|O_TRUNC,0666);

@@ -27,6 +27,7 @@
 #include "ps3_platform.h"
 #include "sf_cobra_mount.h"
 #include "sf_bdiso_ntfs.h"
+#include "util.h"
 #include "ui.h"
 
 #define VERTEX_BUFFER_BYTES (4u * 1024u * 1024u)

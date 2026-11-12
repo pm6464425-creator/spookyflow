@@ -73,7 +73,7 @@ static void movie_query(const char *stem,char *dst,size_t cap,int *year)
         }
         word[wi]='\0';
         if(!wi)continue;
-        if(wi==4 && word[0]=='1' || wi==4 && word[0]=='2'){
+        if(wi==4 && (word[0]=='1' || word[0]=='2')){
             y=atoi(word);
             if(y>=1920 && y<=2035){*year=y;continue;}
         }
