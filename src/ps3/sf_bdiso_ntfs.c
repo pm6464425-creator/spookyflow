@@ -24,12 +24,11 @@ static volatile int s_initialized;
 int sf_bdntfs_start(void)
 {
     int u,good=0;
-    if (s_initialized) {
-        for(u=0;u<8;u++) if(s_count[u]>0) good++;
-        return good;
-    }
+    /* Recheck only absent ports, so Rescan Library can detect USB drives
+       plugged in AFTER the app starts. Mounted partitions are not disturbed. */
     for (u=0;u<8;u++) {
         int n;
+        if(s_count[u]>0){good++;continue;}
         if (!PS3_NTFS_IsInserted(u)) continue;
         n=ntfsMountDevice(s_devices[u],&s_mount[u],NTFS_DEFAULT);
         if (n>0 && s_mount[u]) {
@@ -82,6 +81,9 @@ int sf_bdntfs_list(const char *dir, FsEntry *out, int max)
     char path[512],name[FS_NAME_MAX];
     int n=0;
     if(!dir || !out || max<=0) return -1;
+    /* Root probes are scan-thread-only, and can discover hot-plugged NTFS. */
+    if(strlen(dir)==11 && strncmp(dir,"/dev_usb00",10)==0)
+        (void)sf_bdntfs_start();
     /* USB root probe: advertise the BDISO folder for the library scanner. */
     if(strlen(dir)==11 && strncmp(dir,"/dev_usb00",10)==0 &&
        dir[10]>='0' && dir[10]<='7' &&
