@@ -9,6 +9,7 @@
 #include <string.h>
 #include <sys/systime.h>
 #include "ps3_platform.h"
+#include "movie_catalog.h"
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
 #include "log.h"
@@ -75,7 +76,7 @@ static void movie_query(const char *stem,char *dst,size_t cap,int *year)
 {
     char clean[256],word[64];
     size_t o=0,i=0,j=0,wi=0;
-    int y=0;
+    int y=0,after_3d=0;
     *year=0; clean[0]='\0';
     /* Dots, underscores and punctuation in release names are separators. */
     for(i=0;stem[i]&&o+2<sizeof(clean);i++){
@@ -97,10 +98,21 @@ static void movie_query(const char *stem,char *dst,size_t cap,int *year)
             y=atoi(word);
             if(y>=1920 && y<=2035){*year=y;continue;}
         }
-        if(!sf_stricmp(word,"3D")||!sf_stricmp(word,"BD3D")||
-           !sf_stricmp(word,"BLURAY")||!sf_stricmp(word,"BLU")||
+        /* Suffixes like "Avatar 3D-001.iso" and "Suicide Squad 3D_2.iso"
+         * contain disc/edition counters, not part of the movie title. */
+        if(after_3d && wi<=3 && strspn(word,"0123456789")==wi) {
+            after_3d=0;
+            continue;
+        }
+        if(!sf_stricmp(word,"3D")||!sf_stricmp(word,"BD3D")) {
+            after_3d=1;
+            continue;
+        }
+        after_3d=0;
+        if(!sf_stricmp(word,"BLURAY")||!sf_stricmp(word,"BLU")||
            !sf_stricmp(word,"RAY")||!sf_stricmp(word,"BDISO")||
-           !sf_stricmp(word,"REMUX")||!sf_stricmp(word,"1080P")||
+           !sf_stricmp(word,"REMUX")||!sf_stricmp(word,"IMAX")||
+           !sf_stricmp(word,"1080P")||
            !sf_stricmp(word,"2160P")||!sf_stricmp(word,"720P")||
            !sf_stricmp(word,"SBS")||!sf_stricmp(word,"HSBS")||
            !sf_stricmp(word,"MVC")||!sf_stricmp(word,"DTS")||
@@ -423,67 +435,10 @@ static void movie_candidate(MovieCandidate *v,int *count,int max,const char *url
     }
 }
 
-/* Same no-key, online-first principle used for PS3 game cover packs:
- * Cinemeta exposes a public Stremio movie catalog with poster URLs.
- * Restrict result title/year and image hosts; an ordinary movie poster
- * is not represented as an exact Blu-ray 3D edition cover. */
-static int movie_poster_host_allowed(const char *url)
-{
-    static const char *const hosts[] = {
-        "https://image.tmdb.org/",
-        "https://images.metahub.space/",
-        "https://m.media-amazon.com/"
-    };
-    int i;
-    if(!url || strlen(url)>=MOVIE_URL_MAX)return 0;
-    for(i=0;i<(int)(sizeof(hosts)/sizeof(hosts[0]));i++)
-        if(strncmp(url,hosts[i],strlen(hosts[i]))==0)return 1;
-    return 0;
-}
-
-static int movie_from_cinemeta(const char *json,const char *query,int year,
-                               char *url,size_t cap,char *found_title,size_t tcap)
-{
-    const char *p=strstr(json,"\"metas\""),*arr_end;
-    char best[MOVIE_URL_MAX]="",best_title[256]="";
-    int best_score=0,seen=0;
-    if(!p || !(p=strchr(p,'[')) || !(arr_end=strchr(p,']')))return 0;
-    for(p++;p<arr_end && seen<30;){
-        const char *a=strchr(p,'{'),*b;
-        char name[256],poster[MOVIE_URL_MAX],release[40]="";
-        const char *val;int y=0,score=0;
-        if(!a || a>=arr_end || !(b=strchr(a,'}')) || b>arr_end)break;
-        seen++;p=b+1;
-        if(!json_text(a,b,"name",name,sizeof(name)) ||
-           !json_text(a,b,"poster",poster,sizeof(poster)) ||
-           !movie_poster_host_allowed(poster))continue;
-        /* Match a movie, not a vaguely related search result. */
-        if(sf_stricmp(query,name)==0)score=20;
-        else if(strlen(query)>5 &&
-                (strstr(name,query)==name || strstr(query,name)==query))score=9;
-        else continue;
-        if(json_text(a,b,"releaseInfo",release,sizeof(release)) &&
-           isdigit((unsigned char)release[0]))y=atoi(release);
-        if(!y){
-            val=json_field(a,b,"year");
-            if(val && isdigit((unsigned char)*val))y=atoi(val);
-        }
-        /* If the filename specifies a year, an explicitly different
-         * release is never selected as its cover. */
-        if(year && y && y!=year)continue;
-        if(year && y==year)score+=12;
-        if(score>best_score){
-            best_score=score;
-            snprintf(best,sizeof(best),"%s",poster);
-            snprintf(best_title,sizeof(best_title),"%s",name);
-        }
-    }
-    if(best_score<9 || strlen(best)>=cap)return 0;
-    snprintf(url,cap,"%s",best);
-    if(found_title && tcap)snprintf(found_title,tcap,"%s",best_title);
-    return 1;
-}
-
+/* Cinemeta parsing now lives in portable src/core/movie_catalog.c.
+ * Its balanced array/object scanner handles nested genres and behaviorHints
+ * in real responses; the previous strchr implementation rejected all 26
+ * BDISO titles in the console log. */
 static int sf_bdiso_ensure_art_locked(const char *iso_path)
 {
     char dir[MOVIE_PATH_MAX],stem[256],cover[MOVIE_PATH_MAX],titlepath[MOVIE_PATH_MAX];
@@ -492,6 +447,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     char imdb[40]="",url[MOVIE_URL_MAX],tmp[MOVIE_URL_MAX],omdb_poster[MOVIE_URL_MAX]="";
     const char *slash;
     unsigned char *json=NULL,*jpeg=NULL;
+    char catalog_title[256]="";
     MovieCandidate candidates[6];
     uint32_t n=0;
     int year=0,id=0,is3d,port,status=-1,count=0,i,k;
@@ -630,12 +586,13 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
          "https://v3-cinemeta.strem.io/catalog/movie/top/search=%s.json",encoded)
          <(int)sizeof(url)){
         if(movie_http_json(url,json,&n) &&
-           movie_from_cinemeta((const char*)json,query,year,tmp,sizeof(tmp),
-                               title[0]?NULL:title,title[0]?0:sizeof(title))){
+           movie_catalog_pick((const char*)json,query,year,tmp,sizeof(tmp),
+                               catalog_title,sizeof(catalog_title))){
             movie_candidate(candidates,&count,6,tmp,"Cinemeta-no-key");
-            log_printf("bdiso: found a public, no-key poster candidate for %s",stem);
+            if(!title[0])snprintf(title,sizeof(title),"%s",catalog_title);
+            log_printf("bdiso: catalog match %s (%d) -> %s",query,year,catalog_title);
         } else {
-            log_printf("bdiso: no suitable public catalog poster found for %s",stem);
+            log_printf("bdiso: catalog did not match title='%s', release_year=%d; check JSON format and aliases",query,year);
         }
     }
     if(count==0){
@@ -673,7 +630,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
         char fallback_url[MOVIE_URL_MAX],fallback_title[256];
         uint32_t bytes=0;
         if(movie_http_json(url,json,&n) &&
-           movie_from_cinemeta((const char*)json,query,year,
+           movie_catalog_pick((const char*)json,query,year,
                                fallback_url,sizeof(fallback_url),
                                fallback_title,sizeof(fallback_title)) &&
            movie_http_jpeg(fallback_url,jpeg,&bytes) &&
