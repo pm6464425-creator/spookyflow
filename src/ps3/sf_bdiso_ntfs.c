@@ -121,7 +121,12 @@ int sf_bdntfs_start(void)
         int previous=s_count[u]>0 && s_mount[u]!=NULL;
         if(inserted && previous && !lost)
             part=bd_find_partition(u);  /* stale NTFS handles can be unreadable */
-        action=bdiso_usb_mount_action(inserted,previous,lost,part>=0);
+        /* A mounted NTFS partition that never had /BDISO is normal:
+         * do not remount it on every USB-root probe just because the
+         * optional movie directory is missing. Only recover a previously
+         * readable BDISO volume that has become inaccessible. */
+        action=bdiso_usb_mount_action(inserted,previous,lost,
+                                     part>=0 || (previous && s_partition[u]<0));
         if(action==BDUSB_DISCONNECTED){
             if(previous){
                 log_printf("bdiso: USB%03d detached, clearing stale native handles",u);
@@ -131,7 +136,7 @@ int sf_bdntfs_start(void)
         }
         if(action==BDUSB_KEEP_MOUNT){
             s_partition[u]=part;
-            good++;
+            if(part>=0)good++;
             continue;
         }
         if(action==BDUSB_RESET_REMOUNT){
