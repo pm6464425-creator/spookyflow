@@ -28,7 +28,7 @@ extern const unsigned int g_case_png_size[PLAT_COUNT];
 
 static void load_one(int plat)
 {
-    static const char *const names[PLAT_COUNT] = { "ps1.png", "ps2.png", "ps3.png" };
+    static const char *const names[PLAT_COUNT] = { "ps1.png", "ps2.png", "ps3.png", "bdiso.png" };
     char path[160];
     pngData png;
     unsigned char *rgba = NULL;
@@ -215,9 +215,9 @@ static int load_case(int plat, const char *path)
 
 static void load_case_images(void)
 {
-    static const char *const mine[PLAT_COUNT] = { SF_CASES_DIR "/ps1.png", SF_CASES_DIR "/ps2.png", SF_CASES_DIR "/ps3.png" };
+    static const char *const mine[PLAT_COUNT] = { SF_CASES_DIR "/ps1.png", SF_CASES_DIR "/ps2.png", SF_CASES_DIR "/ps3.png", SF_CASES_DIR "/bdiso.png" };
     int p;
-    for (p = 0; p < PLAT_COUNT; p++)
+    for (p = 0; p < PLAT_BDISO; p++)
         if (!load_case(p, mine[p]))
             log_printf("cases: %s not found, %s covers are shown without a case", mine[p], p == 0 ? "PS1" : p == 1 ? "PS2" : "PS3");
 }
@@ -357,7 +357,7 @@ void ps3_load_tab_images(void)
         log_printf("tabs: PNG decoder module failed to load");
         return;
     }
-    for (p = 0; p < PLAT_COUNT; p++) load_one(p);
+    for (p = 0; p < PLAT_BDISO; p++) load_one(p);
     load_case_images();
     load_stage();
 }

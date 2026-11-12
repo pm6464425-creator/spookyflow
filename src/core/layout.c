@@ -128,16 +128,16 @@ void layout_info_y(const Screen *s, const UiMetrics *m, int plat, float *title_y
     *chips_y = (case_b + bar_t) * 0.5f;
 }
 
-void layout_tabs(const Screen *s, const UiMetrics *m, const float *tab_w, float shoulder_w, float out_x[5])
+void layout_tabs(const Screen *s, const UiMetrics *m, const float *tab_w, float shoulder_w, float out_x[PLAT_COUNT + 2])
 {
-    float w[3], total, x;
+    float w[PLAT_COUNT], total = 0.0f, x;
     int i;
-    for (i = 0; i < 3; i++) w[i] = tab_w ? tab_w[i] : d_xu(m->tab_w);
-    total = w[0] + w[1] + w[2] + 2.0f * d_xu(m->tab_gap);
+    for (i = 0; i < PLAT_COUNT; i++) { w[i] = tab_w ? tab_w[i] : d_xu(m->tab_w); total += w[i]; }
+    total += (PLAT_COUNT - 1) * d_xu(m->tab_gap);
     x = s->W * 0.5f - total * 0.5f;
-    for (i = 0; i < 3; i++) { out_x[i + 1] = x + w[i] * 0.5f; x += w[i] + d_xu(m->tab_gap); }
+    for (i = 0; i < PLAT_COUNT; i++) { out_x[i + 1] = x + w[i] * 0.5f; x += w[i] + d_xu(m->tab_gap); }
     out_x[0] = s->W * 0.5f - total * 0.5f - d_xu(m->small_gap) - shoulder_w * 0.5f;
-    out_x[4] = s->W * 0.5f + total * 0.5f + d_xu(m->small_gap) + shoulder_w * 0.5f;
+    out_x[PLAT_COUNT + 1] = s->W * 0.5f + total * 0.5f + d_xu(m->small_gap) + shoulder_w * 0.5f;
 }
 
 float layout_space_evenly(float x0, float span, const float *w, int n, float *out_x)

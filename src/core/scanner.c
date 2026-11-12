@@ -14,6 +14,7 @@ static const ScanRoot k_roots[] = {
     { PLAT_PS3, "/dev_hdd0/PS3ISO",   SRC_HDD_ISO_DIR },
     { PLAT_PS3, "/dev_hdd0/GAMES",    SRC_HDD_GAME_FOLDERS },
     { PLAT_PS3, "/dev_hdd0/GAMEZ",    SRC_HDD_GAME_FOLDERS },
+    { PLAT_BDISO, "/dev_hdd0/BDISO", SRC_HDD_ISO_DIR },
     { PLAT_PS3, NTFS_INDEX_DIR,        SRC_NTFS_INDEX },       /* NTFS drives (PS3 + PS1), via webMAN */
 };
 
@@ -35,6 +36,7 @@ const ScanRoot *scanner_roots_with_usb(const ScanRoot *base, int nbase, FsListFn
         { "PS3ISO", PLAT_PS3, SRC_HDD_ISO_DIR }, { "GAMES", PLAT_PS3, SRC_HDD_GAME_FOLDERS },
         { "GAMEZ", PLAT_PS3, SRC_HDD_GAME_FOLDERS }, { "PS2ISO", PLAT_PS2, SRC_HDD_ISO_DIR },
         { "PSXISO", PLAT_PS1, SRC_HDD_ISO_DIR }, { "PSXGAMES", PLAT_PS1, SRC_HDD_ISO_DIR },
+        { "BDISO", PLAT_BDISO, SRC_HDD_ISO_DIR },
     };
     enum { NU = (int)(sizeof(k_usb) / sizeof(k_usb[0])), MAXR = 32 + SCAN_USB_PORTS * NU };
     static ScanRoot roots[MAXR];
@@ -77,7 +79,7 @@ void scanner_set_reader(Scanner *s, ReadAtFn rd, void *ctx)
 int scanner_ntfs_kind(const char *name, char *stem, size_t cap)
 {
     static const struct { const char *tag; int plat; } k[] = {
-        { ".ntfs[PS3ISO]", PLAT_PS3 }, { ".ntfs[PSXISO]", PLAT_PS1 },
+        { ".ntfs[PS3ISO]", PLAT_PS3 }, { ".ntfs[PSXISO]", PLAT_PS1 }, { ".ntfs[BDISO]", PLAT_BDISO },
     };
     size_t n = name ? strlen(name) : 0;
     int i;
@@ -187,6 +189,7 @@ static void scan_iso_dir(Scanner *s, Library *lib, int plat, const char *dir, in
         const FsEntry *e = &s_ent[i];
         if (e->name[0] == '.' ) continue;
         if (e->is_dir) {
+            if (plat == PLAT_BDISO && sf_stricmp(e->name,"COVERS") == 0) continue;
             if (depth == 0 && s->qn < SCAN_QUEUE_MAX && join(path, sizeof(path), dir, e->name))
                 sf_strlcpy(s->queue[s->qn++], path, SCAN_PATH_MAX);
             continue;

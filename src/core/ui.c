@@ -16,9 +16,9 @@
 #define PI_F 3.14159265f
 #define ELLIPSIS "\xE2\x80\xA6"
 
-static const char *const k_plat_short[PLAT_COUNT] = { "PS1", "PS2", "PS3" };
+static const char *const k_plat_short[PLAT_COUNT] = { "PS1", "PS2", "PS3", "BDISO" };
 /* Case header label. Plain text only: no platform logos are drawn or bundled. */
-static const char *const k_plat_case[PLAT_COUNT] = { "PS1", "PS2", "PS3" };
+static const char *const k_plat_case[PLAT_COUNT] = { "PS1", "PS2", "PS3", "Blu-ray" };
 
 typedef struct { int present, tex, w, h, tintable; } TabImage;
 static TabImage g_tab_img[PLAT_COUNT];
@@ -45,7 +45,7 @@ void ui_tab_image_box_px(float *w_px, float *h_px)
 
 void ui_clear_tab_images(void) { memset(g_tab_img, 0, sizeof(g_tab_img)); }
 
-static int g_case_tex[PLAT_COUNT] = { -1, -1, -1 };
+static int g_case_tex[PLAT_COUNT] = { -1, -1, -1, -1 };
 void ui_set_case_image(int plat, int tex) { if (plat >= 0 && plat < PLAT_COUNT) g_case_tex[plat] = tex; }
 void ui_clear_case_images(void) { int i; for (i = 0; i < PLAT_COUNT; i++) g_case_tex[i] = -1; layout_clear_case_images(); }
 
@@ -1282,7 +1282,7 @@ static void draw_cover(const App *a, int plat, const Game *g, const CoverPos *p,
             float hue = (float)(sf_hash(title) & 0xFFFF) / 65535.0f;
             uint32_t cc = sf_hsv(hue, 0.42f, 0.58f, 255);
             d_rect_grad(win.x, win.y, win.w, win.h, shade(col_mul(cc, g_light_top), b, pa), shade(col_mul(cc, g_light_bot), b, pa));
-            d_rect(win.x, win.y, win.w, win.h * 0.085f, shade(TH_CASE_HEADER, b, pa * 0.85f));
+            d_rect(win.x, win.y, win.w, win.h * 0.085f, shade(plat == PLAT_BDISO ? 0x1678C7FFu : TH_CASE_HEADER, b, pa * 0.85f));
             d_text_fit(&g_font_main, win.x + d_xu(win.h * 0.025f), win.y + win.h * 0.045f, win.h * 0.050f,
                        shade(0xFFFFFFD0u, b, pa), k_plat_case[plat], ALIGN_LEFT, win.w * 0.9f);
             d_text_box(&g_font_main, win.x + win.w * 0.5f, win.y + win.h * 0.40f, win.w * 0.84f, h * 0.068f, 4,
@@ -1442,7 +1442,7 @@ static void draw_tabs(const App *a, float alpha, float yoff)
     const Screen *s = d_screen();
     UiMetrics m;
     int i;
-    float y, hl, hx, hw, tw[3], xs[5], img_h, shoulder_w;
+    float y, hl, hx, hw, tw[PLAT_COUNT], xs[PLAT_COUNT + 2], img_h, shoulder_w;
     layout_ui(s, &m);
     y = m.tabs_y + yoff;
     /* user logos fill most of the pill: fit inside 80% of its height and the
@@ -1454,9 +1454,9 @@ static void draw_tabs(const App *a, float alpha, float yoff)
     for (i = 0; i < PLAT_COUNT; i++)
         d_rrect(xs[i + 1] - tw[i] * 0.5f, y - m.tab_h * 0.5f, tw[i], m.tab_h, m.tab_h * 0.5f, sf_col_alpha(TH_TAB_INACTIVE, alpha));
     /* gliding active highlight (position and width interpolate) */
-    hl = sf_clampf(a->tab_hl.x, 0.0f, 2.0f);
+    hl = sf_clampf(a->tab_hl.x, 0.0f, (float)(PLAT_COUNT - 1));
     {
-        int i0 = (int)floorf(hl), i1 = i0 < 2 ? i0 + 1 : 2;
+        int i0 = (int)floorf(hl), i1 = i0 < PLAT_COUNT - 1 ? i0 + 1 : PLAT_COUNT - 1;
         float f = hl - (float)i0;
         hx = sf_lerp(xs[i0 + 1], xs[i1 + 1], f);
         hw = sf_lerp(tw[i0], tw[i1], f);
@@ -1479,7 +1479,7 @@ static void draw_tabs(const App *a, float alpha, float yoff)
         }
     }
     d_badge(ICON_L1, xs[0], y, m.tab_h * 0.62f, sf_col_alpha(0xFFFFFFFFu, alpha));
-    d_badge(ICON_R1, xs[4], y, m.tab_h * 0.62f, sf_col_alpha(0xFFFFFFFFu, alpha));
+    d_badge(ICON_R1, xs[PLAT_COUNT + 1], y, m.tab_h * 0.62f, sf_col_alpha(0xFFFFFFFFu, alpha));
     if (a->lib->tab[a->tab].demo) {
         const char *txt = "Demo library";
         float em = m.small_em * 0.92f;

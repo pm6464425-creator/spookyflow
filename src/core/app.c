@@ -15,7 +15,7 @@
 
 static int sync_xmb_priority(App *a);
 
-static const char *const k_plat_name[PLAT_COUNT] = { "PS1", "PS2", "PS3" };
+static const char *const k_plat_name[PLAT_COUNT] = { "PS1", "PS2", "PS3", "BDISO" };
 
 /* Cover cache loader: hand the game to the cover worker. Demo games keep
  * their drawn placeholder. */
@@ -209,7 +209,7 @@ static void finish_library(App *a)
     int t;
     for (t = 0; t < PLAT_COUNT; t++) {
         GameList *gl = &a->lib->tab[t];
-        if (gl->count == 0) {
+        if (gl->count == 0 && t != PLAT_BDISO) {
             demo_fill(a->lib, t);
             log_printf("library: %s has no games on HDD, showing demo library (%d titles)", k_plat_name[t], gl->count);
         } else {
@@ -1276,6 +1276,19 @@ static void launch_disc(App *a, int disc)
             app_show_toast(a, "Diagnostic file could not be written - launch canceled");
             return;
         }
+    }
+    if (a->tab == PLAT_BDISO) {
+        int rc;
+        if (!a->host.launch_bdiso) { app_show_toast(a, "BDISO launcher unavailable"); return; }
+        log_printf("bdiso: mount %s", path);
+        rc = a->host.launch_bdiso(path);
+        if (rc != 0) { log_printf("bdiso: mount failed rc=%d path=%s",rc,path);
+            app_show_toast(a,"BDISO mount failed; check log"); return; }
+        sound_play(SND_CONFIRM);
+        sf_strlcpy(a->last_launch,name,sizeof(a->last_launch));
+        a->launched=1;
+        app_request_exit(a,"BDISO mounted");
+        return;
     }
     c = settings_game_get(&a->settings, lib_key(a->lib, g));   /* one set of settings for all discs */
     /* PS3 build: local Cobra mounting; leave all existing UI and settings untouched. */

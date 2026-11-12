@@ -9,12 +9,15 @@ int menu_rows(int panel, int plat, RowKind *out, int max)
     RowKind tmp[MENU_MAX_ROWS];
     int n = 0, i;
     if (panel == PANEL_GAME) {
+        if (plat == PLAT_BDISO) { tmp[n++] = ROW_G_HIDE; }
+        else {
         tmp[n++] = ROW_G_AUTOPLAY;
         if (plat == PLAT_PS1) { tmp[n++] = ROW_G_EMULATOR; }
         else if (plat == PLAT_PS2) {
             tmp[n++] = ROW_G_EMULATOR; tmp[n++] = ROW_G_OFFLINE; tmp[n++] = ROW_G_PS2CFG;
         } else { tmp[n++] = ROW_G_OFFLINE; }
         tmp[n++] = ROW_G_HIDE;                  /* 1.1 */
+        }
     } else if (panel == PANEL_FLOW) {
         /* 0.7.0: grouped; Quit and Power Off stay on the first page */
         tmp[n++] = ROW_FG_LOOK; tmp[n++] = ROW_FG_SOUND; tmp[n++] = ROW_FG_GAMES; tmp[n++] = ROW_FG_SYSTEM;

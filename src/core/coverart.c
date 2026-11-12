@@ -19,7 +19,7 @@ enum { F_SF_DL = 0, F_COUNT = 1 };
 static const char *const k_folders[F_COUNT] = { COVER_DL_DIR };
 
 static const char *const k_exts[] = { ".JPG", ".PNG", ".jpg", ".png" };
-static const char *const k_plat_dir[PLAT_COUNT] = { "ps1", "ps2", "ps3" };
+static const char *const k_plat_dir[PLAT_COUNT] = { "ps1", "ps2", "ps3", "bdiso" };
 
 #define CVR_HEADER 16
 #define CVR_VERSION 6     /* source-policy change: invalidate old cached 320x176 sidecar icons */
@@ -123,6 +123,19 @@ int cover_candidates(int plat, const char *game_path, int is_dir, const char *id
     slash = strrchr(game_path, '/');
     sf_strlcpy(name, slash ? slash + 1 : game_path, sizeof(name));
     while (strip_one_ext(name)) { }
+    /* Movie art always resides on the same volume as the ISO.
+     * Neither original images nor processed Blu-ray art is cached on PS3 HDD. */
+    if (plat == PLAT_BDISO) {
+        const char *sep = strrchr(game_path, '/');
+        char dir[COVER_PATH_MAX], covers[COVER_PATH_MAX];
+        size_t npath = sep ? (size_t)(sep - game_path) : 0;
+        if (npath && npath + 9 < sizeof(dir)) {
+            memcpy(dir, game_path, npath); dir[npath] = '\0';
+            snprintf(covers,sizeof(covers),"%s/COVERS",dir);
+            n=add(out,n,max,covers,"/",name);
+        }
+        return n;
+    }
     if (name[0]) n = add(out, n, max, COVER_DL_DIR, "/", name);
     if (id && id[0] && !cover_name_is_custom(game_path) &&
         sf_stricmp(name, id) != 0)
@@ -464,7 +477,7 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
     char stem[COVER_PATH_MAX], f[COVER_PATH_MAX + 16], id[16];
     CoverCand *cand;
     int nc, c, e, ok = 0;
-    int cache = L->io.cache_dir && L->io.write_file;
+    int cache = j->plat != PLAT_BDISO && L->io.cache_dir && L->io.write_file;
 
     if (cache) {
         cover_cache_stem(L->io.cache_dir, j->plat, j->path, j->size, stem, sizeof(stem));
@@ -605,6 +618,7 @@ int cover_dl_urls(int plat, const char *id, char out[][COVER_URL_MAX], int max)
     /* 0.9.4: first the server ManaGunZ downloads from (Zar's, plain HTTP, every
      * console): PS3 by its ID (BLUS30177), PS1/PS2 the way SYSTEM.CNF names
      * them (SLUS_209.14). ManaGunZ/source/main.c, Download_covers(). */
+    if (plat == PLAT_BDISO) return 0;
     if (plat == PLAT_PS3) snprintf(out[n++], COVER_URL_MAX, "http://gamecovers.free.fr/download.php?file=%s.jpg", id);
     else if (plat == PLAT_PS1 || plat == PLAT_PS2) {
         char cnf[16];

@@ -6,7 +6,7 @@
 
 #include "draw.h"
 
-enum { PLAT_PS1 = 0, PLAT_PS2 = 1, PLAT_PS3 = 2, PLAT_COUNT = 3 };
+enum { PLAT_PS1 = 0, PLAT_PS2 = 1, PLAT_PS3 = 2, PLAT_BDISO = 3, PLAT_COUNT = 4 };
 
 /* Cover flow (fractions of H) */
 #define LY_SEL_H      0.50f    /* selected case height */
@@ -80,7 +80,7 @@ void layout_info_y(const Screen *s, const UiMetrics *m, int plat, float *title_y
 /* Tab bar positions. tab_w[3] = width of each tab pill (logical; pass NULL
  * for the default width). shoulder_w = width of the L2/R2 badges (logical).
  * out_x[0] = L2 center, out_x[1..3] = tab centers, out_x[4] = R2 center. */
-void layout_tabs(const Screen *s, const UiMetrics *m, const float *tab_w, float shoulder_w, float out_x[5]);
+void layout_tabs(const Screen *s, const UiMetrics *m, const float *tab_w, float shoulder_w, float out_x[PLAT_COUNT + 2]);
 
 /* "space-evenly" distribution of n groups with widths w[] inside
  * [x0, x0+span]. Writes each group's left x into out_x and returns the gap.
