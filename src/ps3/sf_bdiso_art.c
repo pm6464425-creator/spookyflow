@@ -18,12 +18,13 @@
 
 #define MOVIE_JSON_MAX (160u * 1024u)
 #define MOVIE_JPEG_MAX (2u * 1024u * 1024u)
-#define MOVIE_URL_MAX  640
+#define MOVIE_URL_MAX  1400
 #define MOVIE_PATH_MAX 512
 static uint64_t s_attempted[64];
 static unsigned s_attempt_index;
 /* Independent retry guard for repairing previously saved JPEGs which are
  * unsupported by the PS3 decoder (e.g. progressive cover scans). */
+static uint64_t hash_key(const char *s);
 static uint64_t s_repaired[64];
 static unsigned s_repair_index;
 static int repair_attempted(const char *path)
