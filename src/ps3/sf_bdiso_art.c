@@ -650,6 +650,29 @@ int sf_bdiso_ensure_art(const char *iso_path)
         }
         log_printf("bdiso: JPEG downloaded but USB write failed for %s",stem);
     }
+    /* The public fallback must also run when an authenticated service
+     * returns a dead image URL; this is the common "internet works but
+     * nothing downloads" case. Skip if Cinemeta was already tried. */
+    if(status!=0 && status!=1 && count>0 &&
+       strcmp(candidates[0].provider,"Cinemeta-no-key")!=0 &&
+       snprintf(url,sizeof(url),
+           "https://v3-cinemeta.strem.io/catalog/movie/top/search=%s.json",encoded)
+           <(int)sizeof(url)){
+        char fallback_url[MOVIE_URL_MAX],fallback_title[256];
+        uint32_t bytes=0;
+        if(movie_http_json(url,json,&n) &&
+           movie_from_cinemeta((const char*)json,query,year,
+                               fallback_url,sizeof(fallback_url),
+                               fallback_title,sizeof(fallback_title)) &&
+           movie_http_jpeg(fallback_url,jpeg,&bytes) &&
+           movie_covers_dir(dir,port)==0 &&
+           !ps3_fs_is_file(NULL,cover) &&
+           movie_usb_write(cover,port,jpeg,bytes)==0){
+            if(!title[0])snprintf(title,sizeof(title),"%s",fallback_title);
+            log_printf("bdiso: poster saved from public no-key fallback for %s",stem);
+            status=0;
+        }
+    }
 save_title:
     if(title[0] && !ps3_fs_is_file(NULL,titlepath) &&
        movie_covers_dir(dir,port)==0)
