@@ -132,7 +132,17 @@ int cover_candidates(int plat, const char *game_path, int is_dir, const char *id
         if (npath && npath + 9 < sizeof(dir)) {
             memcpy(dir, game_path, npath); dir[npath] = '\0';
             memcpy(covers,dir,npath); memcpy(covers+npath,"/COVERS",8);
+            /* FlowMovie 3D already accepted manually placed JPGs matching
+             * the ISO name in the BDISO directory. Prefer that custom
+             * artwork to any previously automatically downloaded image. */
+            n=add(out,n,max,dir,"/",name);
             n=add(out,n,max,covers,"/",name);
+            /* Some users name artwork with the full ISO filename, e.g.
+             * "Avatar 3D.iso.jpg" instead of "Avatar 3D.jpg". */
+            if (slash && slash[1]) {
+                n=add(out,n,max,dir,"/",slash+1);
+                n=add(out,n,max,covers,"/",slash+1);
+            }
         }
         return n;
     }
