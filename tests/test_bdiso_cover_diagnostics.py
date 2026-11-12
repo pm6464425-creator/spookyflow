@@ -25,7 +25,7 @@ tests=[
     ("HTTP logger does not include full API key query", "host=%.*s" in art and "width<80" in art),
     ("Generic HTTPS requests accept JSON and images", r"Accept: */*\r\n" in http),
     ("No direct HDD movie cover writes", "movie_usb_write" in art),
-    ("Previously downloaded 3D images preserved; fresh normal JPG separate", '"%s/COVERS/NORMAL"' in art and "movie_usb_write(coverpng,port,jpeg,bytes)" in art),
+    ("Previously downloaded edition images preserved; fresh cinema JPG separate", '"%s/COVERS/CINE"' in art and "movie_usb_write(coverpng,port,jpeg,bytes)" in art),
     ("No candidates produce trace", "no poster candidates" in art),
     ("Rejected JPEG produces trace", "no usable image from" in art),
     ("USB output write failure produces trace", "USB write failed" in art),
