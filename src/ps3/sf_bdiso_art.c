@@ -665,34 +665,32 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     }
     for(i=0;i<count;i++){
         uint32_t bytes=0;
-        /* PNG is the preferred on-console format: the old Cinemeta
-         * JPEG can be progressive, which PS3 JPGDEC may reject. */
-        if(movie_http_compatible_png(candidates[i].url,jpeg,&bytes)){
-            if(movie_covers_dir(dir,port)==0 &&
-               movie_usb_write(coverpng,port,jpeg,bytes)==0){
-                log_printf("bdiso: PS3-compatible PNG saved via %s, 3D=%d",
-                           candidates[i].provider,is3d);
-                status=0;break;
-            }
-            log_printf("bdiso: compatible PNG downloaded but USB write failed for %s",stem);
-        }
-        /* Existing JPG is preserved even if we cannot convert it. */
-        if(repair)continue;
-        bytes=0;
-        if(!movie_http_jpeg(candidates[i].url,jpeg,&bytes)){
-            log_printf("bdiso: provider %s returned no usable image for %s",
-                       candidates[i].provider,stem);
-            continue;
-        }
         if(movie_covers_dir(dir,port)!=0){
             log_printf("bdiso: failed to create/read BDISO/COVERS on USB%03d",port);
             continue;
         }
-        if(movie_usb_write(cover,port,jpeg,bytes)==0){
-            log_printf("bdiso: JPEG fallback source=%s, 3D=%d",candidates[i].provider,is3d);
-            status=0;break;
+        /* The native progressive-JPEG software decoder now works directly
+         * from NTFS RAM; avoid a slow proxy request for every cover.
+         * Never overwrite a JPG that is already present (including manual). */
+        if(!repair && movie_http_jpeg(candidates[i].url,jpeg,&bytes)){
+            if(movie_usb_write(cover,port,jpeg,bytes)==0){
+                log_printf("bdiso: JPEG saved via %s, 3D=%d",
+                           candidates[i].provider,is3d);
+                status=0;break;
+            }
+            log_printf("bdiso: JPEG downloaded but USB write failed for %s",stem);
         }
-        log_printf("bdiso: JPEG downloaded but USB write failed for %s",stem);
+        /* Last resort for an unreadable JPEG or failed direct source:
+         * save a separate PNG if a public image converter is reachable. */
+        bytes=0;
+        if(movie_http_compatible_png(candidates[i].url,jpeg,&bytes)){
+            if(movie_usb_write(coverpng,port,jpeg,bytes)==0){
+                log_printf("bdiso: compatible PNG saved via %s",candidates[i].provider);
+                status=0;break;
+            }
+            log_printf("bdiso: compatible PNG downloaded but USB write failed for %s",stem);
+        }
+        log_printf("bdiso: no usable image from %s for %s",candidates[i].provider,stem);
     }
     /* The public fallback must also run when an authenticated service
      * returns a dead image URL; this is the common "internet works but
@@ -708,12 +706,12 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
            movie_catalog_pick((const char*)json,query,year,
                                fallback_url,sizeof(fallback_url),
                                fallback_title,sizeof(fallback_title)) &&
-           (movie_http_compatible_png(fallback_url,jpeg,&bytes) ?
-             (movie_covers_dir(dir,port)==0 &&
-              movie_usb_write(coverpng,port,jpeg,bytes)==0) :
-             (!repair && movie_http_jpeg(fallback_url,jpeg,&bytes) &&
+           ((!repair && movie_http_jpeg(fallback_url,jpeg,&bytes) &&
+             movie_covers_dir(dir,port)==0 &&
+             movie_usb_write(cover,port,jpeg,bytes)==0) ||
+             (movie_http_compatible_png(fallback_url,jpeg,&bytes) &&
               movie_covers_dir(dir,port)==0 &&
-              movie_usb_write(cover,port,jpeg,bytes)==0))){
+              movie_usb_write(coverpng,port,jpeg,bytes)==0))){
             if(!title[0])snprintf(title,sizeof(title),"%s",fallback_title);
             log_printf("bdiso: poster saved from public no-key fallback for %s",stem);
             status=0;
