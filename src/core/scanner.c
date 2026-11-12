@@ -138,12 +138,13 @@ static void scan_ntfs_index(Scanner *s, Library *lib, const char *dir, int n)
         if (s->rd) {
             got = s->rd(s->rd_ctx, path, 0, s_ntfs_buf, sizeof(s_ntfs_buf));
             if (got > 0) size = scanner_ntfs_size(s_ntfs_buf, (size_t)got);
-            /* A missing physical drive must not leave a phantom movie from
-             * /dev_hdd0/tmp/wmtmp/*.ntfs[BDISO]. PS3-only filter; game
-             * pointer files retain their historical behavior. */
+            /* Accept old/short webMAN BDISO pointer files when a physical
+             * NTFS USB is present. V15.2's got<20 hard rejection removed
+             * valid movies on real consoles; the PS3 callback decides. */
             if (plat == PLAT_BDISO && s->ntfs_bdiso_online &&
-                (got < 20 || !s->ntfs_bdiso_online(s_ntfs_buf, (size_t)got))) {
-                log_printf("bdiso: skipping disconnected webMAN pointer %s", e->name);
+                !s->ntfs_bdiso_online(got > 0 ? s_ntfs_buf : NULL,
+                                      got > 0 ? (size_t)got : 0u)) {
+                log_printf("bdiso: skipping offline webMAN movie %s", e->name);
                 continue;
             }
             if (plat == PLAT_PS3) {                    /* title ID from the PARAM.SFO webMAN extracted */
@@ -154,7 +155,8 @@ static void scan_ntfs_index(Scanner *s, Library *lib, const char *dir, int n)
                 }
             }
         }
-        if (plat == PLAT_BDISO && s->ntfs_bdiso_online && !s->rd) continue;
+        if (plat == PLAT_BDISO && s->ntfs_bdiso_online && !s->rd &&
+            !s->ntfs_bdiso_online(NULL, 0)) continue;
         /* the display name: the stem as an .iso (webMAN may keep the ".iso"),
          * with the title ID as a tag so the library picks it up */
         {
