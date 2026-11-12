@@ -407,7 +407,7 @@ static int movie_http_compatible_png(const char *source,unsigned char *buf,
     if(!source || strncmp(source,"https://",8)!=0 || strchr(source,'?'))return 0;
     if(strncmp(source,"https://m.media-amazon.com/",27)!=0 &&
        strncmp(source,"https://image.tmdb.org/",23)!=0 &&
-       strncmp(source,"https://images.metahub.space/",30)!=0)
+       strncmp(source,"https://images.metahub.space/",29)!=0)
         return 0;
     if(encode_query(source+8,encoded,sizeof(encoded))!=0)return 0;
     n=snprintf(url,sizeof(url),
