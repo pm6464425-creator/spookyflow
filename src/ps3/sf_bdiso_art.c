@@ -8,7 +8,7 @@
 #include <sys/systime.h>
 #include "ps3_platform.h"
 #include "movie_catalog.h"
-#include "movie_edition.h"
+#include "movie_sensacine.h"
 #include "movie_spanish.h"
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
@@ -17,6 +17,7 @@
 #include "util.h"
 
 #define MOVIE_JSON_MAX (160u * 1024u)
+#define MOVIE_HTML_MAX (512u * 1024u)
 #define MOVIE_JPEG_MAX (2u * 1024u * 1024u)
 #define MOVIE_URL_MAX  1400
 #define MOVIE_PATH_MAX 512
@@ -358,13 +359,13 @@ static int movie_covers_dir(const char *dir,int port)
         return sf_bdiso_fat_mkdir(dest);
     }
 }
-/* New normal posters are NOT written over old manually placed or previously
- * downloaded 3D-edition JPGs. NTFS permits COVERS/NORMAL with the same stem. */
-static int movie_normal_dir(const char *dir,int port)
+/* Theatrical JPGs are stored independently; old Blu-ray box images
+ * remain on the drive but do not need to appear inside the PS3 case. */
+static int movie_cinema_dir(const char *dir,int port)
 {
     char dest[MOVIE_PATH_MAX];
     if(movie_covers_dir(dir,port)!=0 ||
-       snprintf(dest,sizeof(dest),"%s/COVERS/NORMAL",dir)>=(int)sizeof(dest))
+       snprintf(dest,sizeof(dest),"%s/COVERS/CINE",dir)>=(int)sizeof(dest))
         return -1;
     if(sf_bdntfs_has_port(port)){
         if(sf_bdntfs_is_dir(dest))return 0;
@@ -385,6 +386,12 @@ static int movie_usb_write(const char *path,int port,const void *buf,uint32_t si
 static int movie_http_json(const char *url,unsigned char *buf,uint32_t *len)
 {
     if(remote_get(url,buf,MOVIE_JSON_MAX,len)!=0 || *len==0)return 0;
+    buf[*len]=0;
+    return 1;
+}
+static int movie_http_cinema_html(const char *url,unsigned char *buf,uint32_t *len)
+{
+    if(remote_get(url,buf,MOVIE_HTML_MAX,len)!=0 || *len==0)return 0;
     buf[*len]=0;
     return 1;
 }
@@ -473,7 +480,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     const char *slash;
     unsigned char *json=NULL,*jpeg=NULL;
     char catalog_title[256]="";
-    char local_es[256]="",slug[280]="";
+    char local_es[256]="";
     MovieCandidate candidates[MOVIE_CAND_MAX];
     uint32_t n=0;
     int year=0,id=0,port,status=-1,count=0,i,k;
@@ -486,7 +493,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     if(!strstr(dir,"/BDISO"))return -3;
     iso_stem(iso_path,stem,sizeof(stem));
     if(!stem[0] ||
-       snprintf(normaldir,sizeof(normaldir),"%s/COVERS/NORMAL",dir)>=(int)sizeof(normaldir) ||
+       snprintf(normaldir,sizeof(normaldir),"%s/COVERS/CINE",dir)>=(int)sizeof(normaldir) ||
        snprintf(cover,sizeof(cover),"%s/%s.jpg",normaldir,stem)>=(int)sizeof(cover) ||
        snprintf(coverpng,sizeof(coverpng),"%s/%s.png",normaldir,stem)>=(int)sizeof(coverpng) ||
        snprintf(titlepath,sizeof(titlepath),"%s/COVERS/%s.title",dir,stem)>=(int)sizeof(titlepath) ||
@@ -513,12 +520,12 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
      * decode, the cover loader invokes this callback again to create a
      * compatible PNG next to it; the original JPG is never overwritten. */
     if(ps3_fs_is_file(NULL,coverpng)){
-        cover_diag("DESCARGA","Portada normal PNG ya existe: %s",coverpng);
+        cover_diag("DESCARGA","Cartel cinematografico PNG ya existe: %s",coverpng);
         return 1;
     }
     if(ps3_fs_is_file(NULL,cover)) {
         /* JPG already regular: never redownload or overwrite. */
-        cover_diag("DESCARGA","Portada normal JPG ya existe: %s",cover);
+        cover_diag("DESCARGA","Cartel cinematografico JPG ya existe: %s",cover);
         return 1;
     }
     cover_diag("DESCARGA","ISO=%s imagen_normal_existente=0; legacy se conserva",iso_path);
@@ -544,12 +551,38 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     if(attempted(iso_path))return -2;
     log_printf("bdiso: starting online poster search for %s (TMDB=%s OMDb=%s)",
                stem,tmdb[0]?"yes":"no",omdb[0]?"yes":"no");
-    json=(unsigned char*)malloc(MOVIE_JSON_MAX+1);
+    json=(unsigned char*)malloc(MOVIE_HTML_MAX+1);
     jpeg=(unsigned char*)malloc(MOVIE_JPEG_MAX);
     if(!json || !jpeg){status=-8;goto done;}
 
-    /* V13 deliberately never searches or downloads a 3D-edition cover.
-     * The 3D format is displayed ONLY as a subtle case watermark. */
+    /* PRIORITY 1 (no API key): real theatrical posters from SensaCine.
+     * SensaCine labels search results "Cartel de <movie>" and serves
+     * individual JPGs under es.web.img*.acsta.net, never a Blu-ray case.
+     * Check exact Spanish and original title; do not select sequel/stills.
+     * Movie website HTML is larger than JSON, so use MOVIE_HTML_MAX. */
+    {
+        const char *qnames[2]={local_es[0]?local_es:query,query};
+        int q;
+        for(q=0;q<2;q++){
+            char enc[600],thumb[MOVIE_URL_MAX],full[MOVIE_URL_MAX];
+            if(q && !sf_stricmp(qnames[0],qnames[1]))break;
+            if(encode_query(qnames[q],enc,sizeof(enc))!=0)continue;
+            if(snprintf(url,sizeof(url),
+               "https://www.sensacine.com/buscar/?q=%s",enc)>=(int)sizeof(url))
+                continue;
+            if(movie_http_cinema_html(url,json,&n) &&
+               movie_sensacine_pick((const char*)json,qnames[q],thumb,sizeof(thumb))){
+                if(movie_sensacine_fullsize(thumb,full,sizeof(full)))
+                    movie_candidate(candidates,&count,MOVIE_CAND_MAX,
+                                    full,"SensaCine-Cartel");
+                movie_candidate(candidates,&count,MOVIE_CAND_MAX,
+                                thumb,"SensaCine-Compact");
+                cover_diag("CINE_OK","SensaCine cartel para %s: %s",stem,qnames[q]);
+                break;
+            }
+            cover_diag("CINE_FALLO","Sin cartel exacto en SensaCine: %s",qnames[q]);
+        }
+    }
 
     /* TMDB identity + Spanish poster. An edition named 3D is NOT assumed
        to have a specially branded poster in this standard film database. */
@@ -602,14 +635,8 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
         snprintf(url,sizeof(url),"https://image.tmdb.org/t/p/w500%s",poster_es);
         movie_candidate(candidates,&count,MOVIE_CAND_MAX,url,"TMDB-ES");
     }
-    /* Spanish standard Blu-ray artwork via public Mubis pages (no key). */
-    if(movie_edition_slug(local_es[0]?local_es:query,slug,sizeof(slug)) &&
-       snprintf(url,sizeof(url),
-         "https://www.mubis.es/titulos/%s-blu-ray",slug)<(int)sizeof(url) &&
-       movie_http_json(url,json,&n) &&
-       movie_edition_mubis_normal_html((const char*)json,tmp,sizeof(tmp))){
-        movie_candidate(candidates,&count,MOVIE_CAND_MAX,tmp,"2D-ES-Mubis");
-    }
+    /* Never request Mubis Blu-ray edition artwork: these scans visibly
+     * include the box and made the same blue case appear twice in SpookyFlow. */
     /* MoviePosterDB provides a documented stable image URL by IMDb id.
        Its FREE tier may be only 200px; higher-quality images need the
        owner's own plan. We never invent or embed any vendor API key. */
@@ -672,8 +699,8 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     for(i=0;i<count;i++){
         uint32_t bytes=0;
         cover_diag("FUENTE","%s opcion=%d/%d proveedor=%s (sin alterar ISO)",stem,i+1,count,candidates[i].provider);
-        if(movie_normal_dir(dir,port)!=0){
-            log_printf("bdiso: failed to create/read BDISO/COVERS/NORMAL on USB%03d",port);
+        if(movie_cinema_dir(dir,port)!=0){
+            log_printf("bdiso: failed to create/read BDISO/COVERS/CINE on USB%03d",port);
             continue;
         }
         /* The native progressive-JPEG software decoder now works directly
@@ -719,10 +746,10 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
                                fallback_url,sizeof(fallback_url),
                                fallback_title,sizeof(fallback_title)) &&
            ((movie_http_jpeg(fallback_url,jpeg,&bytes) &&
-             movie_normal_dir(dir,port)==0 &&
+             movie_cinema_dir(dir,port)==0 &&
              movie_usb_write(cover,port,jpeg,bytes)==0) ||
              (movie_http_compatible_png(fallback_url,jpeg,&bytes) &&
-              movie_normal_dir(dir,port)==0 &&
+              movie_cinema_dir(dir,port)==0 &&
               movie_usb_write(coverpng,port,jpeg,bytes)==0))){
             if(!title[0])snprintf(title,sizeof(title),"%s",fallback_title);
             log_printf("bdiso: poster saved from public no-key fallback for %s",stem);
