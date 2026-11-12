@@ -742,8 +742,22 @@ static void loading_update(App *a, float dt)
         if (a->usb_roots && a->host.fs_list) {      /* 1.1: FAT32 USB drives, whichever are in now */
             int nb, n, nd;
             const ScanRoot *base = scanner_default_roots(&nb);
-            const ScanRoot *r = scanner_roots_with_usb(base, nb, a->host.fs_list, a->host.fs_ctx, &n, &nd);
+            const ScanRoot *r;
+            uint32_t native_mask=0;
+            if(a->host.native_bdiso_ready_mask)
+                native_mask=a->host.native_bdiso_ready_mask();
+            /* V15.4 physical diagnosis: USB000 was mounted as NTFS,
+             * BDISO had ISO files, but /dev_usb000 was missing from the
+             * lv2 root list so scanner_roots_with_usb created ZERO USB
+             * BDISO roots. Recover only proven native BDISO ports. */
+            if(a->host.native_bdiso_ready_mask)
+                r=scanner_roots_with_usb_native(base,nb,a->host.fs_list,
+                    a->host.fs_ctx,native_mask,&n,&nd);
+            else
+                r=scanner_roots_with_usb(base,nb,a->host.fs_list,a->host.fs_ctx,&n,&nd);
             a->host.roots = r; a->host.nroots = n;
+            log_printf("scan: native BDISO ready_mask=0x%02x roots_total=%d",
+                       (unsigned)native_mask,n);
             if (!nd) log_printf("scan: no USB drives (FAT32) connected");
         }
         scanner_begin(&a->scanner, a->host.roots, a->host.nroots);
