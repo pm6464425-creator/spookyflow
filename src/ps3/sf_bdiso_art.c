@@ -1,7 +1,6 @@
 /* Movie artwork: background-worker-only network lookup.
- * TMDB is a movie/poster service, not a Blu-ray edition database.
- * 3D filenames keep their own artwork path, and posters tagged 3D
- * should be provided manually if an exact 3D-edition cover is required. */
+ * Priorities: genuine 3D Spanish edition, genuine 3D English edition,
+ * normal Spanish release, normal English movie poster. No UI overlay. */
 #include <ctype.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -10,6 +9,7 @@
 #include <sys/systime.h>
 #include "ps3_platform.h"
 #include "movie_catalog.h"
+#include "movie_edition.h"
 #include "movie_spanish.h"
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
@@ -20,6 +20,7 @@
 #define MOVIE_JPEG_MAX (2u * 1024u * 1024u)
 #define MOVIE_URL_MAX  1400
 #define MOVIE_PATH_MAX 512
+#define MOVIE_CAND_MAX 16
 static uint64_t s_attempted[64];
 static unsigned s_attempt_index;
 /* Independent retry guard for repairing previously saved JPEGs which are
@@ -505,7 +506,8 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     const char *slash;
     unsigned char *json=NULL,*jpeg=NULL;
     char catalog_title[256]="";
-    MovieCandidate candidates[6];
+    char local_es[256]="",slug[280]="";
+    MovieCandidate candidates[MOVIE_CAND_MAX];
     uint32_t n=0;
     int year=0,id=0,is3d,port,status=-1,count=0,i,k,repair=0;
     if(!iso_path || strncmp(iso_path,"/dev_usb00",10)!=0 ||
@@ -541,10 +543,9 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     if(!movie_key(dir,"MOVIEPOSTERDB_KEY.TXT",mpdb,sizeof(mpdb)) ||
        strncmp(mpdb,"mpdb_pk_",8)!=0)mpdb[0]=0;
 
-    /* The 3D exact-edition review list is useful even when API credentials
-       are absent. It never changes the ISO or any manually supplied cover. */
-    if(is3d && movie_covers_dir(dir,port)==0)
-        movie_community_sources(dir,stem,query,year,port);
+    /* Genuine edition images are chosen from release catalogs. Do not
+     * create review-link TXT files, badges or case stripes. */
+    (void)movie_spanish_title(stem,NULL,local_es,sizeof(local_es));
     if(!tmdb[0] && !omdb[0])
         log_printf("bdiso: no API key in USB BDISO/COVERS; trying keyless public movie catalog");
     if(!repair && attempted(iso_path))return -2;
@@ -553,6 +554,45 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     json=(unsigned char*)malloc(MOVIE_JSON_MAX+1);
     jpeg=(unsigned char*)malloc(MOVIE_JPEG_MAX);
     if(!json || !jpeg){status=-8;goto done;}
+
+    /* PRIORITY 1: Spanish real-world 3D Blu-ray cover scans. A Spanish
+     * release page is checked by its og:title and og:image, not guessed
+     * from a generic movie poster. No API key or HTML image scraping.
+     * The list may have an alternative Spanish versus original title. */
+    if(is3d){
+        const char *names[2]={local_es[0]?local_es:query,query};
+        int kname;
+        for(kname=0;kname<2;kname++){
+            if(kname && !sf_stricmp(names[0],names[1]))break;
+            if(!movie_edition_slug(names[kname],slug,sizeof(slug)))continue;
+            if(snprintf(url,sizeof(url),
+              "https://www.mubis.es/titulos/%s-blu-ray-3d",slug)
+              >=(int)sizeof(url))continue;
+            if(movie_http_json(url,json,&n) &&
+               movie_edition_mubis_html((const char*)json,tmp,sizeof(tmp))){
+                movie_candidate(candidates,&count,MOVIE_CAND_MAX,tmp,"3D-ES-Mubis");
+                break;
+            }
+        }
+        /* Spanish-country edition IDs confirmed to be actual 3D Blu-rays. */
+        {
+            int edition=movie_edition_bluray_id(query,year,1);
+            if(edition>0){
+                snprintf(url,sizeof(url),
+                  "https://images.static-bluray.com/movies/covers/%d_front.jpg",edition);
+                movie_candidate(candidates,&count,MOVIE_CAND_MAX,url,"3D-ES-Edition");
+            }
+        }
+        /* PRIORITY 2: 3D releases published with English cover artwork. */
+        {
+            int edition=movie_edition_bluray_id(query,year,0);
+            if(edition>0){
+                snprintf(url,sizeof(url),
+                  "https://images.static-bluray.com/movies/covers/%d_front.jpg",edition);
+                movie_candidate(candidates,&count,MOVIE_CAND_MAX,url,"3D-EN-Edition");
+            }
+        }
+    }
 
     /* TMDB identity + Spanish poster. An edition named 3D is NOT assumed
        to have a specially branded poster in this standard film database. */
@@ -604,7 +644,16 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
        A normal poster is a fallback only, never claimed as an exact 3D edition. */
     if(poster_es[0]=='/' && strlen(poster_es)<100){
         snprintf(url,sizeof(url),"https://image.tmdb.org/t/p/w500%s",poster_es);
-        movie_candidate(candidates,&count,6,url,"TMDB-ES");
+        movie_candidate(candidates,&count,MOVIE_CAND_MAX,url,"TMDB-ES");
+    }
+    /* PRIORITY 3: normal Spanish cover when no 3D edition is reachable.
+     * This key-free source belongs to the actual Spanish Blu-ray release. */
+    if(movie_edition_slug(local_es[0]?local_es:query,slug,sizeof(slug)) &&
+       snprintf(url,sizeof(url),
+         "https://www.mubis.es/titulos/%s-blu-ray",slug)<(int)sizeof(url) &&
+       movie_http_json(url,json,&n) &&
+       movie_edition_mubis_normal_html((const char*)json,tmp,sizeof(tmp))){
+        movie_candidate(candidates,&count,MOVIE_CAND_MAX,tmp,"2D-ES-Mubis");
     }
     /* fanart.tv's posters are linked by TMDB movie ID. API keys are optional. */
     if(id>0 && (fanart[0] || fanart_client[0])){
@@ -621,15 +670,15 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
                "https://webservice.fanart.tv/v3.2/movies/%d?client_key=%s",id,fanart_client);
         if(v>0 && v<(int)sizeof(url) && movie_http_json(url,json,&n) &&
            movie_from_fanart((const char*)json,tmp,sizeof(tmp)))
-            movie_candidate(candidates,&count,6,tmp,"Fanart.tv");
+            movie_candidate(candidates,&count,MOVIE_CAND_MAX,tmp,"Fanart.tv");
     }
 
     if(poster[0]=='/' && strlen(poster)<100){
         snprintf(url,sizeof(url),"https://image.tmdb.org/t/p/w500%s",poster);
-        movie_candidate(candidates,&count,6,url,"TMDB-default");
+        movie_candidate(candidates,&count,MOVIE_CAND_MAX,url,"TMDB-default");
     }
     if(omdb_poster[0])
-        movie_candidate(candidates,&count,6,omdb_poster,"OMDb");
+        movie_candidate(candidates,&count,MOVIE_CAND_MAX,omdb_poster,"OMDb");
 
     /* MoviePosterDB provides a documented stable image URL by IMDb id.
        Its FREE tier may be only 200px; higher-quality images need the
@@ -639,7 +688,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
           "https://posters.movieposterdb.com/m/%s?k=%s&s=s&cc=ES",
           imdb,mpdb);
         if(v>0 && v<(int)sizeof(url))
-            movie_candidate(candidates,&count,6,url,"MoviePosterDB");
+            movie_candidate(candidates,&count,MOVIE_CAND_MAX,url,"MoviePosterDB");
     }
     /* Automatic no-key fallback: one small search + one JPEG download,
      * and the same background cover loader used for PS3 games. This is
@@ -651,7 +700,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
         if(movie_http_json(url,json,&n) &&
            movie_catalog_pick((const char*)json,query,year,tmp,sizeof(tmp),
                                catalog_title,sizeof(catalog_title))){
-            movie_candidate(candidates,&count,6,tmp,"Cinemeta-no-key");
+            movie_candidate(candidates,&count,MOVIE_CAND_MAX,tmp,"Cinemeta-no-key");
             if(!title[0])snprintf(title,sizeof(title),"%s",catalog_title);
             log_printf("bdiso: catalog match %s (%d) -> %s",query,year,catalog_title);
         } else {
