@@ -61,23 +61,34 @@ static int meta(const char *page,const char *property,char *out,size_t cap)
     memcpy(out,v,n);out[n]=0;
     return 1;
 }
-int movie_edition_mubis_html(const char *page,char *poster,size_t cap)
+static int mubis_page_cover(const char *page,char *poster,size_t cap,int three_d)
 {
     char name[256],src[1024];
     size_t n;
+    int found3d;
     if(!page||!poster||cap==0)return 0;
     poster[0]=0;
     if(!meta(page,"og:title",name,sizeof(name)))return 0;
-    /* Accept only actual Blu-ray 3D editions, never ordinary 2D media. */
-    if(!strstr(name,"Blu-ray 3D")&&!strstr(name,"3D Blu-ray")&&
-       !strstr(name,"Blu-ray 3d"))return 0;
+    found3d=strstr(name,"Blu-ray 3D")!=NULL ||
+            strstr(name,"Blu-ray 3d")!=NULL ||
+            strstr(name,"3D Blu-ray")!=NULL;
+    if(three_d?!found3d:found3d)return 0;
+    if(!strstr(name,"Blu-ray"))return 0;
     if(!meta(page,"og:image",src,sizeof(src)))return 0;
     if(strncmp(src,"https://www.mubis.es/media/releases/",36)!=0)return 0;
-    if(!strstr(src,"-3d-") && !strstr(src,"-3D-"))return 0;
+    if(three_d && !strstr(src,"-3d-") && !strstr(src,"-3D-"))return 0;
     n=strlen(src);
     if(n<5||strcmp(src+n-4,".jpg")!=0||n>=cap)return 0;
     memcpy(poster,src,n+1);
     return 1;
+}
+int movie_edition_mubis_html(const char *page,char *poster,size_t cap)
+{
+    return mubis_page_cover(page,poster,cap,1);
+}
+int movie_edition_mubis_normal_html(const char *page,char *poster,size_t cap)
+{
+    return mubis_page_cover(page,poster,cap,0);
 }
 
 /* Catalog release IDs individually verified against pages declaring
