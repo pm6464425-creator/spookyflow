@@ -484,6 +484,88 @@ static void test_ps1_cue_bin_track_grouping(void)
     memfs_reset();
 }
 
+/* A PS1 CUE without a SYSTEM.CNF serial can still use the exact filename
+ * and region. Libretro's official PlayStation Named_Boxarts contains e.g.
+ * "Crash Bandicoot (USA).png". This must NOT use fuzzy guesses or alter
+ * the original .cue/.bin pair.
+ */
+static int g_ps1_libretro_hits,g_ps1_libretro_serial_lookups;
+static int test_ps1_libretro_http(void *ctx,const char *url,uint8_t *buf,
+                                  uint32_t cap,uint32_t *len,
+                                  char *loc,size_t loc_cap)
+{
+    static const char *expected=
+        "https://thumbnails.libretro.com/Sony%20-%20PlayStation/Named_Boxarts/Crash%20Bandicoot%20(USA).png";
+    (void)ctx;
+    if(loc_cap)loc[0]=0;
+    *len=0;
+    if(strcmp(url,expected)!=0){g_ps1_libretro_serial_lookups++;return 404;}
+    if(cap<96)return COVER_HTTP_BIG;
+    memset(buf,0,96);
+    memcpy(buf,"\x89PNG\r\n\x1a\n",8);
+    *len=96;
+    g_ps1_libretro_hits++;
+    return 200;
+}
+static void test_ps1_libretro_filename_download(void)
+{
+    CoverIO io;
+    CoverDl d;
+    CoverDlItem item;
+    char url[COVER_URL_MAX];
+    int n;
+    printf("PS1 CUE no serial: exact Libretro filename/regional cover recovery\\n");
+    CHECK(cover_dl_ps1_title_url("/dev_hdd0/PSXISO/Crash Bandicoot (USA).cue",
+                                 url,sizeof(url)));
+    CHECK_STR(url,
+      "https://thumbnails.libretro.com/Sony%20-%20PlayStation/Named_Boxarts/Crash%20Bandicoot%20(USA).png");
+    CHECK(cover_dl_ps1_title_url("/dev_hdd0/PSXISO/Resident Evil 2 (USA) (Disc 1).cue",
+                                 url,sizeof(url)));
+    CHECK(strstr(url,"Resident%20Evil%202%20(USA)%20(Disc%201).png")!=NULL);
+    CHECK(!cover_dl_ps1_title_url("/dev_hdd0/PSXISO/Football [MOD].cue",
+                                  url,sizeof(url)));
+    CHECK(!cover_dl_ps1_title_url("/dev_hdd0/PSXISO/x.cue",
+                                  url,sizeof(url)));
+
+    memfs_reset();
+    mem_io(&io,"/cache");
+    memset(&item,0,sizeof(item));
+    item.plat=PLAT_PS1;
+    sf_strlcpy(item.path,"/dev_hdd0/PSXISO/Crash Bandicoot (USA).cue",
+               sizeof(item.path));
+    memset(&d,0,sizeof(d));
+    d.item=&item;d.n=1;d.io=&io;
+    d.http=test_ps1_libretro_http;
+    d.auto_mode=1;
+    g_ps1_libretro_hits=g_ps1_libretro_serial_lookups=0;
+    cover_dl_run(&d);
+    CHECK(d.finished);
+    CHECK(d.n_got==1 && d.n_noid==0);
+    CHECK(g_ps1_libretro_hits==1 && g_ps1_libretro_serial_lookups==0);
+    CHECK(memfs_find(COVER_DL_DIR "/Crash Bandicoot (USA).png")!=NULL);
+    CHECK(cover_has_art(&io,PLAT_PS1,item.path,0,0,""));
+
+    /* CUE has a known SLUS serial, but the serial-indexed sources 404.
+     * Exact title source must still rescue the user-visible cover. */
+    n=0;
+    if(mem_remove(NULL,COVER_DL_DIR "/Crash Bandicoot (USA).png")==0)n++;
+    CHECK(n==1);
+    memset(&item,0,sizeof(item));
+    item.plat=PLAT_PS1;
+    sf_strlcpy(item.path,"/dev_hdd0/PSXISO/Crash Bandicoot (USA).cue",
+               sizeof(item.path));
+    sf_strlcpy(item.id,"SCUS94900",sizeof(item.id));
+    memset(&d,0,sizeof(d));d.item=&item;d.n=1;d.io=&io;
+    d.http=test_ps1_libretro_http;
+    d.auto_mode=1;
+    cover_dl_run(&d);
+    CHECK(d.finished && d.n_got==1 && g_ps1_libretro_hits==2);
+    CHECK(g_ps1_libretro_serial_lookups==4);
+    CHECK(memfs_find(COVER_DL_DIR "/Crash Bandicoot (USA).png")!=NULL);
+    CHECK(memfs_find(COVER_DL_DIR "/.missing")==NULL);
+    memfs_reset();
+}
+
 static int cand_has(const CoverCand *c, int n, const char *base)
 {
     int i;
