@@ -381,6 +381,24 @@ static int movie_covers_dir(const char *dir,int port)
         return sf_bdiso_fat_mkdir(dest);
     }
 }
+/* New normal posters are NOT written over old manually placed or previously
+ * downloaded 3D-edition JPGs. NTFS permits COVERS/NORMAL with the same stem. */
+static int movie_normal_dir(const char *dir,int port)
+{
+    char dest[MOVIE_PATH_MAX];
+    if(movie_covers_dir(dir,port)!=0 ||
+       snprintf(dest,sizeof(dest),"%s/COVERS/NORMAL",dir)>=(int)sizeof(dest))
+        return -1;
+    if(sf_bdntfs_has_port(port)){
+        if(sf_bdntfs_is_dir(dest))return 0;
+        return sf_bdntfs_mkdir(dest);
+    }
+    if(ps3_fs_exists(dest))return 0;
+    {
+        extern int sf_bdiso_fat_mkdir(const char *);
+        return sf_bdiso_fat_mkdir(dest);
+    }
+}
 static int movie_usb_write(const char *path,int port,const void *buf,uint32_t size)
 {
     if(!buf || !size)return -1;
@@ -471,6 +489,7 @@ static void movie_candidate(MovieCandidate *v,int *count,int max,const char *url
 static int sf_bdiso_ensure_art_locked(const char *iso_path)
 {
     char dir[MOVIE_PATH_MAX],stem[256],cover[MOVIE_PATH_MAX],coverpng[MOVIE_PATH_MAX],titlepath[MOVIE_PATH_MAX];
+    char normaldir[MOVIE_PATH_MAX],manual[MOVIE_PATH_MAX],manualiso[MOVIE_PATH_MAX];
     char tmdb[80]="",fanart[100]="",fanart_client[100]="",omdb[100]="",mpdb[140]="";
     char query[240],encoded[560],title[256]="",poster[120]="",poster_es[120]="";
     char imdb[40]="",url[MOVIE_URL_MAX],tmp[MOVIE_URL_MAX],omdb_poster[MOVIE_URL_MAX]="";
@@ -480,7 +499,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     char local_es[256]="",slug[280]="";
     MovieCandidate candidates[MOVIE_CAND_MAX];
     uint32_t n=0;
-    int year=0,id=0,is3d,port,status=-1,count=0,i,k,repair=0;
+    int year=0,id=0,port,status=-1,count=0,i,k,repair=0;
     if(!iso_path || strncmp(iso_path,"/dev_usb00",10)!=0 ||
        iso_path[10]<'0'||iso_path[10]>'7'||iso_path[11]!='/')return -1;
     port=iso_path[10]-'0';
@@ -490,27 +509,48 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     if(!strstr(dir,"/BDISO"))return -3;
     iso_stem(iso_path,stem,sizeof(stem));
     if(!stem[0] ||
-       snprintf(cover,sizeof(cover),"%s/COVERS/%s.jpg",dir,stem)>=(int)sizeof(cover) ||
-       snprintf(coverpng,sizeof(coverpng),"%s/COVERS/%s.png",dir,stem)>=(int)sizeof(coverpng) ||
-       snprintf(titlepath,sizeof(titlepath),"%s/COVERS/%s.title",dir,stem)>=(int)sizeof(titlepath))
+       snprintf(normaldir,sizeof(normaldir),"%s/COVERS/NORMAL",dir)>=(int)sizeof(normaldir) ||
+       snprintf(cover,sizeof(cover),"%s/%s.jpg",normaldir,stem)>=(int)sizeof(cover) ||
+       snprintf(coverpng,sizeof(coverpng),"%s/%s.png",normaldir,stem)>=(int)sizeof(coverpng) ||
+       snprintf(titlepath,sizeof(titlepath),"%s/COVERS/%s.title",dir,stem)>=(int)sizeof(titlepath) ||
+       snprintf(manual,sizeof(manual),"%s/%s",dir,stem)>=(int)sizeof(manual) ||
+       snprintf(manualiso,sizeof(manualiso),"%s/%s",dir,slash+1)>=(int)sizeof(manualiso))
        return -4;
+    /* Preserve explicitly manually supplied artwork next to the ISO.
+     * Existing COVERS/*.jpg images (including prior generated 3D editions)
+     * remain untouched as a fallback. The new normal image is separate. */
+    {
+        char probe[MOVIE_PATH_MAX];
+        const char *bases[2]={manual,manualiso};
+        const char *exts[4]={".jpg",".png",".JPG",".PNG"};
+        int bi,ei;
+        for(bi=0;bi<2;bi++)for(ei=0;ei<4;ei++){
+            if(snprintf(probe,sizeof(probe),"%s%s",bases[bi],exts[ei])<(int)sizeof(probe) &&
+               ps3_fs_is_file(NULL,probe)) {
+                cover_diag("MANUAL_OK","caratula manual preservada: %s",probe);
+                return 1;
+            }
+        }
+    }
     /* Preserve manual art. If a previously downloaded JPEG could not
      * decode, the cover loader invokes this callback again to create a
      * compatible PNG next to it; the original JPG is never overwritten. */
     if(ps3_fs_is_file(NULL,coverpng)){
-        cover_diag("DESCARGA","PNG ya existe, no se reemplaza: %s",coverpng);
+        cover_diag("DESCARGA","Portada normal PNG ya existe: %s",coverpng);
         return 1;
     }
     repair=ps3_fs_is_file(NULL,cover);
-    cover_diag("DESCARGA","ISO=%s JPG_existente=%d PNG_existente=0",iso_path,repair);
-    if(repair && repair_attempted(iso_path)){
-        cover_diag("DESCARGA","Se omite reintento de JPG ya existente: %s",iso_path);
-        return -2;
+    if(repair) {
+        /* JPG already regular: never redownload or overwrite. */
+        cover_diag("DESCARGA","Portada normal JPG ya existe: %s",cover);
+        return 1;
     }
+    cover_diag("DESCARGA","ISO=%s imagen_normal_existente=0; legacy se conserva",iso_path);
+
     movie_query(stem,query,sizeof(query),&year);
     movie_search_alias(query,sizeof(query));
     if(!query[0] || encode_query(query,encoded,sizeof(encoded))!=0)return -5;
-    is3d=movie_3d(stem);
+
     k=movie_key(dir,"TMDB_KEY.TXT",tmdb,sizeof(tmdb));
     if(k!=32)tmdb[0]=0;
     else for(i=0;i<32;i++)if(!isxdigit((unsigned char)tmdb[i])){tmdb[0]=0;break;}
@@ -521,8 +561,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     if(!movie_key(dir,"MOVIEPOSTERDB_KEY.TXT",mpdb,sizeof(mpdb)) ||
        strncmp(mpdb,"mpdb_pk_",8)!=0)mpdb[0]=0;
 
-    /* Genuine edition images are chosen from release catalogs. Do not
-     * create review-link TXT files, badges or case stripes. */
+    /* Normal movie poster (prefer Spanish) + subtle 3D watermark on the case. */
     (void)movie_spanish_title(stem,NULL,local_es,sizeof(local_es));
     if(!tmdb[0] && !omdb[0])
         log_printf("bdiso: no API key in USB BDISO/COVERS; trying keyless public movie catalog");
@@ -533,44 +572,8 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     jpeg=(unsigned char*)malloc(MOVIE_JPEG_MAX);
     if(!json || !jpeg){status=-8;goto done;}
 
-    /* PRIORITY 1: Spanish real-world 3D Blu-ray cover scans. A Spanish
-     * release page is checked by its og:title and og:image, not guessed
-     * from a generic movie poster. No API key or HTML image scraping.
-     * The list may have an alternative Spanish versus original title. */
-    if(is3d){
-        const char *names[2]={local_es[0]?local_es:query,query};
-        int kname;
-        for(kname=0;kname<2;kname++){
-            if(kname && !sf_stricmp(names[0],names[1]))break;
-            if(!movie_edition_slug(names[kname],slug,sizeof(slug)))continue;
-            if(snprintf(url,sizeof(url),
-              "https://www.mubis.es/titulos/%s-blu-ray-3d",slug)
-              >=(int)sizeof(url))continue;
-            if(movie_http_json(url,json,&n) &&
-               movie_edition_mubis_html((const char*)json,tmp,sizeof(tmp))){
-                movie_candidate(candidates,&count,MOVIE_CAND_MAX,tmp,"3D-ES-Mubis");
-                break;
-            }
-        }
-        /* Spanish-country edition IDs confirmed to be actual 3D Blu-rays. */
-        {
-            int edition=movie_edition_bluray_id(query,year,1);
-            if(edition>0){
-                snprintf(url,sizeof(url),
-                  "https://images.static-bluray.com/movies/covers/%d_front.jpg",edition);
-                movie_candidate(candidates,&count,MOVIE_CAND_MAX,url,"3D-ES-Edition");
-            }
-        }
-        /* PRIORITY 2: 3D releases published with English cover artwork. */
-        {
-            int edition=movie_edition_bluray_id(query,year,0);
-            if(edition>0){
-                snprintf(url,sizeof(url),
-                  "https://images.static-bluray.com/movies/covers/%d_front.jpg",edition);
-                movie_candidate(candidates,&count,MOVIE_CAND_MAX,url,"3D-EN-Edition");
-            }
-        }
-    }
+    /* V13 deliberately never searches or downloads a 3D-edition cover.
+     * The 3D format is displayed ONLY as a subtle case watermark. */
 
     /* TMDB identity + Spanish poster. An edition named 3D is NOT assumed
        to have a specially branded poster in this standard film database. */
@@ -618,14 +621,12 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
                 snprintf(omdb_poster,sizeof(omdb_poster),"%s",tmp);
         }
     }
-    /* PRIORITY 3: Spanish normal posters, only after edition-specific 3D
-       artwork. Generic TMDB posters are never identified as 3D. */
+    /* PRIORITY 1: Spanish standard posters; no 3D-edition artwork. */
     if(poster_es[0]=='/' && strlen(poster_es)<100){
         snprintf(url,sizeof(url),"https://image.tmdb.org/t/p/w500%s",poster_es);
         movie_candidate(candidates,&count,MOVIE_CAND_MAX,url,"TMDB-ES");
     }
-    /* PRIORITY 3: normal Spanish cover when no 3D edition is reachable.
-     * This key-free source belongs to the actual Spanish Blu-ray release. */
+    /* Spanish standard Blu-ray artwork via public Mubis pages (no key). */
     if(movie_edition_slug(local_es[0]?local_es:query,slug,sizeof(slug)) &&
        snprintf(url,sizeof(url),
          "https://www.mubis.es/titulos/%s-blu-ray",slug)<(int)sizeof(url) &&
@@ -695,19 +696,19 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     for(i=0;i<count;i++){
         uint32_t bytes=0;
         cover_diag("FUENTE","%s opcion=%d/%d proveedor=%s (sin alterar ISO)",stem,i+1,count,candidates[i].provider);
-        if(movie_covers_dir(dir,port)!=0){
-            log_printf("bdiso: failed to create/read BDISO/COVERS on USB%03d",port);
+        if(movie_normal_dir(dir,port)!=0){
+            log_printf("bdiso: failed to create/read BDISO/COVERS/NORMAL on USB%03d",port);
             continue;
         }
         /* The native progressive-JPEG software decoder now works directly
          * from NTFS RAM; avoid a slow proxy request for every cover.
          * Never overwrite a JPG that is already present (including manual). */
-        if(!repair && movie_http_jpeg(candidates[i].url,jpeg,&bytes)){
+        if(movie_http_jpeg(candidates[i].url,jpeg,&bytes)){
             cover_diag("HTTP_IMAGEN","proveedor=%s JPG bytes=%u",candidates[i].provider,(unsigned)bytes);
             if(movie_usb_write(cover,port,jpeg,bytes)==0){
                 cover_diag("USB_WRITE_OK","imagen guardada %s bytes=%u",cover,(unsigned)bytes);
-                log_printf("bdiso: JPEG saved via %s, 3D=%d",
-                           candidates[i].provider,is3d);
+                log_printf("bdiso: normal JPEG saved via %s",
+                           candidates[i].provider);
                 status=0;break;
             }
             cover_diag("USB_WRITE_ERR","JPG obtenido pero NO se pudo escribir en %s",cover);
@@ -741,11 +742,11 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
            movie_catalog_pick((const char*)json,query,year,
                                fallback_url,sizeof(fallback_url),
                                fallback_title,sizeof(fallback_title)) &&
-           ((!repair && movie_http_jpeg(fallback_url,jpeg,&bytes) &&
-             movie_covers_dir(dir,port)==0 &&
+           ((movie_http_jpeg(fallback_url,jpeg,&bytes) &&
+             movie_normal_dir(dir,port)==0 &&
              movie_usb_write(cover,port,jpeg,bytes)==0) ||
              (movie_http_compatible_png(fallback_url,jpeg,&bytes) &&
-              movie_covers_dir(dir,port)==0 &&
+              movie_normal_dir(dir,port)==0 &&
               movie_usb_write(coverpng,port,jpeg,bytes)==0))){
             if(!title[0])snprintf(title,sizeof(title),"%s",fallback_title);
             log_printf("bdiso: poster saved from public no-key fallback for %s",stem);
