@@ -411,6 +411,67 @@ static void movie_candidate(MovieCandidate *v,int *count,int max,const char *url
     }
 }
 
+/* Same no-key, online-first principle used for PS3 game cover packs:
+ * Cinemeta exposes a public Stremio movie catalog with poster URLs.
+ * Restrict result title/year and image hosts; an ordinary movie poster
+ * is not represented as an exact Blu-ray 3D edition cover. */
+static int movie_poster_host_allowed(const char *url)
+{
+    static const char *const hosts[] = {
+        "https://image.tmdb.org/",
+        "https://images.metahub.space/",
+        "https://m.media-amazon.com/"
+    };
+    int i;
+    if(!url || strlen(url)>=MOVIE_URL_MAX)return 0;
+    for(i=0;i<(int)(sizeof(hosts)/sizeof(hosts[0]));i++)
+        if(strncmp(url,hosts[i],strlen(hosts[i]))==0)return 1;
+    return 0;
+}
+
+static int movie_from_cinemeta(const char *json,const char *query,int year,
+                               char *url,size_t cap,char *found_title,size_t tcap)
+{
+    const char *p=strstr(json,"\"metas\""),*arr_end;
+    char best[MOVIE_URL_MAX]="",best_title[256]="";
+    int best_score=0,seen=0;
+    if(!p || !(p=strchr(p,'[')) || !(arr_end=strchr(p,']')))return 0;
+    for(p++;p<arr_end && seen<30;){
+        const char *a=strchr(p,'{'),*b;
+        char name[256],poster[MOVIE_URL_MAX],release[40]="";
+        const char *val;int y=0,score=0;
+        if(!a || a>=arr_end || !(b=strchr(a,'}')) || b>arr_end)break;
+        seen++;p=b+1;
+        if(!json_text(a,b,"name",name,sizeof(name)) ||
+           !json_text(a,b,"poster",poster,sizeof(poster)) ||
+           !movie_poster_host_allowed(poster))continue;
+        /* Match a movie, not a vaguely related search result. */
+        if(sf_stricmp(query,name)==0)score=20;
+        else if(strlen(query)>5 &&
+                (strstr(name,query)==name || strstr(query,name)==query))score=9;
+        else continue;
+        if(json_text(a,b,"releaseInfo",release,sizeof(release)) &&
+           isdigit((unsigned char)release[0]))y=atoi(release);
+        if(!y){
+            val=json_field(a,b,"year");
+            if(val && isdigit((unsigned char)*val))y=atoi(val);
+        }
+        /* If the filename specifies a year, an explicitly different
+         * release is never selected as its cover. */
+        if(year && y && y!=year)continue;
+        if(year && y==year)score+=12;
+        if(score>best_score){
+            best_score=score;
+            snprintf(best,sizeof(best),"%s",poster);
+            snprintf(best_title,sizeof(best_title),"%s",name);
+        }
+    }
+    if(best_score<9 || strlen(best)>=cap)return 0;
+    snprintf(url,cap,"%s",best);
+    if(found_title && tcap)snprintf(found_title,tcap,"%s",best_title);
+    return 1;
+}
+
 int sf_bdiso_ensure_art(const char *iso_path)
 {
     char dir[MOVIE_PATH_MAX],stem[256],cover[MOVIE_PATH_MAX],titlepath[MOVIE_PATH_MAX];
@@ -453,11 +514,8 @@ int sf_bdiso_ensure_art(const char *iso_path)
        are absent. It never changes the ISO or any manually supplied cover. */
     if(is3d && movie_covers_dir(dir,port)==0)
         movie_community_sources(dir,stem,query,year,port);
-    if(!tmdb[0] && !omdb[0]) {
-        log_printf("bdiso: no valid TMDB_KEY.TXT (32 hex) or OMDB_KEY.TXT in USB BDISO/COVERS; online covers disabled");
-        return -6;
-    }
-    /* A missing key must not permanently consume the download attempt. */
+    if(!tmdb[0] && !omdb[0])
+        log_printf("bdiso: no API key in USB BDISO/COVERS; trying keyless public movie catalog");
     if(attempted(iso_path))return -2;
     log_printf("bdiso: starting online poster search for %s (TMDB=%s OMDb=%s)",
                stem,tmdb[0]?"yes":"no",omdb[0]?"yes":"no");
@@ -552,8 +610,24 @@ int sf_bdiso_ensure_art(const char *iso_path)
         if(v>0 && v<(int)sizeof(url))
             movie_candidate(candidates,&count,6,url,"MoviePosterDB");
     }
+    /* Automatic no-key fallback: one small search + one JPEG download,
+     * and the same background cover loader used for PS3 games. This is
+     * attempted only when configured providers found no candidate. */
+    if(count==0 &&
+       snprintf(url,sizeof(url),
+         "https://v3-cinemeta.strem.io/catalog/movie/top/search=%s.json",encoded)
+         <(int)sizeof(url)){
+        if(movie_http_json(url,json,&n) &&
+           movie_from_cinemeta((const char*)json,query,year,tmp,sizeof(tmp),
+                               title[0]?NULL:title,title[0]?0:sizeof(title))){
+            movie_candidate(candidates,&count,6,tmp,"Cinemeta-no-key");
+            log_printf("bdiso: found a public, no-key poster candidate for %s",stem);
+        } else {
+            log_printf("bdiso: no suitable public catalog poster found for %s",stem);
+        }
+    }
     if(count==0){
-        log_printf("bdiso: no poster candidates for %s (TMDB movie id=%d); verify title, year, API keys and network",
+        log_printf("bdiso: no poster candidates for %s (TMDB movie id=%d); verify filename and network",
                    stem,id);
         status=-9;goto save_title;
     }
