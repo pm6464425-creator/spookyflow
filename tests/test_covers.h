@@ -488,6 +488,58 @@ static void test_ps1_cue_bin_track_grouping(void)
     memfs_reset();
 }
 
+/* PS1 V15.10: user reports "Disney Tarzan Latino.cue" with
+ * "Disney Tarzan Latino.bin", while real Libretro archive contains
+ * "Disney Tarzan (Spain).png". This must download and SAVE the cover
+ * under the user's *original* .cue name without touching source media.
+ */
+static int g_tarzan_covers_requested,g_tarzan_unexpected;
+static int tarzan_mock_http(void *ctx,const char *url,uint8_t *buf,uint32_t cap,
+                            uint32_t *len,char *loc,size_t loc_cap)
+{
+    const char *real=
+       "https://thumbnails.libretro.com/Sony%20-%20PlayStation/Named_Boxarts/Disney%20Tarzan%20(Spain).png";
+    (void)ctx;
+    if(loc_cap)loc[0]=0;
+    *len=0;
+    if(strcmp(url,real)!=0){g_tarzan_unexpected++;return 404;}
+    if(cap<100)return COVER_HTTP_BIG;
+    memset(buf,0,100);
+    memcpy(buf,"\\x89PNG\\r\\n\\x1a\\n",8);
+    *len=100;
+    g_tarzan_covers_requested++;
+    return 200;
+}
+static void test_ps1_tarzan_latino_catalog_download(void)
+{
+    CoverIO io;
+    CoverDl d;
+    CoverDlItem it;
+    const char *index=
+       "Disney's Tarzan (USA).png\\n"
+       "Disney Tarzan (Spain).png\\n"
+       "Disney's Tarzan (Europe).png\\n"
+       "Gran Turismo (USA).png\\n";
+    printf("PS1 catalog download: Disney Tarzan Latino -> Disney Tarzan Spain\\n");
+    memfs_reset();
+    mem_io(&io,"/cache");
+    memfs_put(PS1_BOXART_INDEX,index,(uint32_t)strlen(index));
+    memset(&it,0,sizeof(it));
+    it.plat=PLAT_PS1;
+    sf_strlcpy(it.path,"/dev_hdd0/PSXISO/Disney Tarzan Latino.cue",
+               sizeof(it.path));
+    memset(&d,0,sizeof(d));d.item=&it;d.n=1;d.io=&io;
+    d.http=tarzan_mock_http;d.auto_mode=1;
+    g_tarzan_covers_requested=g_tarzan_unexpected=0;
+    cover_dl_run(&d);
+    CHECK(d.finished && d.n_got==1);
+    CHECK(g_tarzan_covers_requested==1 && g_tarzan_unexpected==0);
+    CHECK(memfs_find(COVER_DL_DIR "/Disney Tarzan Latino.png")!=NULL);
+    CHECK(cover_has_art(&io,PLAT_PS1,it.path,0,0,""));
+    CHECK(memfs_find("/dev_hdd0/PSXISO/Disney Tarzan Latino.bin")==NULL);
+    memfs_reset();
+}
+
 /* A PS1 CUE without a SYSTEM.CNF serial can still use the exact filename
  * and region. Libretro's official PlayStation Named_Boxarts contains e.g.
  * "Crash Bandicoot (USA).png". This must NOT use fuzzy guesses or alter
