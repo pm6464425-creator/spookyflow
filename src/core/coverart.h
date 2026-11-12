@@ -31,6 +31,8 @@ typedef struct {
     int (*is_file)(void *ctx, const char *path);
     /* Optional BDISO poster fetch; runs exclusively in the cover worker thread. */
     int (*ensure_movie_art)(void *ctx, const char *iso_path);
+    /* Manual Download Missing Covers restarts unsuccessful movie lookups. */
+    void (*reset_movie_attempts)(void *ctx);
     int (*is_dir)(void *ctx, const char *path);
     /* Decode a .jpg/.png into malloc'd RGBA bytes (R,G,B,A). 0 = ok. */
     int (*decode)(void *ctx, const char *path, int *w, int *h, uint8_t **rgba);
