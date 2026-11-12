@@ -317,6 +317,12 @@ static void test_vertical_spacing(void)
     CHECK_NEAR(layout_window_aspect(PLAT_PS1), 1.00, 0.005);
     CHECK_NEAR(layout_window_aspect(PLAT_PS2), 0.70, 0.005);
     CHECK_NEAR(layout_window_aspect(PLAT_PS3), 0.86, 0.005);
+    CHECK_NEAR(layout_window_aspect(PLAT_BDISO), 2.0/3.0, 0.005);
+    layout_set_case_image(PLAT_BDISO,270.0f*(10.0f/13.0f),340.0f,
+                          0.0f,30.0f,260.0f*(10.0f/13.0f),300.0f);
+    CHECK_NEAR(layout_window_aspect(PLAT_BDISO),2.0/3.0,0.0001);
+    CHECK_NEAR(layout_window_aspect(PLAT_PS3),0.86,0.005);
+    layout_clear_case_images();
 }
 
 static void test_bar_layout(void)
@@ -1416,6 +1422,31 @@ static void test_bdiso_real_download(void)
 }
 
 
+static void test_bdiso_cinema_crop_fill(void)
+{
+    static const int dims[][2]={{600,900},{310,420},{400,900},{900,400}};
+    int c;
+    printf("BDISO cinema 2:3 crop without black borders\n");
+    for(c=0;c<4;c++){
+        int w=dims[c][0],h=dims[c][1],x,y;
+        unsigned char *source=(unsigned char*)malloc((size_t)w*h*4);
+        uint16_t *dest=(uint16_t*)malloc(64*96*sizeof(uint16_t));
+        int corners[4]={0,63,64*95,64*96-1};
+        CHECK(source!=NULL&&dest!=NULL);
+        if(!source||!dest){free(source);free(dest);continue;}
+        for(y=0;y<w*h;y++){
+            source[y*4]=240;source[y*4+1]=80;
+            source[y*4+2]=20;source[y*4+3]=255;
+        }
+        memset(dest,0,64*96*sizeof(uint16_t));
+        cover_process_fill(source,w,h,2.0f/3.0f,dest,64,96);
+        for(x=0;x<4;x++){
+            unsigned v=dest[corners[x]];
+            CHECK((v&0x7C00u)>=(20u<<10)); /* image red, not dark pad */
+        }
+        free(source);free(dest);
+    }
+}
 static void test_bdiso_flowmovie_manual_cover_paths(void)
 {
     CoverCand c[8];
@@ -1458,6 +1489,7 @@ int main(void)
     test_cover_lookup();
     test_bdiso_real_download();
     test_bdiso_flowmovie_manual_cover_paths();
+    test_bdiso_cinema_crop_fill();
     test_cover_process();
     test_cover_loader();
     test_cover_cache_gpu();
