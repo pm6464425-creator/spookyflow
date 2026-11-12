@@ -232,6 +232,36 @@ static int decode_any(const char *path, int min_w, int min_h, int max_dim, int *
         memset(&d, 0, sizeof(d));
         rc = decode_jpeg(path, min_w, min_h, &d);
         bmp = d.bmp_out; pitch = d.pitch; bw = d.width; bh = d.height;
+        /* Important PS1 regression: downloaded game covers are on
+         * /dev_hdd0/tmp/spookyflow/downloaded, not the NTFS BDISO volume.
+         * Existing progressive-JPEG software recovery only ran in the NTFS
+         * branch above. On PS3 a valid downloaded JPEG could remain an
+         * EMPTY cover because hardware jpgDec rejected it. Recover only
+         * downloaded artwork and only after hardware decoding has failed.
+         * No changes to BDISO or any source media ISO/CUE/BIN. */
+        if ((rc!=0 || !bmp || !bw || !bh) &&
+            strncmp(path,COVER_DL_DIR "/",sizeof(COVER_DL_DIR))==0) {
+            sysFSStat st;
+            if(sysFsStat(path,&st)==0 &&
+               st.st_size>=32 && st.st_size<=3u*1024u*1024u) {
+                uint32_t bytes=(uint32_t)st.st_size;
+                unsigned char *data=(unsigned char *)malloc(bytes);
+                if(data) {
+                    if(ps3_read_at(NULL,path,0,data,bytes)==(int)bytes) {
+                        int sw=0,sh=0;
+                        unsigned char *soft=NULL;
+                        if(ps3_jpeg_soft_decode(data,bytes,max_dim,
+                                                &sw,&sh,&soft)==0) {
+                            free(bmp);
+                            bmp=soft;bw=(u32)sw;bh=(u32)sh;
+                            pitch=bw*4u;rc=0;direct_rgba=1;
+                            log_printf("covers: recovered downloaded game JPG with software decoder: %s",path);
+                        }
+                    }
+                    free(data);
+                }
+            }
+        }
     }
     ps3_decode_unlock();
     if (rc != 0 || !bmp || bw == 0 || bh == 0 || pitch < bw * 4u) {
