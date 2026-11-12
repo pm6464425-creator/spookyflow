@@ -164,6 +164,18 @@ print("raw_iso.sprx",len(data),"bytes",hashlib.sha256(data).hexdigest())
 PY
 end
 
+# --- PS1 verified names from the live Libretro catalogue -----------------------
+# Only lightweight UTF-8 image FILENAMES are bundled, never ROM images or
+# cover PNG bytes. Matching "Disney Tarzan Latino" to "Disney Tarzan (Spain)"
+# requires knowing the *real* filenames published by the cover provider.
+# Fail this build if the catalogue is unavailable; otherwise a plausible but
+# broken PS1 PKG would be published. BDISO functionality is unchanged.
+say "PS1 real boxart names (Libretro PlayStation)"
+python3 tools/build_ps1_boxart_catalog.py \
+  --output pkgfiles/USRDIR/ps1_boxart_names.txt
+test -s pkgfiles/USRDIR/ps1_boxart_names.txt
+end
+
 # --- build ----------------------------------------------------------------------
 say "make pkg (SF_TLS=$TLS)"
 make clean >/dev/null 2>&1 || true
