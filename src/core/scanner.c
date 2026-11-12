@@ -1,6 +1,7 @@
 /* scanner.c - incremental library scanner. */
 #include "scanner.h"
 #include "title.h"
+#include "movie_spanish.h"
 #include "log.h"
 #include "util.h"
 #include "sfo.h"
@@ -285,7 +286,16 @@ static void scan_iso_dir(Scanner *s, Library *lib, int plat, const char *dir, in
                     const char *display=e->name;
                     int idx,dup=-1;
                     if(plat==PLAT_BDISO){
-                        if(bd_movie_sidecar_title(s,dir,e->name,spanish,sizeof(spanish))){
+                        char sidecar[TITLE_MAX]="";
+                        int have_sidecar=bd_movie_sidecar_title(s,dir,e->name,
+                                                                  sidecar,sizeof(sidecar));
+                        /* A V7 auto-generated English .title must not replace
+                         * an available Spanish display title.  Custom
+                         * Spanish .title files still take precedence. */
+                        if(movie_spanish_title(e->name,
+                            have_sidecar?sidecar:NULL,spanish,sizeof(spanish)) ||
+                           (have_sidecar &&
+                            (sf_strlcpy(spanish,sidecar,sizeof(spanish)),1))){
                             snprintf(titlebuf,sizeof(titlebuf),"%s.iso",spanish);
                             display=titlebuf;
                         }
