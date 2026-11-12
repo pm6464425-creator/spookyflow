@@ -180,6 +180,66 @@ static int is_ps1_image(const char *name)
            sf_ends_with_i(name, ".iso") || sf_ends_with_i(name, ".mdf");
 }
 
+/* For BDISO, translated titles can be stored on the SAME USB volume in
+ * BDISO/COVERS/<exact ISO stem>.title (UTF-8, one line).
+ * The original English filename remains untouched and determines 3D status. */
+static int bd_movie_sidecar_title(Scanner *s, const char *dir,
+                                 const char *filename, char *out, size_t cap)
+{
+    char stem[FS_NAME_MAX],file[SCAN_PATH_MAX],raw[TITLE_MAX+16];
+    size_t n;
+    int got,i;
+    if(!s->rd || cap<8) return 0;
+    sf_strlcpy(stem,filename,sizeof(stem));
+    n=strlen(stem);
+    if(n>6 && sf_ends_with_i(stem,".iso.0")) stem[n-6]=0;
+    else if(n>4 && sf_ends_with_i(stem,".iso"))stem[n-4]=0;
+    else return 0;
+    if(snprintf(file,sizeof(file),"%s/COVERS/%s.title",dir,stem)>=(int)sizeof(file))return 0;
+    got=s->rd(s->rd_ctx,file,0,raw,sizeof(raw)-1);
+    if(got<2 || got>=TITLE_MAX)return 0;
+    raw[got]=0;
+    if(got>=3 && (unsigned char)raw[0]==0xef &&
+       (unsigned char)raw[1]==0xbb && (unsigned char)raw[2]==0xbf)
+        memmove(raw,raw+3,(size_t)got-2);
+    for(i=0;raw[i];i++) {
+        if(raw[i]=='\n' || raw[i]=='\r') {raw[i]=0;break;}
+        if((unsigned char)raw[i]<32 || raw[i]=='/' || raw[i]=='\\')return 0;
+    }
+    if(strlen(raw)<2)return 0;
+    sf_strlcpy(out,raw,cap);
+    return 1;
+}
+/* A webMAN .ntfs[BDISO] pointer and its native USB listing represent the
+ * SAME movie. If native access works, prefer it so the external COVERS path
+ * can be used. Compare original file stems, not translated display titles. */
+static int bd_movie_pointer_duplicate(const Library *lib,const char *name)
+{
+    const GameList *gl=&lib->tab[PLAT_BDISO];
+    char wanted[FS_NAME_MAX];
+    int i;
+    size_t n;
+    sf_strlcpy(wanted,name,sizeof(wanted));
+    n=strlen(wanted);
+    if(n>6 && sf_ends_with_i(wanted,".iso.0"))wanted[n-6]=0;
+    else if(n>4 && sf_ends_with_i(wanted,".iso"))wanted[n-4]=0;
+    for(i=0;i<gl->count;i++) {
+        const char *p=lib_path(lib,&gl->games[i]),*base;
+        char prev[FS_NAME_MAX];
+        size_t k;
+        if(strncmp(p,NTFS_INDEX_DIR "/",sizeof(NTFS_INDEX_DIR))!=0)continue;
+        base=strrchr(p,'/');
+        base=base?base+1:p;
+        sf_strlcpy(prev,base,sizeof(prev));
+        k=strlen(prev);
+        if(k>=12 && sf_ends_with_i(prev,".ntfs[BDISO]"))
+            prev[k-12]=0;
+        if(sf_ends_with_i(prev,".iso"))prev[strlen(prev)-4]=0;
+        if(sf_stricmp(prev,wanted)==0)return i;
+    }
+    return -1;
+}
+
 static void scan_iso_dir(Scanner *s, Library *lib, int plat, const char *dir, int n, int depth)
 {
     int i, j, ncue = 0;
@@ -220,9 +280,29 @@ static void scan_iso_dir(Scanner *s, Library *lib, int plat, const char *dir, in
                         if (p2 > 0 && st2 == stem && strncmp(s_ent[j].name, e->name, stem) == 0) size += s_ent[j].size;
                     }
                 }
-                if (join(path, sizeof(path), dir, e->name) &&
-                    lib_add(lib, plat, path, e->name, size, NULL, 0, 0, 0) >= 0)
-                    s->found[plat]++;
+                if (join(path, sizeof(path), dir, e->name)) {
+                    char spanish[TITLE_MAX],titlebuf[TITLE_MAX+4];
+                    const char *display=e->name;
+                    int idx,dup=-1;
+                    if(plat==PLAT_BDISO){
+                        if(bd_movie_sidecar_title(s,dir,e->name,spanish,sizeof(spanish))){
+                            snprintf(titlebuf,sizeof(titlebuf),"%s.iso",spanish);
+                            display=titlebuf;
+                        }
+                        dup=bd_movie_pointer_duplicate(lib,e->name);
+                    }
+                    idx=lib_add(lib,plat,path,display,size,NULL,0,0,0);
+                    if(idx>=0){
+                        s->found[plat]++;
+                        if(dup>=0 && dup<idx){
+                            GameList *gl=&lib->tab[PLAT_BDISO];
+                            memmove(&gl->games[dup],&gl->games[dup+1],
+                                    (size_t)(idx-dup)*sizeof(Game));
+                            gl->count--;
+                            s->found[plat]--;
+                        }
+                    }
+                }
             }
         }
     }
