@@ -4,6 +4,7 @@ from pathlib import Path
 
 def rd(p): return Path(p).read_text(encoding="utf-8")
 art=rd("src/ps3/sf_bdiso_art.c")
+cat=rd("src/core/movie_catalog.c")
 covers=rd("src/core/coverart.c")
 ps3=rd("src/ps3/ps3_covers.c")
 ntfs=rd("src/ps3/sf_bdiso_ntfs.c")
@@ -12,14 +13,14 @@ checks=[
  ("Public movie search endpoint", "https://v3-cinemeta.strem.io/catalog/movie/top/search=%s.json" in art),
  ("Search does not require API token", "no API key in USB BDISO/COVERS; trying keyless public movie catalog" in art),
  ("Public HTTPS movie search uses the existing transport", "movie_http_json(url,json,&n)" in art),
- ("JSON metadata includes poster and title", 'json_text(a,b,"poster"' in art and 'json_text(a,b,"name"' in art),
- ("Protects from unrelated poster URLs", "movie_poster_host_allowed(poster)" in art),
- ("TMDB image host allowed", "https://image.tmdb.org/" in art),
- ("Cinemeta image proxy host allowed", "https://images.metahub.space/" in art),
- ("Matches film titles before cover choice", "sf_stricmp(query,name)==0" in art),
- ("Rejects different known release years", "if(year && y && y!=year)continue;" in art),
- ("Chooses best matching search result", "if(score>best_score)" in art),
- ("Avoids huge result scans", "seen<30" in art),
+ ("JSON metadata includes poster and title", 'mc_text(p,stop,"poster"' in cat and 'mc_text(p,stop,"name"' in cat),
+ ("Protects from unrelated poster URLs", "mc_host_ok(url)" in cat),
+ ("TMDB image host allowed", "https://image.tmdb.org/" in cat),
+ ("Cinemeta image proxy host allowed", "https://images.metahub.space/" in cat),
+ ("Matches film titles before cover choice", "strcmp(qalias,norm)==0" in cat),
+ ("Rejects different known release years", "if(year && y && y!=year)score=0;" in cat),
+ ("Chooses best matching search result", "if(score>best)" in cat),
+ ("Avoids huge result scans", "seen<60" in cat),
  ("Automatically downloads first public JPEG with valid metadata", '"Cinemeta-no-key"' in art and "movie_http_jpeg(candidates[i].url" in art),
  ("Retries public catalog after broken commercial image URLs", "The public fallback must also run" in art),
  ("Only JPG image payload accepted", "buf[0]==0xff && buf[1]==0xd8" in art),
