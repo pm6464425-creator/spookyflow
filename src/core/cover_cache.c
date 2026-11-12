@@ -39,7 +39,11 @@ static int find(const CoverCache *cc, int tab, int index)
 void cc_forget(CoverCache *cc, int tab, int index)
 {
     int i = find(cc, tab, index);
-    if (i < 0 || cc->slot[i].state != CC_FAILED) return;
+    /* A new normal movie poster must replace the resident old 3D cover.
+     * Preserve the existing GPU free_at fence to avoid writing while drawn.
+     * The three game platforms keep their original behavior. */
+    if (i < 0 || (cc->slot[i].state != CC_FAILED && tab != PLAT_BDISO))
+        return;
     cc->slot[i].state = CC_EMPTY;
     cc->slot[i].tab = -1;
     cc->slot[i].index = -1;
