@@ -77,6 +77,11 @@ void scanner_set_reader(Scanner *s, ReadAtFn rd, void *ctx)
     s->rd_ctx = ctx;
 }
 
+void scanner_set_bdiso_pointer_filter(Scanner *s, int (*online)(const unsigned char *, size_t))
+{
+    s->ntfs_bdiso_online = online;
+}
+
 int scanner_ntfs_kind(const char *name, char *stem, size_t cap)
 {
     static const struct { const char *tag; int plat; } k[] = {
@@ -126,13 +131,21 @@ static void scan_ntfs_index(Scanner *s, Library *lib, const char *dir, int n)
         const FsEntry *e = &s_ent[i];
         uint64_t size = 0;
         char id[64] = "";
-        int plat, got;
+        int plat, got = 0;
         if (e->is_dir || e->name[0] == '.') continue;
         plat = scanner_ntfs_kind(e->name, stem, sizeof(stem));
         if (plat < 0 || !join(path, sizeof(path), dir, e->name)) continue;
         if (s->rd) {
             got = s->rd(s->rd_ctx, path, 0, s_ntfs_buf, sizeof(s_ntfs_buf));
             if (got > 0) size = scanner_ntfs_size(s_ntfs_buf, (size_t)got);
+            /* A missing physical drive must not leave a phantom movie from
+             * /dev_hdd0/tmp/wmtmp/*.ntfs[BDISO]. PS3-only filter; game
+             * pointer files retain their historical behavior. */
+            if (plat == PLAT_BDISO && s->ntfs_bdiso_online &&
+                (got < 20 || !s->ntfs_bdiso_online(s_ntfs_buf, (size_t)got))) {
+                log_printf("bdiso: skipping disconnected webMAN pointer %s", e->name);
+                continue;
+            }
             if (plat == PLAT_PS3) {                    /* title ID from the PARAM.SFO webMAN extracted */
                 char sfo[SCAN_PATH_MAX];
                 if (snprintf(sfo, sizeof(sfo), "%s/%s.SFO", dir, stem) < (int)sizeof(sfo)) {
@@ -141,6 +154,7 @@ static void scan_ntfs_index(Scanner *s, Library *lib, const char *dir, int n)
                 }
             }
         }
+        if (plat == PLAT_BDISO && s->ntfs_bdiso_online && !s->rd) continue;
         /* the display name: the stem as an .iso (webMAN may keep the ".iso"),
          * with the title ID as a tag so the library picks it up */
         {
