@@ -249,9 +249,15 @@ int sf_bdiso_ensure_art(const char *iso_path)
 
     json=(unsigned char*)malloc(MOVIE_JSON_MAX+1);
     if(!json)return -8;
-    if(snprintf(url,sizeof(url),
-       "https://api.themoviedb.org/3/search/movie?api_key=%s&language=es-MX&include_adult=false&query=%s&year=%d",
-       key,encoded,year?year:0)>=sizeof(url))goto done;
+    if(year) {
+        if(snprintf(url,sizeof(url),
+           "https://api.themoviedb.org/3/search/movie?api_key=%s&language=es-MX&include_adult=false&query=%s&year=%d",
+           key,encoded,year)>=(int)sizeof(url))goto done;
+    }else{
+        if(snprintf(url,sizeof(url),
+           "https://api.themoviedb.org/3/search/movie?api_key=%s&language=es-MX&include_adult=false&query=%s",
+           key,encoded)>=(int)sizeof(url))goto done;
+    }
     if(remote_get(url,json,MOVIE_JSON_MAX,&n)!=0 || !n)goto done;
     json[n]=0;
     if(!movie_title_id((char*)json,title,sizeof(title),poster,sizeof(poster),&movie_id))goto done;
