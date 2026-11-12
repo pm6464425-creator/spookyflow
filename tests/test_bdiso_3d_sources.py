@@ -34,7 +34,7 @@ tests=[
     ("CoverCity community query provided", "site%%3Acovercity.net" in art),
     ("Swarzycustom community query provided", "site%%3Aswarzycustom.com" in art),
     ("Edition-research references saved to external COVERS", 'COVERS/%s.sources.txt' in art),
-    ("Manual original JPG is not overwritten during compatibility repair", "if(repair)continue;" in art),
+    ("Manual original JPG is not overwritten during compatibility repair", "if(!repair && movie_http_jpeg" in art),
     ("English auto-generated title converted to Spanish without overriding manual titles", "movie_spanish_title(stem,existing?prior:title" in art),
     ("JPEG fallback still validates image signature", "buf[0]==0xff && buf[1]==0xd8 && buf[2]==0xff" in art),
     ("HTTPS for image URLs", 'strncmp(url,"https://",8)' in art),
