@@ -35,6 +35,8 @@ jobs:
         run: python3 tests/test_bdiso_ntfs_fix.py
       - name: PS3-style BDISO case visual regression checks (18)
         run: python3 tests/test_bdiso_ps3_case.py
+      - name: Blu-ray 3D artwork source checks (32)
+        run: python3 tests/test_bdiso_3d_sources.py
       - name: 30 identity and cover regression checks
         run: python3 tests/test_custom_identity.py
       - name: Render preview PNGs
