@@ -112,14 +112,13 @@ void sf_usb_diag_snapshot(const char *phase, const Library *lib,
      * Do not invoke sf_bdntfs_start() or NTFS mount functions here. */
     for(port=0;port<8;port++){
         if(sf_bdntfs_has_port(port)){
-            char root[40],bd[48];
+            char bd[48];
             FsEntry list[4];
-            int nr,nb,i;
-            snprintf(root,sizeof(root),"/dev_usb%03d",port);
+            int nb,i;
             snprintf(bd,sizeof(bd),"/dev_usb%03d/BDISO",port);
-            nr=sf_bdntfs_list(root,list,4);
+            /* Do not list the public root: that path triggers NTFS startup. */
             nb=sf_bdntfs_list(bd,list,4);
-            fprintf(f,"NATIVE_LIST port=%03d root_entries=%d bdiso_entries=%d\n",port,nr,nb);
+            fprintf(f,"NATIVE_LIST port=%03d bdiso_entries=%d\n",port,nb);
             for(i=0;i<nb && i<4;i++)
                 fprintf(f,"NATIVE_SAMPLE port=%03d entry=%.160s dir=%d\n",
                         port,list[i].name,list[i].is_dir);
