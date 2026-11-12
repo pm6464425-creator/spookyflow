@@ -86,6 +86,59 @@ int discid_cue_first_file(const char *cue_path, const char *txt, size_t len, cha
     return 0;
 }
 
+/* Parse ALL FILE declarations, not just the first file or the title.
+ * Real Redump CUE/BIN sets commonly contain one .cue and 10+ tracks named
+ * "Game (Track 01).bin", "Game (Track 02).bin" etc. Comparing a BIN's
+ * cleaned title to the CUE name left those tracks as duplicate games
+ * without covers in earlier SpookyFlow versions.
+ *
+ * Return only FILE basenames. No files are opened or altered here. */
+int discid_cue_files(const char *txt,size_t len,
+                     char out[][PS1_CUE_REF_NAME_MAX],int max)
+{
+    size_t i=0;
+    int count=0;
+    if(!txt || !out || max<=0)return 0;
+    if(max>PS1_CUE_REF_MAX)max=PS1_CUE_REF_MAX;
+    while(i<len && count<max){
+        size_t p=i,end=i,start,finish,st;
+        char file[PS1_CUE_REF_NAME_MAX],*base;
+        int j,duplicate=0;
+        while(end<len && txt[end]!='\n' && txt[end]!='\r')end++;
+        while(p<end && (txt[p]==' '||txt[p]=='\t'))p++;
+        if(end-p>5 && sf_strnicmp(txt+p,"FILE",4)==0 &&
+           (txt[p+4]==' '||txt[p+4]=='\t')){
+            p+=4;
+            while(p<end && (txt[p]==' '||txt[p]=='\t'))p++;
+            if(p<end && txt[p]=='"'){
+                start=++p;
+                while(p<end && txt[p]!='"')p++;
+                finish=p;
+            }else{
+                start=p;
+                while(p<end && txt[p]!=' ' && txt[p]!='\t')p++;
+                finish=p;
+            }
+            if(finish>start && finish-start<sizeof(file)){
+                memcpy(file,txt+start,finish-start);
+                file[finish-start]='\0';
+                base=file;
+                for(st=0;file[st];st++)
+                    if(file[st]=='/'||file[st]=='\\')base=file+st+1;
+                if(base[0] && strlen(base)<PS1_CUE_REF_NAME_MAX){
+                    for(j=0;j<count;j++)
+                        if(sf_stricmp(out[j],base)==0){duplicate=1;break;}
+                    if(!duplicate)
+                        sf_strlcpy(out[count++],base,PS1_CUE_REF_NAME_MAX);
+                }
+            }
+        }
+        i=end;
+        while(i<len && (txt[i]=='\r'||txt[i]=='\n'))i++;
+    }
+    return count;
+}
+
 /* PS1 filename serial fallback for dumps that lack ISO9660 metadata,
  * including .chd/.pbp and CUE dumps with unusual layouts. Only trust
  * unambiguous PlayStation serial prefixes followed by exactly five digits;
