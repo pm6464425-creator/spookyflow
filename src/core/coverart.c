@@ -925,7 +925,7 @@ void cover_dl_run(CoverDl *d)
             if(ps1_catalog) {
                 int nr=io->read_at(io->ctx,PS1_BOXART_INDEX,0,ps1_catalog,
                                    PS1_BOXART_INDEX_MAX);
-                if(nr>=1000 && nr<(int)PS1_BOXART_INDEX_MAX) {
+                if(nr>50 && nr<(int)PS1_BOXART_INDEX_MAX) {
                     ps1_catalog[nr]='\\0';
                     ps1_catalog_len=(size_t)nr;
                     log_printf("covers: ps1 CATALOG_LOADED bytes=%d",nr);
