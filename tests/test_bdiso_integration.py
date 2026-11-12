@@ -67,10 +67,10 @@ checks = [
      "static int movie_3d" in art and
      "s[1]=='D'" in art and
      "movie3d" not in ui),
-    ("11. BDISO shares PS3 case with Blu-ray 3D overlay",
+    ("11. BDISO shares PS3 case without an added 3D stripe",
      "if (plat == PLAT_BDISO)" in ui and
-     '"BLU-RAY 3D"' in ui and
-     '"Blu-ray",ALIGN_CENTER' in ui and
+     '"BLU-RAY 3D"' not in ui and
+     '"Blu-ray", ALIGN_CENTER' in ui and
      "float head = h * 0.086f" not in ui),
     ("12. Spanish title applied without changing the ISO file",
      "movie_title_from_usb" in app and
