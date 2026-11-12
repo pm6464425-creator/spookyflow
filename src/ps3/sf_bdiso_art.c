@@ -14,6 +14,7 @@
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
 #include "log.h"
+#include "cover_diag.h"
 #include "util.h"
 
 #define MOVIE_JSON_MAX (160u * 1024u)
@@ -200,6 +201,8 @@ static int remote_get(const char *url,unsigned char *buf,uint32_t cap,uint32_t *
         while(host[width] && host[width]!='/' && host[width]!='?' && width<80)width++;
         log_printf("bdiso: request failed, HTTP/transport=%d, host=%.*s",
                    code?code:-1,width,host);
+        cover_diag("HTTP_FALLO","host=%.*s status=%d (TLS/DNS/red/HTTP)",
+                    width,host,code?code:-1);
     }
     return code?code:-1;
 }
@@ -494,9 +497,16 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     /* Preserve manual art. If a previously downloaded JPEG could not
      * decode, the cover loader invokes this callback again to create a
      * compatible PNG next to it; the original JPG is never overwritten. */
-    if(ps3_fs_is_file(NULL,coverpng))return 1;
+    if(ps3_fs_is_file(NULL,coverpng)){
+        cover_diag("DESCARGA","PNG ya existe, no se reemplaza: %s",coverpng);
+        return 1;
+    }
     repair=ps3_fs_is_file(NULL,cover);
-    if(repair && repair_attempted(iso_path))return -2;
+    cover_diag("DESCARGA","ISO=%s JPG_existente=%d PNG_existente=0",iso_path,repair);
+    if(repair && repair_attempted(iso_path)){
+        cover_diag("DESCARGA","Se omite reintento de JPG ya existente: %s",iso_path);
+        return -2;
+    }
     movie_query(stem,query,sizeof(query),&year);
     movie_search_alias(query,sizeof(query));
     if(!query[0] || encode_query(query,encoded,sizeof(encoded))!=0)return -5;
@@ -675,13 +685,16 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
             log_printf("bdiso: catalog did not match title='%s', release_year=%d; check JSON format and aliases",query,year);
         }
     }
+    cover_diag("FUENTES","iso=%s candidatos=%d titulo=%s anio=%d",iso_path,count,query,year);
     if(count==0){
+        cover_diag("SIN_CANDIDATOS","Ninguna fuente encontro portada para %s (codigo -9)",iso_path);
         log_printf("bdiso: no poster candidates for %s (TMDB movie id=%d); verify filename and network",
                    stem,id);
         status=-9;goto save_title;
     }
     for(i=0;i<count;i++){
         uint32_t bytes=0;
+        cover_diag("FUENTE","%s opcion=%d/%d proveedor=%s (sin alterar ISO)",stem,i+1,count,candidates[i].provider);
         if(movie_covers_dir(dir,port)!=0){
             log_printf("bdiso: failed to create/read BDISO/COVERS on USB%03d",port);
             continue;
@@ -690,11 +703,14 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
          * from NTFS RAM; avoid a slow proxy request for every cover.
          * Never overwrite a JPG that is already present (including manual). */
         if(!repair && movie_http_jpeg(candidates[i].url,jpeg,&bytes)){
+            cover_diag("HTTP_IMAGEN","proveedor=%s JPG bytes=%u",candidates[i].provider,(unsigned)bytes);
             if(movie_usb_write(cover,port,jpeg,bytes)==0){
+                cover_diag("USB_WRITE_OK","imagen guardada %s bytes=%u",cover,(unsigned)bytes);
                 log_printf("bdiso: JPEG saved via %s, 3D=%d",
                            candidates[i].provider,is3d);
                 status=0;break;
             }
+            cover_diag("USB_WRITE_ERR","JPG obtenido pero NO se pudo escribir en %s",cover);
             log_printf("bdiso: JPEG downloaded but USB write failed for %s",stem);
         }
         /* Last resort for an unreadable JPEG or failed direct source:
@@ -702,9 +718,11 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
         bytes=0;
         if(movie_http_compatible_png(candidates[i].url,jpeg,&bytes)){
             if(movie_usb_write(coverpng,port,jpeg,bytes)==0){
+                cover_diag("USB_WRITE_OK","imagen PNG guardada %s bytes=%u",coverpng,(unsigned)bytes);
                 log_printf("bdiso: compatible PNG saved via %s",candidates[i].provider);
                 status=0;break;
             }
+            cover_diag("USB_WRITE_ERR","PNG obtenido pero escritura fallo: %s",coverpng);
             log_printf("bdiso: compatible PNG downloaded but USB write failed for %s",stem);
         }
         log_printf("bdiso: no usable image from %s for %s",candidates[i].provider,stem);
@@ -751,6 +769,9 @@ save_title:
         }
     }
 done:
+    cover_diag(status==0||status==1?"DESCARGA_OK":"DESCARGA_ERR",
+               "resultado=%d ISO=%s; 0=JPG/PNG guardado; -9=sin fuentes; otros=red/formato/escritura",
+               status,iso_path);
     if(status!=0 && status!=1)
         log_printf("bdiso: cover fetch failed for %s, error=%d; check USB BDISO/COVERS and preceding HTTP messages",
                    stem,status);
