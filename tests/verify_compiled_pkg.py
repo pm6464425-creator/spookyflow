@@ -78,6 +78,11 @@ def verify(package):
         print("PKG item:", name, "bytes=", file_len, "type=", hex(typ))
     assert "ICON0.PNG" in files and "PARAM.SFO" in files
     assert "USRDIR/EBOOT.BIN" in files
+    assert "USRDIR/raw_iso.sprx" in files, "Integrated BDISO plugin missing"
+    rawiso = files["USRDIR/raw_iso.sprx"]
+    assert len(rawiso) == 7930 and rawiso[:4] == b"SCE\\x00", (
+        "Invalid embedded raw_iso.sprx",len(rawiso))
+
     icon = files["ICON0.PNG"]
     expected = Path("pkgfiles/ICON0.PNG").read_bytes()
     assert icon == expected, "Embedded XMB icon differs from new source image"
