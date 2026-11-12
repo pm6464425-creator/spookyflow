@@ -289,17 +289,54 @@ static int first_object(const char *json,const char *array_name,
     }
     return 0;
 }
-static int movie_title_id(const char *json,char *title,size_t tcap,
+/* Verified title+release year matching.  Never trust the first TMDB hit:
+ * 'Rio' (2011) was previously mistaken for 'Extraño río' (2025).
+ * Search at most the first 32 movie results, accept only an exact normalized
+ * original or Spanish title, and reject year mismatches. */
+static int movie_title_id(const char *json,const char *query,int year,
+                          char *title,size_t tcap,
                           char *poster,size_t pcap,int *id)
 {
-    const char *a,*b,*v;
+    const char *a,*b,*p,*end;int examined=0,quoted,escaped,depth;
+    if(!json||!query||!title||!poster||!id)return 0;
+    title[0]=0;poster[0]=0;*id=0;
     if(!first_object(json,"results",&a,&b))return 0;
-    if(!json_text(a,b,"title",title,tcap))return 0;
-    if(!json_text(a,b,"poster_path",poster,pcap))poster[0]=0;
-    v=json_field(a,b,"id");
-    if(!v||!isdigit((unsigned char)*v))return 0;
-    *id=atoi(v);
-    return *id>0;
+    for(;a&&b&&examined<32;examined++){
+        char candidate[256]="",original[256]="",release[40]="",pfile[120]="";
+        const char *v;
+        int yr=0,film_id=0;
+        (void)json_text(a,b,"title",candidate,sizeof(candidate));
+        (void)json_text(a,b,"original_title",original,sizeof(original));
+        (void)json_text(a,b,"release_date",release,sizeof(release));
+        if(release[0]>='0'&&release[0]<='9')yr=atoi(release);
+        v=json_field(a,b,"id");
+        if(v&&isdigit((unsigned char)*v))film_id=atoi(v);
+        if(film_id>0 && (!year || yr==year) &&
+           (movie_title_exact(candidate,query) ||
+            movie_title_exact(original,query))) {
+            (void)json_text(a,b,"poster_path",pfile,sizeof(pfile));
+            if(candidate[0])snprintf(title,tcap,"%s",candidate);
+            else snprintf(title,tcap,"%s",original);
+            snprintf(poster,pcap,"%s",pfile);
+            *id=film_id;
+            return 1;
+        }
+        /* Find the NEXT object within the top-level results array. */
+        p=b;
+        while(*p && *p!='{' && *p!=']')p++;
+        if(*p!='{')break;
+        a=p;depth=0;quoted=0;escaped=0;
+        for(end=p;*end;end++){
+            if(escaped){escaped=0;continue;}
+            if(*end=='\\'&&quoted){escaped=1;continue;}
+            if(*end=='"'){quoted=!quoted;continue;}
+            if(quoted)continue;
+            if(*end=='{')depth++;
+            if(*end=='}'&&--depth==0){b=end+1;break;}
+        }
+        if(!*end)return 0;
+    }
+    return 0;
 }
 static int poster_from_images(const char *json,char *out,size_t cap)
 {
@@ -532,6 +569,10 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
 
     movie_query(stem,query,sizeof(query),&year);
     movie_search_alias(query,sizeof(query));
+    /* Safe release-year hint when the ISO has no embedded year.
+     * 'Rio' alone is ambiguous; only the 2011 Blue Sky animation is
+     * the known BDISO movie, not the unrelated 2025 'Extraño río'. */
+    if(!year && sf_stricmp(query,"Rio")==0)year=2011;
     if(!query[0] || encode_query(query,encoded,sizeof(encoded))!=0)return -5;
 
     k=movie_key(dir,"TMDB_KEY.TXT",tmdb,sizeof(tmdb));
@@ -595,7 +636,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
           "https://api.themoviedb.org/3/search/movie?api_key=%s&language=es-MX&include_adult=false&query=%s",
           tmdb,encoded);
         if(ok>0 && ok<(int)sizeof(url) && movie_http_json(url,json,&n)){
-            (void)movie_title_id((const char*)json,title,sizeof(title),
+            (void)movie_title_id((const char*)json,query,year,title,sizeof(title),
                                  poster,sizeof(poster),&id);
         }
         if(id>0){
