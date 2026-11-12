@@ -285,7 +285,7 @@ int ps3_http_get(void *ctx, const char *url, uint8_t *buf, uint32_t cap, uint32_
         char *colon = strchr(host, ':');
         if (colon) { port = atoi(colon + 1); *colon = '\0'; }
     }
-    n = snprintf(req, sizeof(req), "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: spookyflow/%s (PS3)\r\nAccept: image/*\r\nConnection: close\r\n\r\n",
+    n = snprintf(req, sizeof(req), "GET %s HTTP/1.0\r\nHost: %s\r\nUser-Agent: spookyflow/%s (PS3)\r\nAccept: */*\r\nConnection: close\r\n\r\n",
                  path[0] ? path : "/", host, APP_VERSION);
     if (n <= 0 || n >= (int)sizeof(req)) return COVER_HTTP_NET;
     if (netInitialize() < 0) return COVER_HTTP_NET;
