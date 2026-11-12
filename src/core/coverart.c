@@ -133,25 +133,25 @@ int cover_candidates(int plat, const char *game_path, int is_dir, const char *id
         if (npath && npath + 9 < sizeof(dir)) {
             memcpy(dir, game_path, npath); dir[npath] = '\0';
             memcpy(covers,dir,npath); memcpy(covers+npath,"/COVERS",8);
-            /* Two manual cover names alongside the ISO always win.
-             * Downloaded standard movie posters go in a NEW subfolder to
-             * supersede automatically fetched 3D-edition artwork without
-             * deleting any existing JPG in the legacy COVERS folder. */
+            /* Explicit user artwork wins. Keep COVERS/MANUAL for a file
+             * manager workflow and root BDISO for FlowMovie compatibility.
+             * Old automatic V11-13 artwork stays physically on the drive
+             * but is deliberately NOT loaded: it contains the unwanted
+             * Blu-ray plastic case inside SpookyFlow's own Blu-ray case. */
             n=add(out,n,max,dir,"/",name);
-            if (slash && slash[1])
+            if(slash && slash[1])
                 n=add(out,n,max,dir,"/",slash+1);
             {
-                char normal[COVER_PATH_MAX];
-                if(snprintf(normal,sizeof(normal),"%s/NORMAL",covers)<(int)sizeof(normal)){
-                    n=add(out,n,max,normal,"/",name);
-                    if(slash && slash[1])
-                        n=add(out,n,max,normal,"/",slash+1);
+                char manual[COVER_PATH_MAX],cinema[COVER_PATH_MAX];
+                if(snprintf(manual,sizeof(manual),"%s/MANUAL",covers)<(int)sizeof(manual)){
+                    n=add(out,n,max,manual,"/",name);
+                    if(slash && slash[1])n=add(out,n,max,manual,"/",slash+1);
+                }
+                if(snprintf(cinema,sizeof(cinema),"%s/CINE",covers)<(int)sizeof(cinema)){
+                    n=add(out,n,max,cinema,"/",name);
+                    if(slash && slash[1])n=add(out,n,max,cinema,"/",slash+1);
                 }
             }
-            /* Old covers remain usable until the new normal one exists. */
-            n=add(out,n,max,covers,"/",name);
-            if (slash && slash[1])
-                n=add(out,n,max,covers,"/",slash+1);
         }
         return n;
     }
@@ -735,19 +735,18 @@ int cover_dl_urls(int plat, const char *id, char out[][COVER_URL_MAX], int max)
     return n;
 }
 
-/* The legacy COVERS/*.jpg may be a previously downloaded 3D release.
- * It is a fallback, not proof that the NEW regular-poster download ran.
- * Only explicit manual artwork beside the ISO and COVERS/NORMAL count as
- * preferred when refreshing the BDISO library. */
+/* Only manually provided artwork and NEW theatrical posters count.
+ * The V11-13 edition photographs contain plastic Blu-ray cases; never
+ * consider them completed artwork for this version. */
 static int movie_has_normal_art(const CoverIO *io,const char *path,int is_dir,
                                 const char *id)
 {
-    CoverCand c[6];
+    CoverCand c[8];
     int n,i,e;
     char file[COVER_PATH_MAX+16];
     if(!io || !io->is_file)return 0;
-    n=cover_candidates(PLAT_BDISO,path,is_dir,id,NULL,c,6);
-    for(i=0;i<n && i<4;i++)
+    n=cover_candidates(PLAT_BDISO,path,is_dir,id,NULL,c,8);
+    for(i=0;i<n;i++)
         for(e=0;e<SF_ARRAY_LEN(k_exts);e++){
             snprintf(file,sizeof(file),"%s%s",c[i].base,k_exts[e]);
             if(io->is_file(io->ctx,file))return 1;
