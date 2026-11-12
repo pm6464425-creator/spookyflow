@@ -14,6 +14,7 @@
 #include "util.h"
 #include <ntfs.h>
 #include "sf_bdiso_ntfs.h"
+#include "bdiso_usb.h"
 #include "log.h"
 
 static const DISC_INTERFACE *const s_devices[8] = {
@@ -30,19 +31,20 @@ uint32_t sf_bdntfs_usb_present_mask(void)
     return mask;
 }
 
-/* rawseciso webMAN pointer header: big-endian u64 USB device ID.
- * Never trust an index file saved in /dev_hdd0 after its USB was removed.
- * Unknown/invalid IDs are not proof that the drive is connected. */
+/* V15.2 rejected every webMAN .ntfs[BDISO] whose device header differed
+ * from the expected 64-bit value. In the field, that hid valid movies.
+ * V15.3 checks physical presence first and uses a tolerant pointer parser.
+ * Recognized IDs must match a connected port; unknown legacy IDs are
+ * kept when any NTFS drive is inserted, preserving pre-V15.2 behavior. */
 int sf_bdntfs_index_online(const unsigned char *data, size_t len)
 {
-    uint64_t id=0;
-    int port,i;
-    if(!data || len<20)return 0;
-    for(i=0;i<8;i++)id=(id<<8)|data[i];
-    for(port=0;port<8;port++)
-        if(id==(uint64_t)USB_MASS_STORAGE(port) && PS3_NTFS_IsInserted(port))
-            return 1;
-    return 0;
+    uint32_t present=sf_bdntfs_usb_present_mask();
+    int port=bdiso_usb_pointer_port(data,len);
+    int visible=bdiso_usb_pointer_visible(data,len,present);
+    if(visible && port<0)
+        log_printf("bdiso: legacy webMAN pointer accepted (physical USB present mask=0x%02x)",
+                   (unsigned)present);
+    return visible;
 }
 
 static ntfs_md *s_mount[8];
