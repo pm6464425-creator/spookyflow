@@ -94,6 +94,7 @@ const char *cover_folder(int i);
 /* Crop/fit src (w x h RGBA) to `aspect`, resize to tw x th, composite over
  * a dark backdrop and write dithered A1R5G5B5 (opaque). */
 void  cover_process(const uint8_t *rgba, int w, int h, float aspect, uint16_t *dst, int tw, int th);
+void  cover_process_fill(const uint8_t *rgba, int w, int h, float aspect, uint16_t *dst, int tw, int th);
 
 /* Cache file name stem for a game: <cache>/<plat>/<16 hex>. */
 void  cover_cache_stem(const char *cache_dir, int plat, const char *game_path, uint64_t size, char *out, size_t cap);
