@@ -55,6 +55,8 @@ jobs:
           mkdir -p build-host
           cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -Isrc/core src/core/movie_edition.c tests/test_movie_edition.c -o build-host/test_movie_edition
           ./build-host/test_movie_edition
+      # Includes the V13 regular-poster migration, Spanish-first policy,
+      # manually supplied cover priority and the watermark-only visual gate.
       - name: BDISO manual cover paths and clean-case priority checks
         run: python3 tests/test_bdiso_priority.py
       - name: BDISO integration checks (fourteen independent reviews)
@@ -155,14 +157,14 @@ jobs:
       # GitHub release assets can be downloaded directly (without Actions
       # artifact ZIP/login) unlike some sandbox links in the chat client.
       - name: Publish direct-download PS3 PKG release
-        if: github.ref == 'refs/heads/fix/bdiso-fourth-tab-cover-cache'
+        if: github.ref == 'refs/heads/fix/bdiso-normal-posters-discreet-3d'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp spookyflow.pkg MI_PKG_V12_BDISO_FIX.pkg
-          gh release create mi-pkg-v12-bdiso-fix MI_PKG_V12_BDISO_FIX.pkg --target "$GITHUB_SHA" \
-            --title "MI PKG V12 - Solucion real caratulas BDISO" \
-            --notes "SOLUCION del fallo confirmado por diagnostico de PS3: la cache visual admitia solo 3 pestanas, mientras BDISO es la cuarta (indice 3). Ahora CC_TABS usa PLAT_COUNT=4 y se prueban las 26 caratulas en la cuarta pestana. Preserva estuche sin franjas, lector NTFS, covers manuales y busqueda 3D ES/EN. No borres las caratulas descargadas. Incluye diagnostico_portadas.txt para verificar que aparecen SOLICITUD / DECOD_OK / TEXTURA_OK / PANTALLA_OK."
+          cp spookyflow.pkg MI_PKG_V13_NORMAL_3D.pkg
+          gh release create mi-pkg-v13-normal-3d MI_PKG_V13_NORMAL_3D.pkg --target "$GITHUB_SHA" \
+            --title "MI PKG V13 - Portadas normales + 3D discreto" \
+            --notes "V13: caratulas normales (ES primero, EN si no hay); no buscar caratulas de ediciones 3D. El estuche original mantiene Blu-ray a la derecha y suma una marca de agua 3D discreta a la izquierda SOLO para ISO 3D. No hay franja, banda ni cambios de proporcion. Nuevas portadas guardadas automaticamente en BDISO/COVERS/NORMAL con el mismo nombre del ISO; antiguas JPG quedan intactas como respaldo. Se conserva la correccion de la cuarta pestana BDISO y la deteccion NTFS. Codigo y compilacion probados; validar la consola fisica."
 
   ps3-pkg-docker:
     needs: host-tests
