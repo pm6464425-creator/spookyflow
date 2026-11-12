@@ -86,7 +86,7 @@ int movie_sensacine_pick(const char *page,const char *title,char *url,size_t cap
         char label[300],norm_label[300];
         int score;
         size_t len;
-        if(!end || end-start>=sizeof(label)) {p+=14;continue;}
+        if(!end || (size_t)(end-start)>=sizeof(label)) {p+=14;continue;}
         len=(size_t)(end-start);
         memcpy(label,start,len);label[len]=0;
         normalize(label,len,norm_label,sizeof(norm_label));
