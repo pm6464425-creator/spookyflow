@@ -921,7 +921,7 @@ static void test_ntfs(void)
     CHECK(scanner_ntfs_kind("Demon's Souls (USA).ntfs[PS3ISO]", stem, sizeof(stem)) == PLAT_PS3);
     CHECK_STR(stem, "Demon's Souls (USA)");
     CHECK(scanner_ntfs_kind("Crash.ntfs[PSXISO]", stem, sizeof(stem)) == PLAT_PS1 && strcmp(stem, "Crash") == 0);
-    CHECK(scanner_ntfs_kind("Movie.ntfs[BDISO]", stem, sizeof(stem)) == -1);      /* video discs: not games */
+    CHECK(scanner_ntfs_kind("Movie.ntfs[BDISO]", stem, sizeof(stem)) == PLAT_BDISO); /* index movies separately */
     CHECK(scanner_ntfs_kind("Movie.ntfs[DVDISO]", stem, sizeof(stem)) == -1);
     CHECK(scanner_ntfs_kind("Demon's Souls (USA).PNG", stem, sizeof(stem)) == -1);
     CHECK(scanner_ntfs_kind(".ntfs[PS3ISO]", stem, sizeof(stem)) == -1);
@@ -949,7 +949,7 @@ static void test_ntfs(void)
     scanner_begin(&sc, roots, 1);
     scanner_set_reader(&sc, mem_read_at, NULL);
     while (!scanner_step(&sc, &g_lib, mem_list, NULL)) { }
-    CHECK(sc.found[PLAT_PS3] == 2 && sc.found[PLAT_PS1] == 2 && sc.found[PLAT_PS2] == 0 && sc.found_ntfs == 4);
+    CHECK(sc.found[PLAT_PS3] == 2 && sc.found[PLAT_PS1] == 2 && sc.found[PLAT_PS2] == 0 && sc.found[PLAT_BDISO] == 1 && sc.found_ntfs == 5);
     for (i = 0; i < g_lib.tab[PLAT_PS3].count; i++) {
         const Game *g = &g_lib.tab[PLAT_PS3].games[i];
         if (strcmp(lib_title(&g_lib, g), "Demon's Souls") == 0) {
@@ -972,7 +972,7 @@ static void test_ntfs(void)
     lib_clear(&g_lib);
     scanner_begin(&sc, roots, 1);
     while (!scanner_step(&sc, &g_lib, mem_list, NULL)) { }
-    CHECK(sc.found_ntfs == 4 && g_lib.tab[PLAT_PS3].games[0].size == 0);
+    CHECK(sc.found_ntfs == 5 && g_lib.tab[PLAT_PS3].games[0].size == 0);
     /* NTFS images also resolve only within the managed artwork directory. */
     {
         CoverCand cand[COVER_MAX_CANDS];
@@ -1039,10 +1039,11 @@ static void test_usb_drives(void)
     memfs_put("/dev_usb001/PSXISO/Spyro (USA).iso", "iso", 3);
     memfs_put("/dev_usb006/note.txt", "x", 1);
     r = scanner_roots_with_usb(base, nb, mem_list, NULL, &n, &nd);
-    CHECK(nd == 2 && n == nb + 12);
+    CHECK(nd == 2 && n == nb + 14);
     CHECK_STR(r[nb].path, "/dev_usb001/PS3ISO");
     CHECK(r[nb].plat == PLAT_PS3 && r[nb + 4].plat == PLAT_PS1 && r[nb + 3].plat == PLAT_PS2);
-    CHECK_STR(r[nb + 6].path, "/dev_usb006/PS3ISO");
+    CHECK_STR(r[nb + 6].path, "/dev_usb001/BDISO");
+    CHECK_STR(r[nb + 7].path, "/dev_usb006/PS3ISO");
     memset(&host, 0, sizeof(host));
     host.fs_list = mem_list;
     host.read_at = mem_read_at;

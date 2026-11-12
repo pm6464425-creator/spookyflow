@@ -1850,7 +1850,7 @@ static void test_stick_glide(void)
     printf("stick glide, built-in tabs\n");
     {   /* 0.8.4: spooky's console tab images are built in (PNG files, decoded on the PS3) */
         int p;
-        for (p = 0; p < PLAT_COUNT; p++)
+        for (p = 0; p < PLAT_BDISO; p++)
             CHECK(g_tab_png_size[p] > 100 && memcmp(g_tab_png[p], "\x89PNG\r\n\x1a\n", 8) == 0 &&
                   g_case_png_size[p] > 100 && memcmp(g_case_png[p], "\x89PNG\r\n\x1a\n", 8) == 0);   /* 0.8.5: cases too */
     }
