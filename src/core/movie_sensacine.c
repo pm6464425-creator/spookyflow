@@ -65,11 +65,44 @@ static int title_score(const char *label,const char *req)
     size_t a=strlen(label),b=strlen(req);
     if(!a||!b)return 0;
     if(!strcmp(label,req))return 100;
-    if(a>b && a>=b && label[a-b-1]==' ' &&
+    /* Never match a short search term inside another film title.
+     * 'Rio' must NEVER match 'Extraño río' (a different 2025 film). */
+    if(b>=7 && a>b && label[a-b-1]==' ' &&
        !strcmp(label+a-b,req))return 70;
     return 0;
 }
-int movie_sensacine_pick(const char *page,const char *title,char *url,size_t cap)
+/* The date shown in each SensaCine SEARCH RESULT card is adjacent to
+ * its own <img alt="Cartel de ...">. Never accept an image when an ISO year
+ * is known but the card release year differs. */
+static int card_year(const char *after_img)
+{
+    const char *p,*end,*stop;
+    int i;
+    if(!after_img)return 0;
+    stop=strstr(after_img,"</li>");
+    p=strstr(after_img,"<span class=\"date\">");
+    if(!p || p-after_img>2400 || (stop && p>stop))return 0;
+    end=strstr(p,"</span>");
+    if(!end || end-p>140)return 0;
+    for(;p+4<=end;p++){
+        if((p[0]=='1'&&p[1]=='9')||(p[0]=='2'&&p[1]=='0')){
+            for(i=2;i<4;i++)if(p[i]<'0'||p[i]>'9')break;
+            if(i==4)return (p[0]-'0')*1000+(p[1]-'0')*100+
+                            (p[2]-'0')*10+(p[3]-'0');
+        }
+    }
+    return 0;
+}
+int movie_title_exact(const char *a,const char *b)
+{
+    char x[260],y[260];
+    if(!a||!b)return 0;
+    normalize(a,strlen(a),x,sizeof(x));
+    normalize(b,strlen(b),y,sizeof(y));
+    return x[0] && !strcmp(x,y);
+}
+
+int movie_sensacine_pick_year(const char *page,const char *title,int year,char *url,size_t cap)
 {
     const char *p,*best=NULL,*best_end=NULL;
     int best_score=0;
@@ -91,6 +124,10 @@ int movie_sensacine_pick(const char *page,const char *title,char *url,size_t cap
         memcpy(label,start,len);label[len]=0;
         normalize(label,len,norm_label,sizeof(norm_label));
         score=title_score(norm_label,norm_request);
+        /* An ISO may be from 2011 even if the first search hit is Rio 2
+         * (2014) or Extraño río (2025). Year mismatch is disqualifying.
+         * When year is absent, accept exact titles only for short terms. */
+        if(score>0 && year>0 && card_year(end+1)!=year)score=0;
         if(score>best_score){
             /* All attributes must come from THIS img tag. HTML around it
              * (like recommendations) is explicitly not trusted. */
@@ -131,6 +168,53 @@ int movie_sensacine_pick(const char *page,const char *title,char *url,size_t cap
     url[best_end-best]=0;
     return 1;
 }
+int movie_sensacine_pick(const char *page,const char *title,char *url,size_t cap)
+{
+    return movie_sensacine_pick_year(page,title,0,url,cap);
+}
+
+/* Official film page metadata: never album/trailer/merchandise pictures.
+ * Used for a few verified ambiguous titles, e.g. 'Rio' (2011), whose
+ * search-results first page does not list the original animation.
+ * Both title and year MUST be confirmed before using the OG poster. */
+int movie_sensacine_page_poster(const char *page,const char *title,int year,
+                                char *url,size_t cap)
+{
+    const char *p,*e,*og,*end;
+    char found[300],poster[1200];
+    size_t n;
+    if(!url||!cap)return 0;url[0]=0;
+    if(!page||!title||year<1900||year>2099)return 0;
+    p=strstr(page,"property=\"og:title\"");
+    if(!p || !(e=strchr(p,'>')) || e-p>500)return 0;
+    og=strstr(p,"content=\"");
+    if(!og || og>e)return 0;
+    og+=9;end=strchr(og,'"');
+    if(!end || end>e || end-og>=sizeof(found))return 0;
+    memcpy(found,og,(size_t)(end-og));found[end-og]=0;
+    if(!movie_title_exact(found,title))return 0;
+    /* SensaCine prints this on each film's detailed page. */
+    {
+        char yr[8],mark[64];
+        const char *m;
+        snprintf(yr,sizeof(yr),"%d",year);
+        snprintf(mark,sizeof(mark),"Año de producción");
+        m=strstr(page,mark);
+        if(!m || !(e=strstr(m,yr)) || e-m>200)return 0;
+    }
+    p=strstr(page,"property=\"og:image\"");
+    if(!p || !(e=strchr(p,'>')) || e-p>500)return 0;
+    og=strstr(p,"content=\"");
+    if(!og || og>e)return 0;
+    og+=9;end=strchr(og,'"');
+    if(!end || end>e || end-og>=sizeof(poster))return 0;
+    n=(size_t)(end-og);
+    memcpy(poster,og,n);poster[n]=0;
+    if(!good_host(poster) || n>=cap)return 0;
+    memcpy(url,poster,n+1);
+    return 1;
+}
+
 int movie_sensacine_fullsize(const char *thumb,char *url,size_t cap)
 {
     const char *host,*path,*after;
