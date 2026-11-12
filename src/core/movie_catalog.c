@@ -209,7 +209,9 @@ int movie_catalog_pick(const char *json,const char *query,int year,
                     (strstr(norm,qalias)==norm || strstr(qalias,norm)==qalias))
                     score=8;
             y=mc_year(p,stop);
-            if(year && y && y!=year)score=0;
+            /* Release year is a required identity constraint whenever
+             * the ISO supplies one. An unknown year is NOT verification. */
+            if(year && y!=year)score=0;
             else if(score && year && y==year)score+=10;
             if(score>best){
                 best=score;
