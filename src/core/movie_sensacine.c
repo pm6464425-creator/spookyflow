@@ -183,14 +183,15 @@ int movie_sensacine_page_poster(const char *page,const char *title,int year,
     const char *p,*e,*og,*end;
     char found[300],poster[1200];
     size_t n;
-    if(!url||!cap)return 0;url[0]=0;
+    if(!url||!cap)return 0;
+    url[0]=0;
     if(!page||!title||year<1900||year>2099)return 0;
     p=strstr(page,"property=\"og:title\"");
     if(!p || !(e=strchr(p,'>')) || e-p>500)return 0;
     og=strstr(p,"content=\"");
     if(!og || og>e)return 0;
     og+=9;end=strchr(og,'"');
-    if(!end || end>e || end-og>=sizeof(found))return 0;
+    if(!end || end>e || (size_t)(end-og)>=sizeof(found))return 0;
     memcpy(found,og,(size_t)(end-og));found[end-og]=0;
     if(!movie_title_exact(found,title))return 0;
     /* SensaCine prints this on each film's detailed page. */
@@ -207,7 +208,7 @@ int movie_sensacine_page_poster(const char *page,const char *title,int year,
     og=strstr(p,"content=\"");
     if(!og || og>e)return 0;
     og+=9;end=strchr(og,'"');
-    if(!end || end>e || end-og>=sizeof(poster))return 0;
+    if(!end || end>e || (size_t)(end-og)>=sizeof(poster))return 0;
     n=(size_t)(end-og);
     memcpy(poster,og,n);poster[n]=0;
     if(!good_host(poster) || n>=cap)return 0;
