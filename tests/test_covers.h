@@ -358,6 +358,67 @@ static void test_ps1_covers_serial_and_sources(void)
     memfs_reset();
 }
 
+/* PS1 real worker path: prior .missing 404 markers MUST NOT block a
+ * newly available verified xlenore cover on startup, and we must not
+ * fabricate a cover for a file with no PlayStation serial. */
+static int g_ps1_http_calls,g_ps1_http_bad_url;
+static int test_ps1_http(void *ctx,const char *url,uint8_t *buf,uint32_t cap,
+                         uint32_t *len,char *loc,size_t loc_cap)
+{
+    static const char *expected=
+        "https://raw.githubusercontent.com/xlenore/psx-covers/main/covers/default/SLUS-00594.jpg";
+    (void)ctx;
+    if(strcmp(url,expected)) { g_ps1_http_bad_url=1; return 404; }
+    g_ps1_http_calls++;
+    if(cap<96)return COVER_HTTP_BIG;
+    memset(buf,0,96);
+    buf[0]=0xff;buf[1]=0xd8;buf[2]=0xff; /* valid JPEG signature for downloader */
+    *len=96;
+    if(loc_cap)loc[0]=0;
+    return 200;
+}
+static void test_ps1_cover_download_retry(void)
+{
+    CoverIO io;
+    CoverDl d;
+    CoverDlItem item;
+    printf("PS1 auto cover: old 404 marker bypass + no-ID safety\\n");
+    memfs_reset();
+    mem_io(&io,"/dev_hdd0/tmp/spookyflow/covers");
+    memfs_put(COVER_DL_DIR "/SLUS00594.missing","404",3);
+    memset(&item,0,sizeof(item));
+    item.plat=PLAT_PS1;
+    sf_strlcpy(item.path,"/dev_hdd0/PSXISO/Metal Gear Solid [SLUS-00594].chd",
+               sizeof(item.path));
+    memset(&d,0,sizeof(d));
+    d.item=&item;
+    d.n=1;
+    d.io=&io;
+    d.http=test_ps1_http;
+    d.auto_mode=1;
+    g_ps1_http_calls=0;g_ps1_http_bad_url=0;
+    cover_dl_run(&d);
+    CHECK(d.finished);
+    CHECK(!g_ps1_http_bad_url && g_ps1_http_calls==1);
+    CHECK(d.n_got==1 && d.n_have==0 && d.n_noid==0);
+    CHECK_STR(item.id,"SLUS00594");
+    CHECK(memfs_find(COVER_DL_DIR "/SLUS00594.jpg")!=NULL);
+    CHECK(memfs_find(COVER_DL_DIR "/SLUS00594.missing")==NULL);
+    memset(&item,0,sizeof(item));
+    item.plat=PLAT_PS1;
+    sf_strlcpy(item.path,"/dev_hdd0/PSXISO/Unknown Game.bin",sizeof(item.path));
+    memset(&d,0,sizeof(d));
+    d.item=&item;
+    d.n=1;
+    d.io=&io;
+    d.http=test_ps1_http;
+    d.auto_mode=1;
+    cover_dl_run(&d);
+    CHECK(d.finished && d.n_noid==1 && d.n_got==0);
+    CHECK(g_ps1_http_calls==1); /* no guessed URLs for unidentifiable games */
+    memfs_reset();
+}
+
 static int cand_has(const CoverCand *c, int n, const char *base)
 {
     int i;
