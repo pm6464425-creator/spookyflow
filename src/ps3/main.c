@@ -23,6 +23,7 @@
 #include "app.h"
 #include "draw.h"
 #include "log.h"
+#include "cover_diag.h"
 #include "sound.h"
 #include "ps3_platform.h"
 #include "sf_cobra_mount.h"
@@ -193,6 +194,8 @@ static void on_exit_handler(void)
     if (!g_saved_on_exit) { app_save(&g_app); g_saved_on_exit = 1; }
     ps3_covers_stop();
     ps3_audio_stop();
+    cover_diag("CIERRE","La aplicacion cerro correctamente");
+    cover_diag_stop();
     log_printf("shutdown");
     log_close();
     sysUtilUnregisterCallback(SYSUTIL_EVENT_SLOT0);
@@ -270,6 +273,9 @@ int main(int argc, const char *argv[])
     /* Create a persistent trace BEFORE any graphics, pad, audio or UI work.
      * This separates an early startup freeze from a Cobra mount freeze. */
     ps3_fs_mkdirs();
+    rc = cover_diag_start(SF_DATA_DIR "/diagnostico_portadas.txt");
+    log_printf("bdiso diag: report open status=%d at " SF_DATA_DIR "/diagnostico_portadas.txt",rc);
+    cover_diag("INICIO","El programa arranco. Solo portadas BDISO. No altera ISO ni COVERS");
     rc = sf_cobra_diag_startup("BEFORE_TINY3D_INIT");
     if (log_open(SF_LOG_PATH) == 0) {
         log_printf("==== %s %s starting ====", APP_NAME, APP_VERSION);
@@ -330,7 +336,9 @@ int main(int argc, const char *argv[])
     log_printf("network: plain HTTP only (this build has no mbedTLS)");
 #endif
     /* Movie-only native NTFS discovery. Other platforms remain untouched. */
-    log_printf("bdiso: NTFS volumes discovered=%d",sf_bdntfs_start());
+    rc=sf_bdntfs_start();
+    log_printf("bdiso: NTFS volumes discovered=%d",rc);
+    cover_diag("NTFS","volumenes_detectados=%d; si es 0, la app no puede leer JPG NTFS",rc);
     (void)sf_cobra_diag_startup("BEFORE_APP_INIT");
     app_init(&g_app, &g_lib, &host);
     (void)sf_cobra_diag_startup("READY_FOR_GAME_SELECTION");
