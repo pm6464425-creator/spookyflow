@@ -348,6 +348,7 @@ int main(int argc, const char *argv[])
     host.read_at = ps3_read_at;
     host.ntfs_refresh = ntfs_refresh;
     host.usb_media_mask = usb_media_mask;
+    host.native_bdiso_ready_mask = native_bdiso_ready_mask;
     host.usb_diag = sf_usb_diag_snapshot;
     host.ntfs_bdiso_online = sf_bdntfs_index_online;
     host.music_dir = SF_MUSIC_DIR;
