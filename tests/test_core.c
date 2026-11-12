@@ -1632,6 +1632,37 @@ static void test_native_ntfs_bdiso_without_lv2_root(void)
     g_hotplug_mask=0;
 }
 
+/* V15.6: the native NTFS driver has a separate mount lifecycle from
+ * physical presence. The previous V15.5 tests only simulated USB masks and
+ * missed stale libntfs mount metadata across a real detach/reconnect. */
+static void test_native_ntfs_reconnect_decisions(void)
+{
+    int present=0,mounted=0,lost=0,readable=0;
+    int decision;
+    printf("BDISO native NTFS detach/reconnect mount recovery\\n");
+    CHECK(bdiso_usb_mount_action(0,0,0,0)==BDUSB_DISCONNECTED);
+    decision=bdiso_usb_mount_action(1,mounted,lost,readable);
+    CHECK(decision==BDUSB_MOUNT_NEW);
+    mounted=1;present=1;readable=1;
+    CHECK(bdiso_usb_mount_action(present,mounted,lost,readable)==BDUSB_KEEP_MOUNT);
+    /* Normal unplug -> physical device absent -> clean metadata. */
+    present=0;lost=1;readable=0;
+    CHECK(bdiso_usb_mount_action(present,mounted,lost,readable)==BDUSB_DISCONNECTED);
+    /* Fast replug: old s_mount may still exist; this MUST reset it. */
+    present=1;
+    CHECK(bdiso_usb_mount_action(present,mounted,lost,readable)==BDUSB_RESET_REMOUNT);
+    lost=0;readable=1;
+    CHECK(bdiso_usb_mount_action(present,mounted,lost,readable)==BDUSB_KEEP_MOUNT);
+    /* Another unplug/replug was too brief to be sampled, but an old
+     * mount cannot read BDISO anymore. It must also remount. */
+    readable=0;
+    CHECK(bdiso_usb_mount_action(1,1,0,readable)==BDUSB_RESET_REMOUNT);
+    /* A genuinely new USB port has no old state. */
+    CHECK(bdiso_usb_mount_action(1,0,0,0)==BDUSB_MOUNT_NEW);
+    CHECK(bdiso_usb_mount_action(1,0,1,0)==BDUSB_MOUNT_NEW);
+    CHECK(bdiso_usb_mount_action(0,1,1,1)==BDUSB_DISCONNECTED);
+}
+
 /* V15.2 field regression: webMAN BDISO cache files with unusual or unreadable
  * rawseciso headers must not hide a present disk's movies. */
 static void test_usb_index_presence(void)
@@ -1726,6 +1757,7 @@ int main(void)
     test_bdiso_flowmovie_manual_cover_paths();
     test_usb_movie_hotplug();
     test_native_ntfs_bdiso_without_lv2_root();
+    test_native_ntfs_reconnect_decisions();
     test_usb_index_presence();
     test_ntfs_movie_pointer_fallback();
     test_bdiso_cinema_crop_fill();
