@@ -2256,6 +2256,9 @@ static int fake_http(void *ctx, const char *url, uint8_t *buf, uint32_t cap, uin
     g_http_calls++;
     *len = 0;
     if (g_http_down) return COVER_HTTP_DNS;
+    if (strcmp(url, "https://raw.githubusercontent.com/xlenore/psx-covers/main/covers/default/SCUS-94426.jpg") == 0) {
+        memcpy(buf,jpg,80); *len=80; return 200;
+    }
     if (strncmp(url, "https://", 8) == 0) return g_https_fail ? COVER_HTTP_NET : COVER_HTTP_TLS;
     if (strcmp(url, "http://art.gametdb.com/ps3/cover/US/BLUS30001.jpg") == 0) { memcpy(buf, jpg, 80); *len = 80; return 200; }
     if (strcmp(url, "http://art.gametdb.com/ps3/cover/EN/BLES00001.jpg") == 0) { memcpy(buf, "<html>", 6); *len = 6; return 200; }  /* not an image */
@@ -2293,7 +2296,7 @@ static void test_092(void)
     CHECK_STR(urls[2], "http://rpdb.gerbilsoft.com/ps2/cover/SLUS/SLUS-20914.jpg");
     CHECK_STR(urls[3], "https://raw.githubusercontent.com/xlenore/ps2-covers/main/covers/default/SLUS-20914.jpg");
     n = cover_dl_urls(PLAT_PS1, "SCUS94426", urls, COVER_DL_URLS);
-    CHECK(n == 4 && strstr(urls[0], "file=SCUS_944.26.jpg") && strstr(urls[1], "/ps1/cover/SCUS/SCUS-94426.jpg") && strstr(urls[3], "psx-covers"));
+    CHECK(n == 4 && strstr(urls[0], "psx-covers/main/covers/default/SCUS-94426.jpg") && strstr(urls[1], "/ps1/cover/SCUS/SCUS-94426.jpg") && strstr(urls[3], "file=SCUS_944.26.jpg"));
     CHECK(cover_dl_urls(PLAT_PS2, "", urls, COVER_DL_URLS) == 0 && cover_dl_urls(PLAT_PS2, "AB/CD1234", urls, COVER_DL_URLS) == 0);
 
     memset(&io, 0, sizeof(io));
