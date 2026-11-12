@@ -266,106 +266,272 @@ static int poster_from_images(const char *json,char *out,size_t cap)
     }
     return 0;
 }
+
+/* The external USB is the only permanent artwork and provider-key store.
+ * Providers are optional: invalid/missing keys simply disable that source.
+ * No search-engine or forum pages are scraped; community searches are
+ * written as review links for users to choose the exact 3D edition. */
+static int movie_key(const char *dir,const char *name,char *out,size_t cap)
+{
+    char path[MOVIE_PATH_MAX];int n,i;
+    if(cap<3 || snprintf(path,sizeof(path),"%s/COVERS/%s",dir,name)>=(int)sizeof(path))return 0;
+    n=ps3_read_at(NULL,path,0,out,(uint32_t)cap-1);
+    if(n<=0 || (size_t)n>=cap)return 0;
+    out[n]=0;
+    while(n>0 && (out[n-1]=='\r'||out[n-1]=='\n'||out[n-1]==' '||out[n-1]=='\t'))out[--n]=0;
+    for(i=0;i<n;i++){
+        unsigned char c=(unsigned char)out[i];
+        if(!isalnum(c) && c!='_' && c!='-')return 0;
+    }
+    return n;
+}
+static int movie_covers_dir(const char *dir,int port)
+{
+    char dest[MOVIE_PATH_MAX];
+    if(snprintf(dest,sizeof(dest),"%s/COVERS",dir)>=(int)sizeof(dest))return -1;
+    if(sf_bdntfs_has_port(port)){
+        if(sf_bdntfs_is_dir(dest))return 0;
+        return sf_bdntfs_mkdir(dest);
+    }
+    if(ps3_fs_exists(dest))return 0;
+    {
+        extern int sf_bdiso_fat_mkdir(const char *);
+        return sf_bdiso_fat_mkdir(dest);
+    }
+}
+static int movie_usb_write(const char *path,int port,const void *buf,uint32_t size)
+{
+    if(!buf || !size)return -1;
+    if(sf_bdntfs_has_port(port))return sf_bdntfs_write(path,buf,size,NULL,0);
+    return ps3_fs_write_file(path,buf,size);
+}
+static int movie_http_json(const char *url,unsigned char *buf,uint32_t *len)
+{
+    if(remote_get(url,buf,MOVIE_JSON_MAX,len)!=0 || *len==0)return 0;
+    buf[*len]=0;
+    return 1;
+}
+static int movie_http_jpeg(const char *url,unsigned char *buf,uint32_t *len)
+{
+    if(strncmp(url,"https://",8)!=0 || remote_get(url,buf,MOVIE_JPEG_MAX,len)!=0)
+        return 0;
+    return *len>=512 && buf[0]==0xff && buf[1]==0xd8 && buf[2]==0xff;
+}
+static int movie_from_fanart(const char *json,char *url,size_t cap)
+{
+    const char *a=strstr(json,"\"movieposter\""),*end;
+    char chosen[MOVIE_URL_MAX]="";int best=-1;
+    if(!a || !(a=strchr(a,'[')) || !(end=strchr(a,']')))return 0;
+    while((a=strchr(a,'{')) && a<end){
+        const char *stop=strchr(a,'}');
+        char found[MOVIE_URL_MAX],lang[16];int score;
+        if(!stop || stop>=end)break;
+        if(json_text(a,stop,"url",found,sizeof(found)) &&
+           strncmp(found,"https://assets.fanart.tv/",25)==0){
+            lang[0]=0;(void)json_text(a,stop,"lang",lang,sizeof(lang));
+            score=!sf_stricmp(lang,"es")?3:
+                  (!sf_stricmp(lang,"00")||!sf_stricmp(lang,"en"))?2:1;
+            if(score>best){snprintf(chosen,sizeof(chosen),"%s",found);best=score;}
+        }
+        a=stop+1;
+    }
+    if(best<0 || strlen(chosen)+1>cap)return 0;
+    strcpy(url,chosen);
+    return 1;
+}
+static int movie_imdb_id(const char *json,char *out,size_t cap)
+{
+    size_t i;const char *p=json;
+    if(!json_text(p,p+strlen(p),"imdb_id",out,cap) &&
+       !json_text(p,p+strlen(p),"imdbID",out,cap))return 0;
+    if(strlen(out)<4 || out[0]!='t' || out[1]!='t')return 0;
+    for(i=2;out[i];i++)if(!isdigit((unsigned char)out[i]))return 0;
+    return 1;
+}
+/* Community pages usually have real Blu-ray release scans but no documented,
+ * stable, anonymous poster API. We provide useful searches instead of
+ * silently selecting a random image from a protected forum. */
+static void movie_community_sources(const char *dir,const char *stem,
+                                    const char *title,int year,int port)
+{
+    char path[MOVIE_PATH_MAX],enc[560],text[2400],query[260];
+    int n;
+    if(snprintf(path,sizeof(path),"%s/COVERS/%s.sources.txt",dir,stem)>=(int)sizeof(path) ||
+       ps3_fs_is_file(NULL,path))return;
+    if(year)snprintf(query,sizeof(query),"%s %d 3D Blu-ray",title,year);
+    else snprintf(query,sizeof(query),"%s 3D Blu-ray",title);
+    if(encode_query(query,enc,sizeof(enc)))return;
+    n=snprintf(text,sizeof(text),
+        "BÚSQUEDA DE CARÁTULA BLU-RAY 3D - %s\n"
+        "Estas páginas son referencias de búsqueda, NO descargas automáticas.\n"
+        "Si encuentras la edición correcta, coloca su JPG con el nombre exacto:\n"
+        "BDISO/COVERS/%s.jpg\n\n"
+        "1) Catálogo de ediciones Blu-ray.com:\n"
+        "https://www.google.com/search?q=site%%3Ablu-ray.com+%s\n\n"
+        "2) Foro de diseños Blu-ray.com:\n"
+        "https://www.google.com/search?q=site%%3Aforum.blu-ray.com+%s\n\n"
+        "3) Comunidad CoverCity:\n"
+        "https://www.google.com/search?q=site%%3Acovercity.net+%s\n\n"
+        "4) Foro Swarzycustom de carátulas 3D:\n"
+        "https://www.google.com/search?q=site%%3Aswarzycustom.com+%s\n\n"
+        "Verifica país, año y edición 3D. Respeta los permisos de cada sitio.\n",
+        stem,stem,enc,enc,enc,enc);
+    if(n>0 && (size_t)n<sizeof(text))
+        (void)movie_usb_write(path,port,text,(uint32_t)n);
+}
+
+/* TMDB, fanart.tv, OMDb and MoviePosterDB are independent poster sources.
+ * Only URLs from each service's documented image hosts are accepted. */
+typedef struct { char url[MOVIE_URL_MAX]; const char *provider; } MovieCandidate;
+static void movie_candidate(MovieCandidate *v,int *count,int max,const char *url,
+                            const char *name)
+{
+    if(*count<max && url && url[0] && strncmp(url,"https://",8)==0 &&
+       strlen(url)<MOVIE_URL_MAX){
+        snprintf(v[*count].url,sizeof(v[*count].url),"%s",url);
+        v[(*count)++].provider=name;
+    }
+}
+
 int sf_bdiso_ensure_art(const char *iso_path)
 {
     char dir[MOVIE_PATH_MAX],stem[256],cover[MOVIE_PATH_MAX],titlepath[MOVIE_PATH_MAX];
-    char keypath[MOVIE_PATH_MAX],key[80],query[240],encoded[560],poster[120],title[256];
-    char url[MOVIE_URL_MAX];
+    char tmdb[80]="",fanart[100]="",omdb[100]="",mpdb[140]="";
+    char query[240],encoded[560],title[256]="",poster[120]="",poster_es[120]="";
+    char imdb[40]="",url[MOVIE_URL_MAX],tmp[MOVIE_URL_MAX],keypath[MOVIE_PATH_MAX];
     const char *slash;
     unsigned char *json=NULL,*jpeg=NULL;
+    MovieCandidate candidates[6];
     uint32_t n=0;
-    int year=0,movie_id=0,is3d,status=-1,i,key_len;
+    int year=0,id=0,is3d,port,status=-1,count=0,i,k;
     if(!iso_path || strncmp(iso_path,"/dev_usb00",10)!=0 ||
-       iso_path[10]<'0'||iso_path[10]>'7')return -1;
+       iso_path[10]<'0'||iso_path[10]>'7'||iso_path[11]!='/')return -1;
     if(attempted(iso_path))return -2;
+    port=iso_path[10]-'0';
     slash=strrchr(iso_path,'/');
-    if(!slash || slash-iso_path>=(int)sizeof(dir)-20)return -3;
-    memcpy(dir,iso_path,(size_t)(slash-iso_path));dir[slash-iso_path]='\0';
+    if(!slash || (size_t)(slash-iso_path)>=sizeof(dir)-20)return -3;
+    memcpy(dir,iso_path,(size_t)(slash-iso_path));dir[slash-iso_path]=0;
     if(!strstr(dir,"/BDISO"))return -3;
     iso_stem(iso_path,stem,sizeof(stem));
-    if(!stem[0])return -3;
-    is3d=movie_3d(stem);
-    if(snprintf(keypath,sizeof(keypath),"%s/COVERS/TMDB_KEY.TXT",dir)>=sizeof(keypath))return -4;
-    key_len=ps3_read_at(NULL,keypath,0,key,sizeof(key)-1);
-    if(key_len<=0)return -5; /* No API key, manual covers remain supported. */
-    key[key_len]=0;
-    while(key_len>0 && (key[key_len-1]=='\n'||key[key_len-1]=='\r'||key[key_len-1]==' '))
-        key[--key_len]=0;
-    if(key_len!=32)return -6;
-    for(i=0;i<key_len;i++)if(!isxdigit((unsigned char)key[i]))return -6;
-    if(snprintf(cover,sizeof(cover),"%s/COVERS/%s.jpg",dir,stem)>=sizeof(cover) ||
-       snprintf(titlepath,sizeof(titlepath),"%s/COVERS/%s.title",dir,stem)>=sizeof(titlepath))return -4;
+    if(!stem[0] ||
+       snprintf(cover,sizeof(cover),"%s/COVERS/%s.jpg",dir,stem)>=(int)sizeof(cover) ||
+       snprintf(titlepath,sizeof(titlepath),"%s/COVERS/%s.title",dir,stem)>=(int)sizeof(titlepath))
+       return -4;
+    /* Manual art always wins. The worker invokes us only when art is missing. */
+    if(ps3_fs_is_file(NULL,cover))return 1;
     movie_query(stem,query,sizeof(query),&year);
-    if(!query[0] || encode_query(query,encoded,sizeof(encoded))!=0)return -7;
+    if(!query[0] || encode_query(query,encoded,sizeof(encoded))!=0)return -5;
+    is3d=movie_3d(stem);
+    k=movie_key(dir,"TMDB_KEY.TXT",tmdb,sizeof(tmdb));
+    if(k!=32)tmdb[0]=0;
+    else for(i=0;i<32;i++)if(!isxdigit((unsigned char)tmdb[i])){tmdb[0]=0;break;}
+    if(!movie_key(dir,"FANART_KEY.TXT",fanart,sizeof(fanart)))fanart[0]=0;
+    if(!movie_key(dir,"OMDB_KEY.TXT",omdb,sizeof(omdb)))omdb[0]=0;
+    if(!movie_key(dir,"MOVIEPOSTERDB_KEY.TXT",mpdb,sizeof(mpdb)) ||
+       strncmp(mpdb,"mpdb_pk_",8)!=0)mpdb[0]=0;
 
+    /* The 3D exact-edition review list is useful even when API credentials
+       are absent. It never changes the ISO or any manually supplied cover. */
+    if(is3d && movie_covers_dir(dir,port)==0)
+        movie_community_sources(dir,stem,query,year,port);
+    if(!tmdb[0] && !omdb[0]) {
+        log_printf("bdiso: no TMDB/OMDb metadata key; use COVERS keys or manual artwork");
+        return -6;
+    }
     json=(unsigned char*)malloc(MOVIE_JSON_MAX+1);
-    if(!json)return -8;
-    if(year) {
-        if(snprintf(url,sizeof(url),
-           "https://api.themoviedb.org/3/search/movie?api_key=%s&language=es-MX&include_adult=false&query=%s&year=%d",
-           key,encoded,year)>=(int)sizeof(url))goto done;
-    }else{
-        if(snprintf(url,sizeof(url),
-           "https://api.themoviedb.org/3/search/movie?api_key=%s&language=es-MX&include_adult=false&query=%s",
-           key,encoded)>=(int)sizeof(url))goto done;
-    }
-    if(remote_get(url,json,MOVIE_JSON_MAX,&n)!=0 || !n)goto done;
-    json[n]=0;
-    if(!movie_title_id((char*)json,title,sizeof(title),poster,sizeof(poster),&movie_id))goto done;
-    /* Spanish metadata is independently useful even when poster servers
-       fail, and never modifies the original English ISO filename. */
-    if(snprintf(titlepath,sizeof(titlepath),"%s/COVERS/%s.title",dir,stem)
-       <(int)sizeof(titlepath)){
-        char folder[MOVIE_PATH_MAX];
-        snprintf(folder,sizeof(folder),"%s/COVERS",dir);
-        if(sf_bdntfs_has_port(iso_path[10]-'0')) {
-            (void)sf_bdntfs_mkdir(folder);
-            (void)sf_bdntfs_write(titlepath,title,(uint32_t)strlen(title),"\n",1);
-        }else{
-            extern int sf_bdiso_fat_mkdir(const char *);
-            (void)sf_bdiso_fat_mkdir(folder);
-            (void)ps3_fs_write_file(titlepath,title,(uint32_t)strlen(title));
-        }
-    }
-
-    if(snprintf(url,sizeof(url),
-       "https://api.themoviedb.org/3/movie/%d/images?api_key=%s&language=es-MX&include_image_language=es,null",
-       movie_id,key)<sizeof(url)){
-        uint32_t nn=0;
-        if(remote_get(url,json,MOVIE_JSON_MAX,&nn)==0 && nn){
-            json[nn]=0;
-            (void)poster_from_images((char*)json,poster,sizeof(poster));
-        }
-    }
-    if(poster[0]!='/' || strlen(poster)>90)goto done;
-    if(snprintf(url,sizeof(url),"https://image.tmdb.org/t/p/w500%s",poster)>=sizeof(url))goto done;
     jpeg=(unsigned char*)malloc(MOVIE_JPEG_MAX);
-    if(!jpeg)goto done;
-    if(remote_get(url,jpeg,MOVIE_JPEG_MAX,&n)!=0 || n<512 ||
-       jpeg[0]!=0xff || jpeg[1]!=0xd8)goto done;
-    /* Create COVERS on the source drive; write both picture and title there.
-       No PS3 internal permanent image storage, including for 3D films. */
-    {
-        char folder[MOVIE_PATH_MAX];
+    if(!json || !jpeg){status=-8;goto done;}
+
+    /* TMDB identity + Spanish poster. An edition named 3D is NOT assumed
+       to have a specially branded poster in this standard film database. */
+    if(tmdb[0]){
         int ok;
-        snprintf(folder,sizeof(folder),"%s/COVERS",dir);
-        if(sf_bdntfs_has_port(iso_path[10]-'0'))(void)sf_bdntfs_mkdir(folder);
-        else { /* FAT32 device folder creation */
-            extern int sf_bdiso_fat_mkdir(const char *);
-            (void)sf_bdiso_fat_mkdir(folder);
+        if(year)ok=snprintf(url,sizeof(url),
+          "https://api.themoviedb.org/3/search/movie?api_key=%s&language=es-MX&include_adult=false&query=%s&year=%d",
+          tmdb,encoded,year);
+        else ok=snprintf(url,sizeof(url),
+          "https://api.themoviedb.org/3/search/movie?api_key=%s&language=es-MX&include_adult=false&query=%s",
+          tmdb,encoded);
+        if(ok>0 && ok<(int)sizeof(url) && movie_http_json(url,json,&n)){
+            (void)movie_title_id((const char*)json,title,sizeof(title),
+                                 poster,sizeof(poster),&id);
         }
-        if(sf_bdntfs_has_port(iso_path[10]-'0')) {
-            ok=sf_bdntfs_write(cover,jpeg,n,NULL,0);
-            if(ok==0)(void)sf_bdntfs_write(titlepath,title,(uint32_t)strlen(title),"\n",1);
-        }else{
-            ok=ps3_fs_write_file(cover,jpeg,n);
-            if(ok==0)(void)ps3_fs_write_file(titlepath,title,(uint32_t)strlen(title));
-        }
-        if(ok==0) {
-            log_printf("bdiso: poster saved on external USB, 3D=%d, movie id=%d",is3d,movie_id);
-            status=0;
+        if(id>0){
+            if(snprintf(url,sizeof(url),
+               "https://api.themoviedb.org/3/movie/%d/images?api_key=%s&language=es-MX&include_image_language=es,null",
+               id,tmdb)<(int)sizeof(url) && movie_http_json(url,json,&n)){
+                (void)poster_from_images((const char*)json,poster_es,sizeof(poster_es));
+            }
+            if(snprintf(url,sizeof(url),
+               "https://api.themoviedb.org/3/movie/%d/external_ids?api_key=%s",id,tmdb)
+               <(int)sizeof(url) && movie_http_json(url,json,&n)){
+                (void)movie_imdb_id((const char*)json,imdb,sizeof(imdb));
+            }
         }
     }
+    /* OMDb also resolves titles independently when TMDB is unavailable. */
+    if(omdb[0]){
+        int ok;
+        if(imdb[0])ok=snprintf(url,sizeof(url),
+          "https://www.omdbapi.com/?apikey=%s&i=%s&plot=short",omdb,imdb);
+        else if(year)ok=snprintf(url,sizeof(url),
+          "https://www.omdbapi.com/?apikey=%s&t=%s&y=%d&type=movie",omdb,encoded,year);
+        else ok=snprintf(url,sizeof(url),
+          "https://www.omdbapi.com/?apikey=%s&t=%s&type=movie",omdb,encoded);
+        if(ok>0 && ok<(int)sizeof(url) && movie_http_json(url,json,&n)){
+            if(!imdb[0])(void)movie_imdb_id((const char*)json,imdb,sizeof(imdb));
+            if(!title[0])(void)json_text((const char*)json,(const char*)json+n,
+                                        "Title",title,sizeof(title));
+            if(json_text((const char*)json,(const char*)json+n,"Poster",tmp,sizeof(tmp)) &&
+               (strncmp(tmp,"https://m.media-amazon.com/",26)==0 ||
+                strncmp(tmp,"https://ia.media-imdb.com/",26)==0))
+                movie_candidate(candidates,&count,6,tmp,"OMDb");
+        }
+    }
+    /* TMDB Spanish first, then 3D-aware manual art, then fallbacks.
+       A normal poster is a fallback only, never claimed as an exact 3D edition. */
+    if(poster_es[0]=='/' && strlen(poster_es)<100){
+        snprintf(url,sizeof(url),"https://image.tmdb.org/t/p/w500%s",poster_es);
+        movie_candidate(candidates,&count,6,url,"TMDB-ES");
+    }
+    /* fanart.tv's posters are linked by TMDB movie ID. API keys are optional. */
+    if(fanart[0] && id>0 &&
+       snprintf(url,sizeof(url),
+         "https://webservice.fanart.tv/v3.2/movies/%d?api_key=%s",id,fanart)
+       <(int)sizeof(url) && movie_http_json(url,json,&n) &&
+       movie_from_fanart((const char*)json,tmp,sizeof(tmp)))
+        movie_candidate(candidates,&count,6,tmp,"Fanart.tv");
+
+    /* MoviePosterDB provides a documented stable image URL by IMDb id.
+       Its FREE tier may be only 200px; higher-quality images need the
+       owner's own plan. We never invent or embed any vendor API key. */
+    if(mpdb[0] && imdb[0]){
+        int v=snprintf(url,sizeof(url),
+          "https://posters.movieposterdb.com/m/%s?k=%s&s=s&cc=ES",
+          imdb,mpdb);
+        if(v>0 && v<(int)sizeof(url))
+            movie_candidate(candidates,&count,6,url,"MoviePosterDB");
+    }
+    if(poster[0]=='/' && strlen(poster)<100){
+        snprintf(url,sizeof(url),"https://image.tmdb.org/t/p/w500%s",poster);
+        movie_candidate(candidates,&count,6,url,"TMDB-default");
+    }
+    if(count==0){status=-9;goto save_title;}
+    for(i=0;i<count;i++){
+        uint32_t bytes=0;
+        if(!movie_http_jpeg(candidates[i].url,jpeg,&bytes))continue;
+        if(movie_covers_dir(dir,port)!=0)continue;
+        if(ps3_fs_is_file(NULL,cover)){status=1;break;}
+        if(movie_usb_write(cover,port,jpeg,bytes)==0){
+            log_printf("bdiso: poster source=%s, 3D=%d (edition not authenticated)",
+                       candidates[i].provider,is3d);
+            status=0;break;
+        }
+    }
+save_title:
+    if(title[0] && !ps3_fs_is_file(NULL,titlepath) &&
+       movie_covers_dir(dir,port)==0)
+        (void)movie_usb_write(titlepath,port,title,(uint32_t)strlen(title));
 done:
     free(jpeg);free(json);
     return status;
