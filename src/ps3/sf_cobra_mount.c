@@ -414,3 +414,78 @@ fail:
     sf_diag_active=0;
     return rc;
 }
+
+
+/* BDISO (Blu-ray movie ISO) uses syscall8 opcode 0x7026, unlike
+ * PS3 game ISO (0x7024). Keep the two mount paths isolated.
+ * Direct Cobra path mounting works on /dev_hdd0 and sysFs-visible USB.
+ * NTFS pointer files from webMAN are handled by the host's webMAN path.
+ */
+static int sf_bd_safe_path(const char *path)
+{
+    const char *tail;
+    size_t n;
+    if (!path || !(n=strlen(path)) || n >= SF_PATH) return 0;
+    if (!strncmp(path,"/dev_hdd0/",10)) tail=path+10;
+    else if (!strncmp(path,"/dev_usb00",10) &&
+             path[10]>='0' && path[10]<='7' && path[11]=='/') tail=path+12;
+    else return 0;
+    if (strncmp(tail,"BDISO/",6) != 0 || !tail[6]) return 0;
+    if (strstr(path,"/../") || strstr(path,"/./") || strstr(path,"//") ||
+        strstr(path,"\\") || strchr(path,'\n') || strchr(path,'\r') ||
+        sf_ends(path,"/..") || sf_ends(path,"/.")) return 0;
+    return sf_ends(path,".iso") || sf_ends(path,".iso.0");
+}
+static int sf_raw_mount_bd_iso(uint32_t *ptr, int count)
+{
+    lv2syscall3(8, 0x7026, (uint64_t)count, (uint64_t)ptr);
+    return_to_user_prog(int);
+}
+int sf_cobra_mount_bd_iso(const char *path)
+{
+    uint32_t version=0xffffffffu,physical=0,ptr[SF_PARTS];
+    const char *parts[SF_PARTS];
+    char partpaths[SF_PARTS][SF_PATH];
+    int n=0,i,rc=0;
+    size_t len;
+    sf_diag_folder=0;
+    snprintf(sf_diag_path,sizeof(sf_diag_path),"%s",path?path:"(null)");
+    sf_diag_active=1;
+    if (sf_diag_write("BEGIN_BD_MOUNT",0,1)!=0) return -20;
+    if (!sf_bd_safe_path(path)) return sf_diag_error("BD_INVALID_PATH",-2);
+    if (!sf_exists(path,0)) return sf_diag_error("BD_ISO_NOT_FOUND",-3);
+    if (sf_ends(path,".iso.0")) {
+        len=strlen(path);
+        for(i=0;i<SF_PARTS;i++){
+            int r=snprintf(partpaths[i],SF_PATH,"%.*s%d",(int)(len-1),path,i);
+            if (r<=0 || r>=SF_PATH || !sf_exists(partpaths[i],0)) break;
+            parts[n++]=partpaths[i];
+        }
+    } else parts[n++]=path;
+    if(!n) return sf_diag_error("BD_NO_PARTS",-7);
+    for(i=0;i<n;i++) ptr[i]=(uint32_t)(uintptr_t)parts[i];
+    if (sf_diag_write("BD_PREFLIGHT_OK",0,1)!=0) return -20;
+    if(sf_cobra_version(&version)!=0 || version==0xffffffffu)
+        return sf_diag_error("BD_COBRA_UNAVAILABLE",-5);
+    if(sf_cobra_disc_type(&physical)!=0) return sf_diag_error("BD_DISC_TYPE_FAIL",-6);
+    sf_fake_eject();
+    if(sf_cobra_map("/dev_bdvd",NULL)!=0 ||
+       sf_cobra_map("//dev_bdvd",NULL)!=0 ||
+       sf_cobra_map("/app_home",NULL)!=0) { rc=-8; goto fail; }
+    (void)sf_cobra_umount(); /* No previous virtual disc is normal. */
+    if(sf_diag_before("MOUNT_BDISO_7026")) {rc=-20;goto fail;}
+    rc=sf_raw_mount_bd_iso(ptr,n);
+    sf_diag_after("MOUNT_BDISO_7026",rc);
+    if(rc!=0){rc=-9;goto fail;}
+    if(sf_fake_insert(physical)!=0){rc=-12;goto fail;}
+    (void)sf_diag_write("BD_MOUNT_SUCCEEDED",0,0);
+    sf_diag_active=0;
+    return 0;
+fail:
+    (void)sf_cobra_map("/dev_bdvd",NULL);
+    (void)sf_cobra_map("//dev_bdvd",NULL);
+    (void)sf_fake_insert(physical);
+    rc=sf_diag_error("BD_MOUNT_FAILED",rc?rc:-13);
+    sf_diag_active=0;
+    return rc;
+}
