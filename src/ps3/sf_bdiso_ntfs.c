@@ -220,9 +220,12 @@ int sf_bdntfs_list(const char *dir, FsEntry *out, int max)
     char path[512],name[FS_NAME_MAX];
     int n=0;
     if(!dir || !out || max<=0) return -1;
-    /* Root probes are scan-thread-only, and can discover hot-plugged NTFS. */
-    if(strlen(dir)==11 && strncmp(dir,"/dev_usb00",10)==0)
-        (void)sf_bdntfs_start();
+    /* Never mount during a directory listing: in V15.6, a root probe
+     * could succeed on its seventh attempt AFTER App had already frozen
+     * ready_mask=0. FlowMovie's refresh_usb_state mounts first and only
+     * then enumerates directories. SpookyFlow V15.7 now does the same:
+     * native_bdiso_ready_mask (loading/retry) owns all mount attempts.
+     * Directory-listing requests only inspect already-mounted volumes. */
     /* USB root probe: advertise the BDISO folder for the library scanner. */
     if(strlen(dir)==11 && strncmp(dir,"/dev_usb00",10)==0 &&
        dir[10]>='0' && dir[10]<='7' &&
