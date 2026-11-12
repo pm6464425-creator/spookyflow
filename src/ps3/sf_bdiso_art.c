@@ -398,7 +398,7 @@ int sf_bdiso_ensure_art(const char *iso_path)
     char dir[MOVIE_PATH_MAX],stem[256],cover[MOVIE_PATH_MAX],titlepath[MOVIE_PATH_MAX];
     char tmdb[80]="",fanart[100]="",omdb[100]="",mpdb[140]="";
     char query[240],encoded[560],title[256]="",poster[120]="",poster_es[120]="";
-    char imdb[40]="",url[MOVIE_URL_MAX],tmp[MOVIE_URL_MAX],keypath[MOVIE_PATH_MAX];
+    char imdb[40]="",url[MOVIE_URL_MAX],tmp[MOVIE_URL_MAX],omdb_poster[MOVIE_URL_MAX]="";
     const char *slash;
     unsigned char *json=NULL,*jpeg=NULL;
     MovieCandidate candidates[6];
@@ -483,9 +483,9 @@ int sf_bdiso_ensure_art(const char *iso_path)
             if(!title[0])(void)json_text((const char*)json,(const char*)json+n,
                                         "Title",title,sizeof(title));
             if(json_text((const char*)json,(const char*)json+n,"Poster",tmp,sizeof(tmp)) &&
-               (strncmp(tmp,"https://m.media-amazon.com/",26)==0 ||
+               (strncmp(tmp,"https://m.media-amazon.com/",27)==0 ||
                 strncmp(tmp,"https://ia.media-imdb.com/",26)==0))
-                movie_candidate(candidates,&count,6,tmp,"OMDb");
+                snprintf(omdb_poster,sizeof(omdb_poster),"%s",tmp);
         }
     }
     /* TMDB Spanish first, then 3D-aware manual art, then fallbacks.
@@ -502,6 +502,13 @@ int sf_bdiso_ensure_art(const char *iso_path)
        movie_from_fanart((const char*)json,tmp,sizeof(tmp)))
         movie_candidate(candidates,&count,6,tmp,"Fanart.tv");
 
+    if(poster[0]=='/' && strlen(poster)<100){
+        snprintf(url,sizeof(url),"https://image.tmdb.org/t/p/w500%s",poster);
+        movie_candidate(candidates,&count,6,url,"TMDB-default");
+    }
+    if(omdb_poster[0])
+        movie_candidate(candidates,&count,6,omdb_poster,"OMDb");
+
     /* MoviePosterDB provides a documented stable image URL by IMDb id.
        Its FREE tier may be only 200px; higher-quality images need the
        owner's own plan. We never invent or embed any vendor API key. */
@@ -511,10 +518,6 @@ int sf_bdiso_ensure_art(const char *iso_path)
           imdb,mpdb);
         if(v>0 && v<(int)sizeof(url))
             movie_candidate(candidates,&count,6,url,"MoviePosterDB");
-    }
-    if(poster[0]=='/' && strlen(poster)<100){
-        snprintf(url,sizeof(url),"https://image.tmdb.org/t/p/w500%s",poster);
-        movie_candidate(candidates,&count,6,url,"TMDB-default");
     }
     if(count==0){status=-9;goto save_title;}
     for(i=0;i<count;i++){
