@@ -103,6 +103,23 @@ static int launch_via_webman(const char *request)
     return ps3_webman_send(request);
 }
 
+/* BDISO: native Cobra mounting for sysFs drives; webMAN-assisted mounting
+ * for NTFS .ntfs[BDISO] index files (which aren't a real .iso filepath).
+ * Never send these pointer files to the game ISO mount syscall. */
+static int launch_bdiso(const char *path)
+{
+    if(!path) return -1;
+    if(!strncmp(path,NTFS_INDEX_DIR "/",sizeof(NTFS_INDEX_DIR))) {
+        char enc[LAUNCH_CMD_MAX],request[LAUNCH_CMD_MAX];
+        if(!sf_ends_with_i(path,".ntfs[BDISO]")) return -2;
+        if(launch_url_encode(path,enc,sizeof(enc))!=0) return -3;
+        if(snprintf(request,sizeof(request),"/wait.ps3?xmb;/mount_ps3%s?random=0",enc)
+             >= (int)sizeof(request)) return -4;
+        return ps3_webman_send(request);
+    }
+    return sf_cobra_mount_bd_iso(path);
+}
+
 /* webMAN re-indexes every NTFS drive it has mounted; its answer reads
  * "NTFS VOLUMES: <n> ... <games> ..." (include/cmd/refresh.h) */
 static int ntfs_refresh(void)
@@ -252,6 +269,7 @@ int main(int argc, const char *argv[])
     host.power_off = power_off_via_webman;
     host.launch = launch_via_webman; /* Legacy PS1/PS2 only. */
     host.launch_ps3 = sf_cobra_mount_ps3;
+    host.launch_bdiso = launch_bdiso;
     host.diag_ps3_select = sf_cobra_diag_selection;
     host.read_wm_config = read_wm_config;
     host.read_at = ps3_read_at;
