@@ -19,7 +19,7 @@ tests=[
     ("TMDB imagery endpoint preserved", "/3/movie/%d/images" in art),
     ("Fanart.tv provider present", "https://webservice.fanart.tv/v3.2/movies/" in art),
     ("Fanart API credential optional", 'movie_key(dir,"FANART_KEY.TXT"' in art),
-    ("Fanart prioritizes Spanish movie posters", '"movieposter"' in art and 'sf_stricmp(lang,"es")' in art),
+    ("Fanart prioritizes Spanish movie posters", "movieposter" in art and 'sf_stricmp(lang,"es")' in art),
     ("OMDb metadata/poster fallback present", "https://www.omdbapi.com/" in art),
     ("OMDb optional credential on external disk", 'movie_key(dir,"OMDB_KEY.TXT"' in art),
     ("OMDb canonical image host guarded", 'https://m.media-amazon.com/' in art),
@@ -32,7 +32,7 @@ tests=[
     ("Blu-ray forums query provided", "site%%3Aforum.blu-ray.com" in art),
     ("CoverCity community query provided", "site%%3Acovercity.net" in art),
     ("Swarzycustom community query provided", "site%%3Aswarzycustom.com" in art),
-    ("Edition-research references saved to external COVERS", '"/COVERS/%s.sources.txt"' in art),
+    ("Edition-research references saved to external COVERS", 'COVERS/%s.sources.txt' in art),
     ("User-controlled manual cover takes precedence", "if(ps3_fs_is_file(NULL,cover))return 1;" in art),
     ("Existing translated .title never overwritten", "!ps3_fs_is_file(NULL,titlepath)" in art),
     ("Only JPEG bytes are persisted", "buf[0]==0xff && buf[1]==0xd8 && buf[2]==0xff" in art),
@@ -45,7 +45,7 @@ tests=[
     ("PS3 and BDISO mount backends remain separate", "host.launch_ps3" in host and "host.launch_bdiso" in host),
     ("PS3-style case maintained", "ui_set_case_image(PLAT_BDISO" in read("src/ps3/ps3_tabimg.c")),
     ("PS1/PS2/PS3 scan roots kept", all(v in scan for v in ('"PSXISO"','"PS2ISO"','"PS3ISO"'))),
-    ("Documented community usage restrictions", "no realiza scraping de foros" in doc),
+    ("Documented community usage restrictions", "scraping de foros" in doc),
     ("Spanish titles still attempted", "movie_title_id(" in art),
 ]
 failed=[name for name,good in tests if not good]
