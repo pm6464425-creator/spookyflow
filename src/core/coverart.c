@@ -806,7 +806,7 @@ int cover_dl_ps1_title_url(const char *game_path,char *out,size_t cap)
         "https://thumbnails.libretro.com/Sony%20-%20PlayStation/Named_Boxarts/";
     static const char hexdigits[]="0123456789ABCDEF";
     const char *p,*stem;
-    char title[FS_NAME_MAX+1];
+    char title[256];
     size_t i,n,pos;
     if(!out||cap==0)return 0;
     out[0]='\0';
@@ -816,7 +816,7 @@ int cover_dl_ps1_title_url(const char *game_path,char *out,size_t cap)
     sf_strlcpy(title,stem,sizeof(title));
     while(strip_one_ext(title)){}
     n=strlen(title);
-    if(n<3 || n>=FS_NAME_MAX || strlen(base)+n+5>=cap)return 0;
+    if(n<3 || n>=sizeof(title)-1 || strlen(base)+n+5>=cap)return 0;
     sf_strlcpy(out,base,cap);
     pos=strlen(out);
     for(i=0;i<n;i++) {
@@ -911,7 +911,8 @@ void cover_dl_run(CoverDl *d)
     for (i = 0; i < d->n && !d->cancel; i++) {
         CoverDlItem *it = &d->item[i];
         int nu, u, got = 0, neterr = 0, offline = 1, not_found_only = 1;
-        char miss_path[COVER_PATH_MAX];
+        int ps1_title_url_index=-1,valid_serial=0;
+        char miss_path[COVER_PATH_MAX]="";
         /* Movies have no PS3 game Title ID. Previously they always landed
          * in DL_NOID, so the Download Missing Covers button could NEVER
          * download any BDISO movie regardless of console Internet access.
@@ -942,29 +943,52 @@ void cover_dl_run(CoverDl *d)
             }
             goto next;
         }
-        if (!it->id[0]) discid_read(it->plat, it->path, it->is_dir, io->read_at, io->ctx, it->id, sizeof(it->id));
-        /* A name-matched manual cover counts even when an ISO has no ID. */
-        if (cover_has_art(io, it->plat, it->path, it->is_dir, it->size, it->id)) { it->state = DL_HAVE; d->n_have++; goto next; }
-        if (!id_ok(it->id)) {
+        if (!it->id[0])
+            discid_read(it->plat,it->path,it->is_dir,io->read_at,io->ctx,
+                        it->id,sizeof(it->id));
+        valid_serial=id_ok(it->id);
+        if(it->plat==PLAT_PS1)
+            log_printf("covers: ps1 GAME path=%s serial=%s",
+                       it->path,valid_serial?it->id:"NONE");
+        /* A name-matched manual cover counts even when a CUE has no ID.
+         * Do not redownload covers the user already selected. */
+        if (cover_has_art(io,it->plat,it->path,it->is_dir,it->size,it->id)) {
             if(it->plat==PLAT_PS1)
-                log_printf("covers: ps1 NO_SERIAL %s (PS1 needs disc serial for safe automatic match)",
-                           it->path);
-            it->state = DL_NOID; d->n_noid++; goto next;
+                log_printf("covers: ps1 EXISTING_COVER path=%s",it->path);
+            it->state=DL_HAVE;d->n_have++;goto next;
         }
         if (cover_name_is_custom(it->path)) {
-            it->state = DL_MISSING; d->n_missing++; goto next;
+            it->state=DL_MISSING;d->n_missing++;goto next;
         }
-        snprintf(miss_path, sizeof(miss_path), "%s/%s.missing", COVER_DL_DIR, it->id);
+        if(valid_serial)
+            snprintf(miss_path,sizeof(miss_path),"%s/%s.missing",
+                     COVER_DL_DIR,it->id);
+        if (!valid_serial && it->plat!=PLAT_PS1) {
+            it->state=DL_NOID;d->n_noid++;goto next;
+        }
         if (d->auto_mode && it->plat!=PLAT_PS1 &&
-            io->is_file && io->is_file(io->ctx, miss_path)) {
-            it->state = DL_MISSING; d->n_missing++; goto next;
+            io->is_file && io->is_file(io->ctx,miss_path)) {
+            it->state=DL_MISSING;d->n_missing++;goto next;
         }
-        /* Existing PS1 .missing records were written before the source
-         * correction. Allow PS1 to retry those once per launch; no disk
-         * images are modified and other platforms keep their 404 cache. */
-        if(it->plat==PLAT_PS1)
-            log_printf("covers: ps1 SEARCH serial=%s path=%s",it->id,it->path);
-        nu = cover_dl_urls(it->plat, it->id, urls, COVER_DL_URLS);
+        /* PS1: try serial-indexed covers first; if the disc's SYSTEM.CNF
+         * is absent or the serial's cover does not exist, try the exact
+         * original CUE filename in Libretro's regional Named_Boxarts.
+         * No title guessing and NO effect on PS2, PS3 or BDISO. */
+        nu=valid_serial ? cover_dl_urls(it->plat,it->id,urls,COVER_DL_URLS) : 0;
+        if(it->plat==PLAT_PS1) {
+            if(nu<COVER_DL_URLS &&
+               cover_dl_ps1_title_url(it->path,urls[nu],COVER_URL_MAX)) {
+                ps1_title_url_index=nu++;
+            }
+            log_printf("covers: ps1 SEARCH serial=%s exact_title_fallback=%d sources=%d path=%s",
+                       valid_serial?it->id:"NONE",ps1_title_url_index>=0,nu,it->path);
+        }
+        if(nu<=0) {
+            it->state=DL_NOID;d->n_noid++;
+            if(it->plat==PLAT_PS1)
+                log_printf("covers: ps1 NO_SERIAL_OR_USABLE_FILENAME path=%s",it->path);
+            goto next;
+        }
         for (u = 0; u < nu && !got && !d->cancel; u++) {
             char url[COVER_URL_MAX], loc[COVER_URL_MAX];
             uint32_t len = 0;
@@ -976,6 +1000,11 @@ void cover_dl_run(CoverDl *d)
                 if ((st == 301 || st == 302 || st == 303 || st == 307 || st == 308) && loc[0]) { sf_strlcpy(url, loc, sizeof(url)); continue; }
                 break;
             }
+            if(it->plat==PLAT_PS1)
+                log_printf("covers: ps1 SOURCE serial=%s mode=%s provider=%d/%d status=%d bytes=%u",
+                           valid_serial?it->id:"NONE",
+                           u==ps1_title_url_index?"EXACT_FILENAME":"DISC_SERIAL",
+                           u+1,nu,st,(unsigned)len);
             if (st != 404) not_found_only = 0;
             if (st == COVER_HTTP_TLS) {
                 d->tls_needed = 1;
@@ -986,7 +1015,16 @@ void cover_dl_run(CoverDl *d)
             if (st < 0) { neterr = 1; log_printf("covers: %s: %s", url, st == COVER_HTTP_DNS ? "name not found (no internet?)" : st == COVER_HTTP_BIG ? "too big" : "no connection"); continue; }
             if (st == 200 && len > 64 && is_image(buf, len, &png)) {
                 char f[COVER_PATH_MAX];
-                snprintf(f, sizeof(f), "%s/%s.%s", COVER_DL_DIR, it->id, png ? "png" : "jpg");
+                if(it->plat==PLAT_PS1 && u==ps1_title_url_index) {
+                    CoverCand c[1];
+                    if(cover_candidates(PLAT_PS1,it->path,it->is_dir,"",
+                                        NULL,c,1)!=1)
+                        continue;
+                    snprintf(f,sizeof(f),"%s.%s",c[0].base,png?"png":"jpg");
+                }else{
+                    snprintf(f,sizeof(f),"%s/%s.%s",
+                             COVER_DL_DIR,it->id,png?"png":"jpg");
+                }
                 if (io->write_file && io->write_file(io->ctx, f, buf, len, "", 0) == 0) {
                     got = 1;
                     log_printf("covers: downloaded %s <- %s (%u bytes)", f, url, (unsigned)len);
@@ -999,7 +1037,8 @@ void cover_dl_run(CoverDl *d)
         }
         if (got) {
             it->state = DL_GOT; d->n_got++; streak = 0;
-            if (io->remove) (void)io->remove(io->ctx, miss_path);
+            if (miss_path[0] && io->remove)
+                (void)io->remove(io->ctx,miss_path);
             if (io->cache_dir && io->remove) {             /* forget "this game has no cover" */
                 char stem[COVER_PATH_MAX], f[COVER_PATH_MAX + 8];
                 cover_cache_stem(io->cache_dir, it->plat, it->path, it->size, stem, sizeof(stem));
@@ -1024,8 +1063,8 @@ void cover_dl_run(CoverDl *d)
             if(it->plat==PLAT_PS1)
                 log_printf("covers: ps1 NO_ART_ON_SOURCES serial=%s path=%s",it->id,it->path);
             it->state = DL_MISSING; d->n_missing++; streak = 0;
-            if (not_found_only && io->write_file)
-                (void)io->write_file(io->ctx, miss_path, "404", 3, "", 0);
+            if (not_found_only && miss_path[0] && io->write_file)
+                (void)io->write_file(io->ctx,miss_path,"404",3,"",0);
         }
     next:
         __sync_synchronize();
