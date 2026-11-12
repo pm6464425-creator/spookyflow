@@ -12,6 +12,8 @@ int sf_bdntfs_index_online(const unsigned char *data, size_t len);
 /* BDISO raw-sector Cobra mount: does not unload any existing plugin slot. */
 int sf_bdntfs_mount_raw_iso(const char *path);
 int sf_bdntfs_has_port(int port);
+/* Read-only internal state snapshot: does not mount, release or scan media. */
+void sf_bdntfs_probe_port(int port,int *nparts,int *bd_partition,int *last_mount_rc);
 int sf_bdntfs_path(const char *public_path, char *native_path, size_t cap);
 int sf_bdntfs_list(const char *dir, FsEntry *out, int max);
 int sf_bdntfs_is_file(const char *path);
