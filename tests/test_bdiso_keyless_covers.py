@@ -24,7 +24,7 @@ checks=[
  ("Automatically downloads first public JPEG with valid metadata", '"Cinemeta-no-key"' in art and "movie_http_jpeg(candidates[i].url" in art),
  ("Retries public catalog after broken commercial image URLs", "The public fallback must also run" in art),
  ("Only JPG image payload accepted", "buf[0]==0xff && buf[1]==0xd8" in art),
- ("Prioritizes manual art", "if(ps3_fs_is_file(NULL,cover))return 1;" in art),
+ ("Preserves user JPGs during compatibility repair", "if(repair)continue;" in art),
  ("Stores art on original external USB", "movie_usb_write(cover,port,jpeg,bytes)" in art),
  ("Never changes NTFS partition selection", "bd_find_partition(u)" in ntfs),
  ("Uses original PS3 background cover loader", "L->io.ensure_movie_art(L->io.ctx,j->path)" in covers),
