@@ -67,6 +67,24 @@ jobs:
           mkdir -p build-host
           cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -Isrc/core src/core/movie_sensacine.c tests/test_movie_sensacine.c -o build-host/test_movie_sensacine
           ./build-host/test_movie_sensacine
+      - name: Check official Rio 2011 poster against live SensaCine HTML
+        run: |
+          mkdir -p build-host
+          python3 - <<'PY'
+          import urllib.request
+          url="https://www.sensacine.com/peliculas/pelicula-146550/"
+          req=urllib.request.Request(url,headers={
+            "User-Agent":"Mozilla/5.0 (PLAYSTATION 3; SpookyFlow/1.0)",
+            "Accept":"text/html,*/*", "Accept-Language":"es-ES,es;q=0.9",
+            "Accept-Encoding":"identity"})
+          with urllib.request.urlopen(req,timeout=20) as response:
+            data=response.read(1024*1024)
+          with open("build-host/sensacine_rio_2011.html","wb") as out:
+            out.write(data)
+          print("Official Rio 2011 movie page received:",len(data),"bytes")
+          PY
+          cc -std=c99 -O2 -Wall -Wextra -Werror -Isrc/core src/core/movie_sensacine.c tests/test_movie_sensacine_live.c -o build-host/test_movie_sensacine_live
+          ./build-host/test_movie_sensacine_live build-host/sensacine_rio_2011.html
       - name: BDISO manual cover paths and clean-case priority checks
         run: python3 tests/test_bdiso_priority.py
       - name: BDISO integration checks (fourteen independent reviews)
