@@ -29,9 +29,16 @@ jobs:
         run: make -f Makefile.host test
       - name: Cobra launch integration static checks
         run: python3 tests/test_cobra_integration.py
-      - name: Investigate authentic 3D poster websites (nonblocking)
+      - name: Real 3D release website and JPEG smoke checks
         continue-on-error: true
-        run: python3 tests/probe_cover_sources.py
+        run: python3 tests/test_bdiso_edition_live.py
+      - name: Real Blu-ray 3D Spanish and English edition matching C tests
+        run: |
+          mkdir -p build-host
+          cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -Isrc/core src/core/movie_edition.c tests/test_movie_edition.c -o build-host/test_movie_edition
+          ./build-host/test_movie_edition
+      - name: BDISO manual cover paths and clean-case priority checks
+        run: python3 tests/test_bdiso_priority.py
       - name: BDISO integration checks (fourteen independent reviews)
         run: python3 tests/test_bdiso_integration.py
       - name: Direct BDISO NTFS regression checks (29)
