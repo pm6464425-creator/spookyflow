@@ -706,11 +706,41 @@ void cover_dl_run(CoverDl *d)
         return;
     }
     if (io->mkdir) io->mkdir(io->ctx, COVER_DL_DIR);
-    log_printf("covers: downloading missing covers (%d games to check)", d->n);
+    /* On a manual retry, previous failed movie downloads must be retried.
+     * This is not an API-key feature; public movie sources work without one. */
+    if (!d->auto_mode && io->reset_movie_attempts)
+        io->reset_movie_attempts(io->ctx);
+    log_printf("covers: downloading missing covers (%d games and movies to check)", d->n);
     for (i = 0; i < d->n && !d->cancel; i++) {
         CoverDlItem *it = &d->item[i];
         int nu, u, got = 0, neterr = 0, offline = 1, not_found_only = 1;
         char miss_path[COVER_PATH_MAX];
+        /* Movies have no PS3 game Title ID. Previously they always landed
+         * in DL_NOID, so the Download Missing Covers button could NEVER
+         * download any BDISO movie regardless of console Internet access.
+         * Use the movie metadata/filename downloader directly instead. */
+        if (it->plat == PLAT_BDISO) {
+            int result;
+            if (cover_has_art(io, it->plat, it->path, it->is_dir, it->size, it->id)) {
+                it->state = DL_HAVE; d->n_have++;
+                goto next;
+            }
+            if (!io->ensure_movie_art) {
+                log_printf("bdiso: movie poster callback unavailable for %s", it->path);
+                it->state = DL_ERROR; d->n_error++;
+                goto next;
+            }
+            result = io->ensure_movie_art(io->ctx, it->path);
+            if ((result == 0 || result == 1) &&
+                cover_has_art(io, it->plat, it->path, it->is_dir, it->size, it->id)) {
+                it->state = DL_GOT; d->n_got++;
+                log_printf("bdiso: movie poster found/created for %s", it->path);
+            } else {
+                it->state = DL_ERROR; d->n_error++;
+                log_printf("bdiso: movie cover download failed for %s, code %d",it->path,result);
+            }
+            goto next;
+        }
         if (!it->id[0]) discid_read(it->plat, it->path, it->is_dir, io->read_at, io->ctx, it->id, sizeof(it->id));
         /* A name-matched manual cover counts even when an ISO has no ID. */
         if (cover_has_art(io, it->plat, it->path, it->is_dir, it->size, it->id)) { it->state = DL_HAVE; d->n_have++; goto next; }
