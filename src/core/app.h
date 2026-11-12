@@ -90,6 +90,11 @@ typedef struct {
      * blocks until done; returns the number of games webMAN found, or -1.
      * Run before the scan on "Rescan Library" (on the scan thread). */
     int (*ntfs_refresh)(void);
+    /* Optional lightweight USB-port presence mask (one bit per port).
+     * Called at most every 0.75 s on the UI thread; never mounts volumes. */
+    uint32_t (*usb_media_mask)(void);
+    /* Reject stale webMAN BDISO pointers when their physical USB is gone. */
+    int (*ntfs_bdiso_online)(const unsigned char *raw, size_t len);
     /* optional: folder with the background music (.mp3/.wav, see music.h);
      * needs read_at. The host runs music_decode_step() on a thread and
      * music_mix() in its audio callback. NULL = no music. */
@@ -152,6 +157,11 @@ typedef struct {
     float load_shown;       /* displayed progress (eased) */
     char load_status[64];
     int rescan;             /* loading was triggered by "Rescan library" */
+    int usb_auto_rescan;    /* auto hotplug refresh: preserve disk cover caches */
+    uint32_t usb_last_mask;
+    uint32_t usb_candidate_mask;
+    float usb_poll_t;
+    int usb_candidate_hits;
     int scan_async;         /* scan running on a worker thread */
     void *sizes;            /* 0.9.0: the folder games' sizes being worked out (SizeJob, app.c) */
     void *sizes_orphan;     /* a job a rescan cancelled, freed when its thread is done */
