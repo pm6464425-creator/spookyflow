@@ -19,6 +19,14 @@
 #define MOVIE_PATH_MAX 512
 static uint64_t s_attempted[64];
 static unsigned s_attempt_index;
+/* Called on Rescan Library: release per-session failed lookups so a newly
+ * configured API key or temporary network failure can be retried. */
+void sf_bdiso_reset_attempts(void)
+{
+    memset(s_attempted,0,sizeof(s_attempted));
+    s_attempt_index=0;
+    log_printf("bdiso: poster lookup attempts reset by Rescan Library");
+}
 
 static uint64_t hash_key(const char *s)
 {
@@ -121,6 +129,16 @@ static int remote_get(const char *url,unsigned char *buf,uint32_t cap,uint32_t *
             strcpy(current,location);continue;
         }
         break;
+    }
+    /* Never log the full URL because API keys are query parameters.
+     * Only the hostname and numeric transport/HTTP status are diagnostic. */
+    {
+        const char *host=strstr(current,"://");
+        int width=0;
+        host=host?host+3:current;
+        while(host[width] && host[width]!='/' && host[width]!='?' && width<80)width++;
+        log_printf("bdiso: request failed, HTTP/transport=%d, host=%.*s",
+                   code?code:-1,width,host);
     }
     return code?code:-1;
 }
@@ -406,7 +424,6 @@ int sf_bdiso_ensure_art(const char *iso_path)
     int year=0,id=0,is3d,port,status=-1,count=0,i,k;
     if(!iso_path || strncmp(iso_path,"/dev_usb00",10)!=0 ||
        iso_path[10]<'0'||iso_path[10]>'7'||iso_path[11]!='/')return -1;
-    if(attempted(iso_path))return -2;
     port=iso_path[10]-'0';
     slash=strrchr(iso_path,'/');
     if(!slash || (size_t)(slash-iso_path)>=sizeof(dir)-20)return -3;
@@ -437,9 +454,13 @@ int sf_bdiso_ensure_art(const char *iso_path)
     if(is3d && movie_covers_dir(dir,port)==0)
         movie_community_sources(dir,stem,query,year,port);
     if(!tmdb[0] && !omdb[0]) {
-        log_printf("bdiso: no TMDB/OMDb metadata key; use COVERS keys or manual artwork");
+        log_printf("bdiso: no valid TMDB_KEY.TXT (32 hex) or OMDB_KEY.TXT in USB BDISO/COVERS; online covers disabled");
         return -6;
     }
+    /* A missing key must not permanently consume the download attempt. */
+    if(attempted(iso_path))return -2;
+    log_printf("bdiso: starting online poster search for %s (TMDB=%s OMDb=%s)",
+               stem,tmdb[0]?"yes":"no",omdb[0]?"yes":"no");
     json=(unsigned char*)malloc(MOVIE_JSON_MAX+1);
     jpeg=(unsigned char*)malloc(MOVIE_JPEG_MAX);
     if(!json || !jpeg){status=-8;goto done;}
@@ -531,23 +552,38 @@ int sf_bdiso_ensure_art(const char *iso_path)
         if(v>0 && v<(int)sizeof(url))
             movie_candidate(candidates,&count,6,url,"MoviePosterDB");
     }
-    if(count==0){status=-9;goto save_title;}
+    if(count==0){
+        log_printf("bdiso: no poster candidates for %s (TMDB movie id=%d); verify title, year, API keys and network",
+                   stem,id);
+        status=-9;goto save_title;
+    }
     for(i=0;i<count;i++){
         uint32_t bytes=0;
-        if(!movie_http_jpeg(candidates[i].url,jpeg,&bytes))continue;
-        if(movie_covers_dir(dir,port)!=0)continue;
+        if(!movie_http_jpeg(candidates[i].url,jpeg,&bytes)){
+            log_printf("bdiso: provider %s returned no usable JPEG for %s",
+                       candidates[i].provider,stem);
+            continue;
+        }
+        if(movie_covers_dir(dir,port)!=0){
+            log_printf("bdiso: failed to create/read BDISO/COVERS on USB%03d",port);
+            continue;
+        }
         if(ps3_fs_is_file(NULL,cover)){status=1;break;}
         if(movie_usb_write(cover,port,jpeg,bytes)==0){
             log_printf("bdiso: poster source=%s, 3D=%d (edition not authenticated)",
                        candidates[i].provider,is3d);
             status=0;break;
         }
+        log_printf("bdiso: JPEG downloaded but USB write failed for %s",stem);
     }
 save_title:
     if(title[0] && !ps3_fs_is_file(NULL,titlepath) &&
        movie_covers_dir(dir,port)==0)
         (void)movie_usb_write(titlepath,port,title,(uint32_t)strlen(title));
 done:
+    if(status!=0 && status!=1)
+        log_printf("bdiso: cover fetch failed for %s, error=%d; check USB BDISO/COVERS and preceding HTTP messages",
+                   stem,status);
     free(jpeg);free(json);
     return status;
 }
