@@ -60,6 +60,11 @@ jobs:
           ./build-host/test_movie_edition
       # Includes the V13 regular-poster migration, Spanish-first policy,
       # manually supplied cover priority and the watermark-only visual gate.
+      - name: Under the Sea 2009 IMDb identity and no-key poster regressions
+        run: python3 tests/test_bdiso_undersea.py
+      - name: Probe public poster for Under the Sea 2009 (nonblocking)
+        continue-on-error: true
+        run: python3 tests/probe_undersea_live.py
       - name: BDISO cinema 2:3 geometry and strict movie-identity regressions
         run: python3 tests/test_bdiso_v15.py
       - name: SensaCine theatrical poster HTML parsing tests (real examples)
@@ -193,6 +198,16 @@ jobs:
           gh release create mi-pkg-v15-cine-2x3-rio-fix MI_PKG_V15_CINE_2X3_RIO_FIX.pkg --target "$GITHUB_SHA" \
             --title "MI PKG V15 - Portadas 2x3 y reconocimiento correcto" \
             --notes "V15: corrige SOLO BDISO para carteles de cine 2:3: estrecha el estuche, aplica recorte proporcional centrado sin estirar ni crear franjas negras. Reconocimiento por nombre exacto + ano y ficha oficial Rio (2011) ID SensaCine 146550; descarta Extraño rio 2025 y Rio 2 2014. Mejora verificacion TMDB y Cinemeta. Nuevas caratulas en BDISO/COVERS/POSTERS con nombre del ISO, sin sobrescribir JPG antiguos. Mantiene estuche con marcas pequenas Blu-ray y 3D, compatibilidad NTFS, 4a pestana y juegos PS1/PS2/PS3 sin modificar. PKG y tests verificados; comprobacion real en PS3 pendiente."
+
+      - name: Publish direct-download V15.1 Under the Sea movie poster fix
+        if: github.ref == 'refs/heads/fix/bdiso-under-the-sea-2009'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp spookyflow.pkg SPOOKYFLOW_V15_1_BAJO_EL_MAR_FIX.pkg
+          gh release create spookyflow-v15-1-bajo-el-mar-fix SPOOKYFLOW_V15_1_BAJO_EL_MAR_FIX.pkg --target "$GITHUB_SHA" \
+            --title "SpookyFlow V15.1 - Bajo el mar 3D (2009)" \
+            --notes "V15.1: agrega fuente sin API key mediante IMDb verificado tt1020876 para Under the Sea 3D (2009), también reconocido como Bajo el mar. Preserva carátulas manuales, posters 2:3, juegos y funcionamiento V15 sin cambios. Pruebas automatizadas aprobadas; verificación real en PS3 pendiente."
 
   ps3-pkg-docker:
     needs: host-tests
