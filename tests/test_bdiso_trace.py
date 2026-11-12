@@ -28,7 +28,7 @@ checks=[
  ("Actual USB write result", 'cover_diag("USB_WRITE_OK"' in art and 'cover_diag("USB_WRITE_ERR"' in art),
  ("Terminal download return code", '"DESCARGA_OK":"DESCARGA_ERR"' in art),
  ("Diagnostic file closes", 'cover_diag_stop();' in main),
- ("Native manual JPG pipeline retained", 'n=add(out,n,max,covers,"/",name);' in cover),
+ ("Native manual JPG pipeline retained", 'n=add(out,n,max,dir,"/",name);' in cover and 'n=add(out,n,max,manual,"/",name);' in cover),
  ("Different BDISO app cases preserved", "sf_bdntfs_start()" in main),
 ]
 for i,(name,ok) in enumerate(checks,1):print(f"{i:02d} {'PASS' if ok else 'FAIL'} {name}")
