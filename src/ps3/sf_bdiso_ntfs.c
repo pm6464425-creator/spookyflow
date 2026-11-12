@@ -21,13 +21,26 @@ static const DISC_INTERFACE *const s_devices[8] = {
     &__io_ntfs_usb000,&__io_ntfs_usb001,&__io_ntfs_usb002,&__io_ntfs_usb003,
     &__io_ntfs_usb004,&__io_ntfs_usb005,&__io_ntfs_usb006,&__io_ntfs_usb007
 };
+/* Physical NTFS state. A missing drive must invalidate the in-memory mount
+ * even when the UI reconnects before its async library scan gets to cleanup.
+ * The lightweight foreground poll only RECORDS this edge; native volume
+ * cleanup and remounting occur on the normal library loading path. */
+static ntfs_md *s_mount[8];
+static int s_count[8];
+static int s_last_mount_rc[8]; /* 0 = no mount attempted yet */
+static volatile uint32_t s_detach_seen;
+
 /* Physical presence only; mounting/releasing remains on the scan thread. */
 uint32_t sf_bdntfs_usb_present_mask(void)
 {
     uint32_t mask=0;
     int port;
-    for(port=0;port<8;port++)
-        if(PS3_NTFS_IsInserted(port))mask |= (uint32_t)1u<<port;
+    for(port=0;port<8;port++){
+        if(PS3_NTFS_IsInserted(port))
+            mask |= (uint32_t)1u<<port;
+        else if(s_count[port]>0)
+            __sync_fetch_and_or(&s_detach_seen,(uint32_t)1u<<port);
+    }
     return mask;
 }
 
@@ -47,9 +60,6 @@ int sf_bdntfs_index_online(const unsigned char *data, size_t len)
     return visible;
 }
 
-static ntfs_md *s_mount[8];
-static int s_count[8];
-static int s_last_mount_rc[8]; /* 0 = no mount attempted yet */
 /* FLOW MOVIE scans every partition of each attached USB device.  Keep the
  * partition containing /BDISO, not an arbitrary first partition. */
 static int s_partition[8] = {-1,-1,-1,-1,-1,-1,-1,-1};
@@ -100,21 +110,40 @@ int sf_bdntfs_start(void)
 {
     int u,good=0;
     for(u=0;u<8;u++) {
-        int n;
+        int n,action,part=-1;
+        uint32_t bit=(uint32_t)1u<<u;
         int inserted=PS3_NTFS_IsInserted(u);
-        if(!inserted) {
-            if(s_count[u]>0) {
-                log_printf("bdiso: USB%03d removed; releasing native NTFS handles",u);
-                bd_release_port(u,1);
+        /* Mark a detached port without ever touching that missing disk. */
+        if(!inserted && s_count[u]>0)
+            __sync_fetch_and_or(&s_detach_seen,bit);
+        /* Consume remembered absence, even if the disk has just come back. */
+        int lost=(__sync_fetch_and_and(&s_detach_seen,~bit)&bit)!=0;
+        int previous=s_count[u]>0 && s_mount[u]!=NULL;
+        if(inserted && previous && !lost)
+            part=bd_find_partition(u);  /* stale NTFS handles can be unreadable */
+        action=bdiso_usb_mount_action(inserted,previous,lost,part>=0);
+        if(action==BDUSB_DISCONNECTED){
+            if(previous){
+                log_printf("bdiso: USB%03d detached, clearing stale native handles",u);
+                bd_release_port(u,1); /* no filesystem operations after unplug */
             }
             continue;
         }
-        if(s_count[u]>0 && s_mount[u]) {
-            s_partition[u]=bd_find_partition(u);
-            if(s_partition[u]>=0) good++;
+        if(action==BDUSB_KEEP_MOUNT){
+            s_partition[u]=part;
+            good++;
             continue;
         }
+        if(action==BDUSB_RESET_REMOUNT){
+            log_printf("bdiso: USB%03d reconnected or stale native BDISO (detached_seen=%d partition=%d); remounting",
+                       u,lost,part);
+            /* An old mount may reference a device that is no longer there.
+             * Do NOT attempt ntfsUnmount() on a possibly removed drive. */
+            bd_release_port(u,1);
+        }
         s_partition[u]=-1;
+        log_printf("bdiso: USB%03d native mount attempt (reason=%s)",u,
+                   action==BDUSB_RESET_REMOUNT?"RECOVERY":"NEW_USB");
         n=ntfsMountDevice(s_devices[u],&s_mount[u],NTFS_DEFAULT | NTFS_RECOVER);
         s_last_mount_rc[u]=n;
         if(n>0 && s_mount[u]) {
@@ -131,7 +160,7 @@ int sf_bdntfs_start(void)
         } else {
             if(s_mount[u]){free(s_mount[u]);s_mount[u]=NULL;}
             s_count[u]=0;
-            log_printf("bdiso: USB%03d NTFS mount failed (check cable, filesystem and power)",u);
+            log_printf("bdiso: USB%03d NTFS mount failed rc=%d after %s (check USB state and native mount registry)",u,n,action==BDUSB_RESET_REMOUNT?"RECONNECT":"FIRST_MOUNT");
         }
     }
     return good;
