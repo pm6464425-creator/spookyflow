@@ -23,6 +23,7 @@
 #include <sysmodule/sysmodule.h>
 #include "coverart.h"
 #include "log.h"
+#include "cover_diag.h"
 #include "ps3_platform.h"
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
@@ -177,14 +178,22 @@ static int decode_any(const char *path, int min_w, int min_h, int max_dim, int *
     s32 rc;
     int direct_rgba=0;
     *rgba = NULL;
+    if(strstr(path,"/BDISO/"))
+        cover_diag("DECOD_INICIO","path=%s ntfs_activado=%d formato=%s",
+                   path,strncmp(path,"/dev_usb00",10)==0?
+                   sf_bdntfs_has_port(path[10]-'0'):0,
+                   is_png?"PNG":"JPG");
     ps3_decode_lock();
     /* Native NTFS art is decoded straight from RAM, never copied to HDD. */
     if (strncmp(path,"/dev_usb00",10)==0 && sf_bdntfs_has_port(path[10]-'0')) {
         unsigned char *data=NULL;
         uint32_t nbytes=0;
         if(sf_bdntfs_load(path,&data,&nbytes,3u*1024u*1024u)!=0) {
+            cover_diag("NTFS_READ_ERR","No pudo abrir/leer bytes del archivo: %s",path);
             ps3_decode_unlock(); return -1;
         }
+        cover_diag("NTFS_READ_OK","path=%s bytes=%u firma=%02x-%02x-%02x-%02x",
+                   path,(unsigned)nbytes,data[0],data[1],data[2],data[3]);
         if(is_png) {
             pngData d;
             memset(&d,0,sizeof(d));
@@ -207,6 +216,7 @@ static int decode_any(const char *path, int min_w, int min_h, int max_dim, int *
                     bmp=soft;bw=(u32)sw;bh=(u32)sh;
                     pitch=bw*4u;rc=0;direct_rgba=1;
                     log_printf("covers: recovered progressive JPEG from NTFS RAM: %s",path);
+                    cover_diag("JPEG_SOFT_OK","Software recupero JPEG progresivo: %s",path);
                 }
             }
         }
@@ -223,12 +233,24 @@ static int decode_any(const char *path, int min_w, int min_h, int max_dim, int *
         bmp = d.bmp_out; pitch = d.pitch; bw = d.width; bh = d.height;
     }
     ps3_decode_unlock();
-    if (rc != 0 || !bmp || bw == 0 || bh == 0 || pitch < bw * 4u) { free(bmp); return -1; }
-    if ((int)bw > max_dim || (int)bh > max_dim) { free(bmp); *w = (int)bw; *h = (int)bh; return -1; }
+    if (rc != 0 || !bmp || bw == 0 || bh == 0 || pitch < bw * 4u) {
+        if(strstr(path,"/BDISO/"))
+            cover_diag("DECOD_FALLO","path=%s rc=%d bmp=%s size=%ux%u pitch=%u",
+                       path,rc,bmp?"SI":"NO",(unsigned)bw,(unsigned)bh,(unsigned)pitch);
+        free(bmp);return -1;
+    }
+    if ((int)bw > max_dim || (int)bh > max_dim) {
+        if(strstr(path,"/BDISO/"))
+            cover_diag("DECOD_FALLO","Imagen supera maximo: %ux%u > %d path=%s",
+                       (unsigned)bw,(unsigned)bh,max_dim,path);
+        free(bmp); *w = (int)bw; *h = (int)bh; return -1;
+    }
     if(!direct_rgba) argb_to_rgba_inplace((u8 *)bmp, pitch, bw, bh);
     *rgba = (uint8_t *)bmp;              /* malloc'd by the decoder wrapper: free() is right */
     *w = (int)bw;
     *h = (int)bh;
+    if(strstr(path,"/BDISO/"))
+        cover_diag("DECOD_OK","Image RAM %dx%d ARGB/RGBA=%s path=%s",*w,*h,direct_rgba?"RGBA":"ARGB_CONVERTIDO",path);
     return 0;
 }
 
@@ -288,7 +310,11 @@ CoverLoader *ps3_covers_start(void)
     CoverIO io;
     memset(&io, 0, sizeof(io));
     io.ensure_movie_art = (int (*)(void *, const char *))NULL;
-    if (!r_cover_pixels(0)) { log_printf("covers: no texture memory, showing placeholders"); return NULL; }
+    if (!r_cover_pixels(0)) {
+        cover_diag("RENDER_ERROR","No hay memoria de texturas para portadas; apareceran recuadros vacios");
+        log_printf("covers: no texture memory, showing placeholders"); return NULL;
+    }
+    cover_diag("RENDER_OK","Memoria de texturas disponible para portadas");
     if (sysModuleIsLoaded(SYSMODULE_JPGDEC) != 0 && sysModuleLoad(SYSMODULE_JPGDEC) != 0)
         log_printf("covers: JPEG decoder module failed to load");
     if (sysModuleIsLoaded(SYSMODULE_PNGDEC) != 0 && sysModuleLoad(SYSMODULE_PNGDEC) != 0)
@@ -310,9 +336,11 @@ CoverLoader *ps3_covers_start(void)
     /* priority 1600: below the main thread and the scan, so drawing never waits;
      * 256 KB stack (the decode work itself uses the heap) */
     if (sysThreadCreate(&g_tid, worker_entry, &g_loader, 1600, 256 * 1024, THREAD_JOINABLE, (char *)"sf_covers") != 0) {
+        cover_diag("RENDER_ERROR","El hilo que procesa las portadas NO se pudo iniciar");
         log_printf("covers: worker thread could not start, showing placeholders");
         return NULL;
     }
+    cover_diag("RENDER_OK","Hilo que carga portadas iniciado");
     g_started = 1;
     log_printf("covers: worker started, cache in %s", SF_COVERS_DIR);
     return &g_loader;
