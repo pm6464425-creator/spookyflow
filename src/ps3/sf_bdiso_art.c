@@ -402,7 +402,7 @@ static int movie_cinema_dir(const char *dir,int port)
 {
     char dest[MOVIE_PATH_MAX];
     if(movie_covers_dir(dir,port)!=0 ||
-       snprintf(dest,sizeof(dest),"%s/COVERS/CINE",dir)>=(int)sizeof(dest))
+       snprintf(dest,sizeof(dest),"%s/COVERS/POSTERS",dir)>=(int)sizeof(dest))
         return -1;
     if(sf_bdntfs_has_port(port)){
         if(sf_bdntfs_is_dir(dest))return 0;
@@ -530,7 +530,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     if(!strstr(dir,"/BDISO"))return -3;
     iso_stem(iso_path,stem,sizeof(stem));
     if(!stem[0] ||
-       snprintf(normaldir,sizeof(normaldir),"%s/COVERS/CINE",dir)>=(int)sizeof(normaldir) ||
+       snprintf(normaldir,sizeof(normaldir),"%s/COVERS/POSTERS",dir)>=(int)sizeof(normaldir) ||
        snprintf(cover,sizeof(cover),"%s/%s.jpg",normaldir,stem)>=(int)sizeof(cover) ||
        snprintf(coverpng,sizeof(coverpng),"%s/%s.png",normaldir,stem)>=(int)sizeof(coverpng) ||
        snprintf(titlepath,sizeof(titlepath),"%s/COVERS/%s.title",dir,stem)>=(int)sizeof(titlepath) ||
@@ -751,7 +751,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
         uint32_t bytes=0;
         cover_diag("FUENTE","%s opcion=%d/%d proveedor=%s (sin alterar ISO)",stem,i+1,count,candidates[i].provider);
         if(movie_cinema_dir(dir,port)!=0){
-            log_printf("bdiso: failed to create/read BDISO/COVERS/CINE on USB%03d",port);
+            log_printf("bdiso: failed to create/read BDISO/COVERS/POSTERS on USB%03d",port);
             continue;
         }
         /* The native progressive-JPEG software decoder now works directly
