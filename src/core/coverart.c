@@ -2,6 +2,7 @@
 #include "coverart.h"
 #include "layout.h"
 #include "log.h"
+#include "cover_diag.h"
 #include "render.h"
 #include "title.h"
 #include "util.h"
@@ -328,6 +329,8 @@ void cover_request(CoverLoader *L, int slot, int plat, int tab, int index, const
     sf_strlcpy(j->path, path ? path : "", sizeof(j->path));
     sf_strlcpy(j->id, id ? id : "", sizeof(j->id));
     j->req_gen++;
+    if (plat==PLAT_BDISO)
+        cover_diag("SOLICITUD","slot=%d indice=%d iso=%s",slot,index,j->path);
     unlock(L);
 }
 
@@ -359,6 +362,10 @@ void cover_poll(CoverLoader *L, CoverCache *cc)
         } else {
             cc_mark(cc, i, -1);
         }
+        if(j->plat==PLAT_BDISO)
+            cover_diag(j->done_ok?"TEXTURA_OK":"TEXTURA_FALLO",
+                       "slot=%d indice=%d iso=%s tex=%d estado=%d",
+                       i,j->index,j->path,cc->slot[i].tex,cc->slot[i].state);
     }
     unlock(L);
 }
@@ -513,14 +520,26 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
     cand = (CoverCand *)malloc(sizeof(CoverCand) * COVER_MAX_CANDS);
     if (!cand) return 0;
     nc = cover_candidates(j->plat, j->path, j->is_dir, id, L->dir_ok, cand, COVER_MAX_CANDS);
+    if(j->plat==PLAT_BDISO)
+        cover_diag("BUSQUEDA","ISO=%s | rutas_generadas=%d | base0=%s",
+                   j->path,nc,nc?cand[0].base:"SIN RUTAS");
     if (j->plat == PLAT_BDISO && L->io.ensure_movie_art && L->io.is_file) {
         for(c=0;c<nc && !had_movie_art;c++) {
             for(e=0;e<SF_ARRAY_LEN(k_exts);e++) {
                 snprintf(f,sizeof(f),"%s%s",cand[c].base,k_exts[e]);
-                if(L->io.is_file(L->io.ctx,f)) { had_movie_art=1; break; }
+                if(L->io.is_file(L->io.ctx,f)) {
+                    had_movie_art=1;
+                    cover_diag("ARCHIVO","ENCONTRADO=%s",f);
+                    break;
+                }
             }
         }
-        if(!had_movie_art)(void)L->io.ensure_movie_art(L->io.ctx,j->path);
+        if(!had_movie_art){
+            int rc;
+            cover_diag("DESCARGA","No existia JPG/PNG. Buscando online ISO=%s",j->path);
+            rc=L->io.ensure_movie_art(L->io.ctx,j->path);
+            cover_diag("DESCARGA","Fin busqueda rc=%d (0=guardado,1=ya_existe; otros=fallo) ISO=%s",rc,j->path);
+        }
     }
     /* A saved movie JPEG can exist yet be unrenderable on PS3 (for
      * example a progressive JPEG). Retry once to obtain an equivalent
@@ -538,12 +557,24 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
                 int w = 0, h = 0;
                 snprintf(f, sizeof(f), "%s%s", cand[c].base, k_exts[e]);
                 if (!L->io.is_file || !L->io.is_file(L->io.ctx, f)) continue;
-                if (!png_size_ok(L, f)) continue;
-                if (!L->io.decode || L->io.decode(L->io.ctx, f, &w, &h, &rgba) != 0 || !rgba) {
-                    log_printf("covers: could not decode %s", f);
-                    free(rgba);
-                    continue;  /* A compatible PNG may exist beside a JPEG. */
+                if(j->plat==PLAT_BDISO)cover_diag("RUTA","Existe y se intenta abrir %s",f);
+                if (!png_size_ok(L, f)) {
+                    if(j->plat==PLAT_BDISO)cover_diag("DECOD_ERROR","PNG demasiado grande: %s",f);
+                    continue;
                 }
+                {
+                    int decode_rc=L->io.decode?L->io.decode(L->io.ctx, f, &w, &h, &rgba):-404;
+                    if(decode_rc!=0 || !rgba) {
+                        if(j->plat==PLAT_BDISO)
+                            cover_diag("DECOD_ERROR","path=%s rc=%d, ancho=%d alto=%d rgba=%s",
+                                       f,decode_rc,w,h,rgba?"SI":"NO");
+                        log_printf("covers: could not decode %s", f);
+                        free(rgba);
+                        continue;
+                    }
+                }
+                if(j->plat==PLAT_BDISO)
+                    cover_diag("DECOD_OK","path=%s %dx%d",f,w,h);
                 if (w > 0 && h > 0 && w <= COVER_SRC_MAX_DIM && h <= COVER_SRC_MAX_DIM) {
                     cover_process(rgba, w, h, cover_art_aspect(j->plat), (uint16_t *)L->scratch, tw, th);
                     snprintf(src, src_cap, "%s (%dx%d)", f, w, h);
@@ -556,6 +587,9 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
         }
     }
     free(cand);
+    if(j->plat==PLAT_BDISO)
+        cover_diag(ok?"CARATULA_OK":"CARATULA_FALLO",
+                   "ISO=%s resultado=%d ruta=%s",j->path,ok,ok?src:"SIN_JPG_DECODIFICABLE");
     if (ok) L->n_art++; else L->n_none++;
     if (!ok) snprintf(src, src_cap, "none (id %s)", id[0] ? id : "unknown");
     if (cache) {
@@ -611,6 +645,10 @@ int cover_worker_step(CoverLoader *L)
     dst = L->io.pixels ? L->io.pixels(best) : NULL;
     if (ok && !dst) ok = 0;
     if (ok) memcpy(dst, L->scratch, (size_t)tw * (size_t)th * 2u);
+    if (j.plat==PLAT_BDISO)
+        cover_diag(ok?"PIXELS_OK":"PIXELS_FALLO",
+                   "slot=%d iso=%s result=%d ancho=%d alto=%d gpu_memory=%s",
+                   best,j.path,ok,tw,th,dst?"SI":"NO");
 
     if (L->n_logged < COVER_LOG_LINES) {
         L->n_logged++;
@@ -741,8 +779,10 @@ void cover_dl_run(CoverDl *d)
          * Use the movie metadata/filename downloader directly instead. */
         if (it->plat == PLAT_BDISO) {
             int result;
+            cover_diag("DESCARGA_BTN","Comprobando %s",it->path);
             if (cover_has_art(io, it->plat, it->path, it->is_dir, it->size, it->id)) {
                 it->state = DL_HAVE; d->n_have++;
+                cover_diag("DESCARGA_BTN","ALREADY_HAS_ART=%s (esto solo comprueba existencia, NO imagen visible)",it->path);
                 goto next;
             }
             if (!io->ensure_movie_art) {
@@ -755,9 +795,11 @@ void cover_dl_run(CoverDl *d)
                 cover_has_art(io, it->plat, it->path, it->is_dir, it->size, it->id)) {
                 it->state = DL_GOT; d->n_got++;
                 log_printf("bdiso: movie poster found/created for %s", it->path);
+                cover_diag("DESCARGA_BTN","ARCHIVO_GUARDADO=%s",it->path);
             } else {
                 it->state = DL_ERROR; d->n_error++;
                 log_printf("bdiso: movie cover download failed for %s, code %d",it->path,result);
+                cover_diag("DESCARGA_BTN","ERROR rc=%d ISO=%s",result,it->path);
             }
             goto next;
         }
