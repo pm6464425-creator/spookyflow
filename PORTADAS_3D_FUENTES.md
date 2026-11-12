@@ -7,6 +7,12 @@ ni el logotipo Blu-ray. **La coincidencia exacta de edición comercial
 
 ## Descarga automática de pósteres (prioridad)
 
+**Sin crear cuentas ni claves:** si las fuentes configuradas no encuentran una portada,
+la aplicación consulta el catálogo público **Cinemeta/Stremio** mediante HTTPS,
+compara título y año con el ISO y guarda una carátula en el USB NTFS.
+No promete el diseño exacto de la edición Blu-ray 3D de cada país.
+Es un servicio externo que puede cambiar o limitar las consultas.
+
 1. **TMDB** — se usa primero el póster en español, después su póster
    estándar si no hay más alternativas. Necesita la clave que ya
    utilizaba la aplicación: «BDISO/COVERS/TMDB_KEY.TXT».
@@ -26,9 +32,9 @@ ni el logotipo Blu-ray. **La coincidencia exacta de edición comercial
    «mpdb_pk_...». La cuenta gratuita puede limitar la resolución
    a unos 200 píxeles, por eso se usa como último respaldo.
 
-La búsqueda requiere una clave de metadatos de TMDB y/o OMDb. Las
-claves no están incluidas en el repositorio/PKG y no se deben
-compartir públicamente.
+Las claves API son **opcionales**: Cinemeta permite probar búsquedas
+sin claves. TMDB y OMDb proporcionan fuentes adicionales cuando tienes
+credenciales propias. No se incluyen claves personales en el PKG.
 
 En la aplicación se respetan, por orden: **la portada elegida
 manualmente** y la portada descargada ya existente. El proceso no
