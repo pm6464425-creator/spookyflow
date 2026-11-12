@@ -9,7 +9,7 @@ ntfs=Path("src/ps3/sf_bdiso_ntfs.c").read_text()
 poster=Path("src/core/movie_sensacine.c").read_text()
 checks=[
  ("SensaCine movie search is the first cover source",
-   art.index('movie_sensacine_pick(')<art.index('"TMDB-ES"')),
+   art.index('movie_sensacine_pick_year(')<art.index('"TMDB-ES"')),
  ("SensaCine movie poster images only, no Blu-ray release pages",
    'www.sensacine.com/buscar/?q=%s' in art and
    'www.mubis.es/titulos/' not in art and
@@ -28,7 +28,7 @@ checks=[
  ("English theatrical fallback remains if Spanish fails",
    '"Cinemeta-no-key"' in art and '"TMDB-default"' in art),
  ("New poster path uses CINE folder, not older Blu-ray-box NORMAL folder",
-   '"%s/COVERS/CINE"' in art and '"%s/%s.jpg",normaldir,stem' in art),
+   '"%s/COVERS/POSTERS"' in art and '"%s/%s.jpg",normaldir,stem' in art),
  ("Poster folder is created on NTFS", 'static int movie_cinema_dir(' in art and
     'sf_bdntfs_mkdir(dest)' in art),
  ("Manual poster can be placed alongside ISO",
@@ -36,7 +36,7 @@ checks=[
  ("COVERS/MANUAL is explicitly supported",
    '"%s/MANUAL"' in covers),
  ("New SensaCine poster file path preferred over legacy artwork",
-   '"%s/CINE"' in covers and
+   '"%s/POSTERS"' in covers and
    'n=add(out,n,max,covers,"/",name)' not in covers and
    '"%s/NORMAL"' not in covers),
  ("Old Blu-ray JPGs are not deleted",
