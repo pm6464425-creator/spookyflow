@@ -6,6 +6,8 @@
 #include <stdint.h>
 #include "scanner.h"
 int sf_bdntfs_start(void);
+/* BDISO raw-sector Cobra mount: does not unload any existing plugin slot. */
+int sf_bdntfs_mount_raw_iso(const char *path);
 int sf_bdntfs_has_port(int port);
 int sf_bdntfs_path(const char *public_path, char *native_path, size_t cap);
 int sf_bdntfs_list(const char *dir, FsEntry *out, int max);
