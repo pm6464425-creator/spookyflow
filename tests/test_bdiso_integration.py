@@ -63,13 +63,14 @@ checks = [
      "language=es-MX" in art and
      '"iso_639_1"' in art and
      "json_utf8(" in art),
-    ("10. 3D detection by filename, case independent",
+    ("10. 3D detection by filename remains independent of UI",
      "static int movie_3d" in art and
      "s[1]=='D'" in art and
-     "movie3d" in ui),
-    ("11. Blu-ray shell always painted on top of movie image",
+     "movie3d" not in ui),
+    ("11. BDISO case uses PS3 artwork with only a Blu-ray watermark",
      "if (plat == PLAT_BDISO)" in ui and
-     '\"Blu-ray\", ALIGN_LEFT' in ui),
+     '\"Blu-ray\", ALIGN_CENTER' in ui and
+     "float head = h * 0.086f" not in ui),
     ("12. Spanish title applied without changing the ISO file",
      "movie_title_from_usb" in app and
      "lib_set_title" in library and
