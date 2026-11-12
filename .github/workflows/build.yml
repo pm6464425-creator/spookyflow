@@ -37,6 +37,8 @@ jobs:
         run: python3 tests/test_bdiso_ps3_case.py
       - name: Blu-ray 3D artwork source checks (33)
         run: python3 tests/test_bdiso_3d_sources.py
+      - name: BDISO poster network diagnostics and retry checks (20)
+        run: python3 tests/test_bdiso_cover_diagnostics.py
       - name: 30 identity and cover regression checks
         run: python3 tests/test_custom_identity.py
       - name: Render preview PNGs
