@@ -210,14 +210,21 @@ static int load_case(int plat, const char *path)
                           g[2] / g[0] * (float)w, g[3] / g[1] * (float)h, g[4] / g[0] * (float)w, g[5] / g[1] * (float)h);
     ui_set_case_image(plat, TEX_CASE_PS1 + plat);
     if (plat == PLAT_PS3) {
-        /* BDISO borrows PS3's exact case texture AND its matching cover
-         * window geometry, including user-customized PS3 cases. Reusing
-         * the texture avoids RSX memory duplication and changes no games. */
-        layout_set_case_image(PLAT_BDISO, (float)w, (float)h,
-                              g[2] / g[0] * (float)w, g[3] / g[1] * (float)h,
-                              g[4] / g[0] * (float)w, g[5] / g[1] * (float)h);
+        /* The same transparent plastic case image is used by both tabs,
+         * but BDISO gets a NARROWER virtual case box so the cover WINDOW
+         * has the actual 2:3 theatrical-poster proportions.
+         *
+         * Native PS3 window: 260/300 = 13/15 ~= 0.8667.
+         * BDISO scale factor: (2/3)/(260/300) = 10/13.
+         * Only BDISO's horizontal layout changes: PS3 texture/coordinates
+         * and the original PS3 games remain untouched. */
+        const float sx = (2.0f/3.0f) / (g[4]/g[5]);
+        float vw = (float)w*sx;
+        layout_set_case_image(PLAT_BDISO, vw, (float)h,
+                              g[2]/g[0]*vw, g[3]/g[1]*(float)h,
+                              g[4]/g[0]*vw, g[5]/g[1]*(float)h);
         ui_set_case_image(PLAT_BDISO, TEX_CASE_PS3);
-        log_printf("cases: BDISO reuses the PS3 case image and cover window");
+        log_printf("cases: BDISO cinema window 2:3 (PS3 game case unchanged)");
     }
     log_printf("cases: using %s (%ux%u)", path, (unsigned)w, (unsigned)h);
     return 1;
