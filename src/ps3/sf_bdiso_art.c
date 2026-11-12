@@ -193,21 +193,25 @@ static int movie_title_id(const char *json,char *title,size_t tcap,
 static int poster_from_images(const char *json,char *out,size_t cap)
 {
     const char *p=strstr(json,"\"posters\"");
-    /* Language-filtered response may include null-language posters.
-       Prefer the exact Spanish iso_639_1 language when present. */
-    if(p){
-        const char *q=p;
-        for(;*q && q-p<110000;q++){
-            if(strncmp(q,"\"iso_639_1\"",12)==0){
-                const char *end=strchr(q,'}');
-                char lang[12],filename[100];
-                if(end && json_text(q,end,"iso_639_1",lang,sizeof(lang)) &&
-                   strcmp(lang,"es")==0 &&
-                   json_text(q,end,"file_path",filename,sizeof(filename))){
-                    snprintf(out,cap,"%s",filename);return 1;
-                }
-            }
+    const char *arr;
+    if(!p || !(arr=strchr(p,'['))) return 0;
+    for(p=arr+1;*p && p-arr<110000;){
+        const char *end;
+        char lang[12],filename[100];
+        p=strchr(p,'{');
+        if(!p)break;
+        end=strchr(p,'}');
+        if(!end)break;
+        /* file_path may precede iso_639_1 in TMDB's JSON; inspect the
+           whole object, not only the suffix after the language field. */
+        if(json_text(p,end,"iso_639_1",lang,sizeof(lang)) &&
+           strcmp(lang,"es")==0 &&
+           json_text(p,end,"file_path",filename,sizeof(filename)) &&
+           filename[0]=='/'){
+            snprintf(out,cap,"%s",filename);
+            return 1;
         }
+        p=end+1;
     }
     return 0;
 }
@@ -246,11 +250,26 @@ int sf_bdiso_ensure_art(const char *iso_path)
     json=(unsigned char*)malloc(MOVIE_JSON_MAX+1);
     if(!json)return -8;
     if(snprintf(url,sizeof(url),
-       "https://api.themoviedb.org/3/search/movie?api_key=%s&language=es-MX&query=%s%s",
-       key,encoded,year?"&include_adult=false":"&include_adult=false")>=sizeof(url))goto done;
+       "https://api.themoviedb.org/3/search/movie?api_key=%s&language=es-MX&include_adult=false&query=%s&year=%d",
+       key,encoded,year?year:0)>=sizeof(url))goto done;
     if(remote_get(url,json,MOVIE_JSON_MAX,&n)!=0 || !n)goto done;
     json[n]=0;
     if(!movie_title_id((char*)json,title,sizeof(title),poster,sizeof(poster),&movie_id))goto done;
+    /* Spanish metadata is independently useful even when poster servers
+       fail, and never modifies the original English ISO filename. */
+    if(snprintf(titlepath,sizeof(titlepath),"%s/COVERS/%s.title",dir,stem)
+       <(int)sizeof(titlepath)){
+        char folder[MOVIE_PATH_MAX];
+        snprintf(folder,sizeof(folder),"%s/COVERS",dir);
+        if(sf_bdntfs_has_port(iso_path[10]-'0')) {
+            (void)sf_bdntfs_mkdir(folder);
+            (void)sf_bdntfs_write(titlepath,title,(uint32_t)strlen(title),"\n",1);
+        }else{
+            extern int sf_bdiso_fat_mkdir(const char *);
+            (void)sf_bdiso_fat_mkdir(folder);
+            (void)ps3_fs_write_file(titlepath,title,(uint32_t)strlen(title));
+        }
+    }
 
     if(snprintf(url,sizeof(url),
        "https://api.themoviedb.org/3/movie/%d/images?api_key=%s&language=es-MX&include_image_language=es,null",
