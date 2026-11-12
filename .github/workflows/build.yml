@@ -31,7 +31,7 @@ jobs:
         run: python3 tests/test_cobra_integration.py
       - name: BDISO integration checks (fourteen independent reviews)
         run: python3 tests/test_bdiso_integration.py
-      - name: Direct BDISO NTFS regression checks (28)
+      - name: Direct BDISO NTFS regression checks (29)
         run: python3 tests/test_bdiso_ntfs_fix.py
       - name: 30 identity and cover regression checks
         run: python3 tests/test_custom_identity.py
