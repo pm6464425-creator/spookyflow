@@ -79,6 +79,12 @@ def verify(package):
     assert "ICON0.PNG" in files and "PARAM.SFO" in files
     assert "USRDIR/EBOOT.BIN" in files
     assert "USRDIR/raw_iso.sprx" in files, "Integrated BDISO plugin missing"
+    assert "USRDIR/ps1_boxart_names.txt" in files, "Verified PS1 title catalog missing from installed PKG"
+    catalog = files["USRDIR/ps1_boxart_names.txt"].decode("utf-8").splitlines()
+    assert len(catalog) >= 7000, ("Only", len(catalog), "PS1 real boxart filenames")
+    assert "Disney Tarzan (Spain).png" in catalog, "Tarzan Spanish cover absent"
+    assert "Disney's Tarzan (USA).png" in catalog, "Tarzan USA cover absent"
+    print("PASS real bundled Libretro PS1 cover names:", len(catalog))
     rawiso = files["USRDIR/raw_iso.sprx"]
     assert len(rawiso) == 7930 and rawiso[:4] == b"SCE\x00", (
         "Invalid embedded raw_iso.sprx",len(rawiso))
