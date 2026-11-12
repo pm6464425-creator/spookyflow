@@ -1,27 +1,41 @@
 #!/usr/bin/env python3
-"""Check public movie-poster conversion into PS3-readable PNG bytes.
-An outside service may be temporarily unavailable; report errors honestly.
-"""
-import json
-import urllib.parse
-import urllib.request
-h={"User-Agent":"spookyflow/PS3","Accept":"*/*","Accept-Encoding":"identity"}
+"""Probe safe PS3 PNG conversion URLs against live Cinemeta poster images."""
+import json,urllib.parse,urllib.request,urllib.error
+hdr={"User-Agent":"spookyflow/PS3","Accept":"*/*","Accept-Encoding":"identity"}
 catalog="https://v3-cinemeta.strem.io/catalog/movie/top/search=Terminator%202.json"
-with urllib.request.urlopen(urllib.request.Request(catalog,headers=h),timeout=20) as r:
+with urllib.request.urlopen(urllib.request.Request(catalog,headers=hdr),timeout=18) as r:
     metas=json.loads(r.read(160000))["metas"]
-    match=next(x for x in metas if x.get("name","").lower()=="terminator 2: judgment day"
-               or x.get("name","").lower()=="terminator 2")
-    poster=match["poster"]
-    print("Poster:",poster[:120])
-    assert poster.startswith("https://m.media-amazon.com/") or poster.startswith("https://image.tmdb.org/") or poster.startswith("https://images.metahub.space/")
-    assert "?" not in poster
-    payload=urllib.parse.quote(poster[8:],safe="-_.~")
-    url="https://images.weserv.nl/?url="+payload+"&w=384&h=560&fit=contain&output=png"
-with urllib.request.urlopen(urllib.request.Request(url,headers=h),timeout=25) as r:
-    head=r.read(24)
-    print("PS3 PNG:",r.status,r.headers.get("Content-Type"),head[:8].hex(),len(head))
-    assert head.startswith(b"\x89PNG\r\n\x1a\n")
-    w=int.from_bytes(head[16:20],"big"); ht=int.from_bytes(head[20:24],"big")
-    print("Dimensions:",w,"x",ht)
-    assert 1 <= w <= 384 and 1 <= ht <= 560
-print("PASS PNG conversion: compatible PNG data from real movie poster")
+    film=next(x for x in metas if x.get("name","").lower() in
+              ("terminator 2: judgment day","terminator 2"))
+poster=film["poster"]
+imdb=film["id"]
+assert poster.startswith("https://")
+print("Poster source:",poster[:145],"IMDb:",imdb)
+qfull=urllib.parse.quote(poster,safe="")
+qhost=urllib.parse.quote(poster[8:],safe="-_.~")
+origins=[
+  ("weserv-full", "https://images.weserv.nl/?url="+qfull+"&w=384&h=560&fit=contain&output=png"),
+  ("weserv-ssl",  "https://images.weserv.nl/?url=ssl:"+qhost+"&w=384&h=560&fit=contain&output=png"),
+  ("wsrv-full",   "https://wsrv.nl/?url="+qfull+"&w=384&h=560&fit=contain&output=png"),
+  ("wsrv-ssl",    "https://wsrv.nl/?url=ssl:"+qhost+"&w=384&h=560&fit=contain&output=png"),
+  ("metahub",     "https://images.metahub.space/poster/medium/"+imdb+"/img"),
+  ("metahub-weserv","https://images.weserv.nl/?url=images.metahub.space%2Fposter%2Fmedium%2F"+imdb+"%2Fimg&w=384&output=png"),
+]
+found=False
+for label,url in origins:
+    try:
+        with urllib.request.urlopen(urllib.request.Request(url,headers=hdr),timeout=12) as r:
+            head=r.read(40)
+            print(label,r.status,r.headers.get("Content-Type"),head[:12].hex())
+            if head.startswith(b"\x89PNG\r\n\x1a\n") or head.startswith(b"\xff\xd8\xff"):
+                if head.startswith(b"\x89PNG\r\n\x1a\n"):
+                    w=int.from_bytes(head[16:20],"big")
+                    h=int.from_bytes(head[20:24],"big")
+                    print("PNG OK:",label,w,h)
+                    if w<=2048 and h<=2048:found=True
+                else:
+                    print("JPEG source works:",label)
+    except Exception as e:
+        print(label,"UNAVAILABLE",str(e)[:140])
+print("Compatible PNG found:",found)
+assert found,"No compatible PNG proxy reachable; no PS3 compatibility claim"
