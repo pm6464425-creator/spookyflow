@@ -60,6 +60,8 @@ jobs:
           ./build-host/test_movie_edition
       # Includes the V13 regular-poster migration, Spanish-first policy,
       # manually supplied cover priority and the watermark-only visual gate.
+      - name: PS3 forensic USB/NTFS diagnostic report invariants
+        run: python3 tests/test_usb_diagnostics.py
       - name: V15.3 restore valid BDISO NTFS index entries (unreadable legacy headers)
         run: python3 tests/test_bdiso_restore.py
       - name: BDISO physical USB auto-sync and stale NTFS-pointer regressions
@@ -232,6 +234,16 @@ jobs:
           gh release create spookyflow-v15-3-disco-ntfs-fix SPOOKYFLOW_V15_3_RECONOCE_DISCO_NTFS.pkg --target "$GITHUB_SHA" \
             --title "SpookyFlow V15.3 - Corrige deteccion de peliculas NTFS" \
             --notes "V15.3 corrige regresion V15.2 que ocultaba peliculas con referencias .ntfs[BDISO] antiguas, ilegibles o de cabeceras alternativas. Mantiene deteccion automatica de conexion y desconexion USB, filtrado de peliculas cuando no hay disco, correccion de Bajo el mar 3D 2009 y estuche 2:3. Tests de host y estructura PKG verificados, pendiente prueba real en PS3."
+
+      - name: Publish direct-download V15.4 PS3 USB diagnostic PKG
+        if: github.ref == 'refs/heads/diag/bdiso-ntfs-real-ps3-report'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp spookyflow.pkg SPOOKYFLOW_V15_4_DIAGNOSTICO_USB_NTFS.pkg
+          gh release create spookyflow-v15-4-diagnostico-usb-ntfs SPOOKYFLOW_V15_4_DIAGNOSTICO_USB_NTFS.pkg --target "$GITHUB_SHA" \
+            --title "SpookyFlow V15.4 - Diagnostico real USB/NTFS/BDISO" \
+            --notes "Compilacion de diagnostico de solo lectura. Guarda /dev_hdd0/tmp/spookyflow/diagnostico_usb_ntfs.txt con los resultados reales de los puertos USB, montajes NTFS, carpetas BDISO, webMAN y escaneo de la biblioteca. No altera archivos externos ni cambia algoritmos de reconocimiento V15.3. Pruebas host y PKG completadas; se necesita el TXT de la PS3 para identificar el problema concreto."
 
   ps3-pkg-docker:
     needs: host-tests
