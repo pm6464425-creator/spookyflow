@@ -34,3 +34,16 @@ int bdiso_usb_pointer_visible(const unsigned char *raw, size_t len,
     if (port < 0) return 1;
     return (present_mask & (1u << port)) != 0;
 }
+
+/* The native NTFS library keeps mount metadata across USB events.
+ * A connected port with a previously mounted-but-unreadable BDISO (or an
+ * observed detach edge) must be treated as a NEW mount, not as a healthy
+ * volume. This pure decision helper is tested against real hotplug cycles. */
+int bdiso_usb_mount_action(int physically_present, int previous_mount,
+                           int detach_observed, int bdiso_readable)
+{
+    if (!physically_present) return BDUSB_DISCONNECTED;
+    if (!previous_mount) return BDUSB_MOUNT_NEW;
+    if (detach_observed || !bdiso_readable) return BDUSB_RESET_REMOUNT;
+    return BDUSB_KEEP_MOUNT;
+}
