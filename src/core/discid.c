@@ -86,6 +86,51 @@ int discid_cue_first_file(const char *cue_path, const char *txt, size_t len, cha
     return 0;
 }
 
+/* PS1 filename serial fallback for dumps that lack ISO9660 metadata,
+ * including .chd/.pbp and CUE dumps with unusual layouts. Only trust
+ * unambiguous PlayStation serial prefixes followed by exactly five digits;
+ * never guess a serial from a game's display title. The cover downloader
+ * still rejects custom ROM hacks that reuse the base game's serial. */
+static int ps1_serial_prefix(const char *p)
+{
+    static const char *const known[]={
+        "SLUS","SCUS","SLES","SCES","SLPS","SLPM","SCPS","SIPS",
+        "SLKA","SLED","SCED","PAPX","PCPX","PEPX","PBPX","SCAJ",
+        "SLSA","CPCS","ESPM","PSRM"
+    };
+    int k;
+    for(k=0;k<SF_ARRAY_LEN(known);k++)
+        if(sf_strnicmp(p,known[k],4)==0)return 1;
+    return 0;
+}
+static int ps1_filename_serial(const char *path,char *out,size_t cap)
+{
+    const char *base=path,*p;
+    if(!path)return 0;
+    for(p=path;*p;p++)if(*p=='/'||*p=='\\')base=p+1;
+    for(p=base;*p;p++) {
+        const char *q;
+        int digits=0,skip=0;
+        if(p>base && (sf_isalpha(p[-1])||sf_isdigit(p[-1])))continue;
+        if(strlen(p)<9 || !ps1_serial_prefix(p))continue;
+        q=p+4;
+        /* Common forms SLUS00594, SLUS-00594 and SLUS_005.94.
+         * Allow one separator before digits and one in a 3+2 split.
+         * Do not interpret other longer alphanumeric sequences as IDs. */
+        if(*q=='-'||*q=='_'||*q==' '){q++;skip++;}
+        for(;*q&&digits<5;q++){
+            if(sf_isdigit(*q))digits++;
+            else if((*q=='.'||*q=='-'||*q=='_')&&digits==3&&skip<2)
+                skip++;
+            else break;
+        }
+        if(digits!=5 || sf_isalpha(*q)||sf_isdigit(*q))continue;
+        if(title_normalize_id(p,(size_t)(q-p),out,cap))return 1;
+    }
+    if(cap)out[0]='\0';
+    return 0;
+}
+
 /* ------------------------------------------------------------------ */
 /* ISO 9660                                                            */
 
@@ -204,7 +249,8 @@ int discid_read(int plat, const char *path, int is_dir, ReadAtFn rd, void *ctx, 
         return ok;
     }
     if (is_dir) return 0;
-    if (sf_ends_with_i(path, ".enc") || sf_ends_with_i(path, ".chd") || sf_ends_with_i(path, ".pbp")) return 0;
+    if (sf_ends_with_i(path, ".enc") || sf_ends_with_i(path, ".chd") || sf_ends_with_i(path, ".pbp"))
+        return plat==PLAT_PS1 ? ps1_filename_serial(path,out,cap) : 0;
     buf = (unsigned char *)malloc(SECTOR);
     if (!buf) return 0;
     sf_strlcpy(img, path, sizeof(img));
@@ -215,6 +261,8 @@ int discid_read(int plat, const char *path, int is_dir, ReadAtFn rd, void *ctx, 
     iso.rd = rd; iso.ctx = ctx; iso.path = img;
     if (iso_open(&iso, buf) == 0) ok = psx_id(&iso, buf, out, cap);
     free(buf);
+    if(!ok && plat==PLAT_PS1)
+        ok=ps1_filename_serial(path,out,cap);
     if (!ok) out[0] = '\0';
     return ok;
 }
