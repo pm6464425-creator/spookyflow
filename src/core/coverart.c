@@ -794,6 +794,54 @@ int cover_dl_urls(int plat, const char *id, char out[][COVER_URL_MAX], int max)
     return n;
 }
 
+/* Libretro/RetroArch public PlayStation boxarts: the filename, including
+ * the original region/disc qualifiers, is the lookup key. This can resolve
+ * PS1 .cue sets when the ISO9660 GAME SERIAL could not be extracted, without
+ * guessing a different regional serial or modifying the source disc.
+ * Source: https://thumbnails.libretro.com/Sony%20-%20PlayStation/Named_Boxarts/
+ */
+int cover_dl_ps1_title_url(const char *game_path,char *out,size_t cap)
+{
+    static const char base[]=
+        "https://thumbnails.libretro.com/Sony%20-%20PlayStation/Named_Boxarts/";
+    static const char hexdigits[]="0123456789ABCDEF";
+    const char *p,*stem;
+    char title[FS_NAME_MAX+1];
+    size_t i,n,pos;
+    if(!out||cap==0)return 0;
+    out[0]='\0';
+    if(!game_path||cover_name_is_custom(game_path))return 0;
+    stem=strrchr(game_path,'/');
+    stem=stem?stem+1:game_path;
+    sf_strlcpy(title,stem,sizeof(title));
+    while(strip_one_ext(title)){}
+    n=strlen(title);
+    if(n<3 || n>=FS_NAME_MAX || strlen(base)+n+5>=cap)return 0;
+    sf_strlcpy(out,base,cap);
+    pos=strlen(out);
+    for(i=0;i<n;i++) {
+        unsigned char c=(unsigned char)title[i];
+        /* RetroArch's boxart filenames substitute these invalid chars. */
+        if(c=='&'||c=='*'||c=='/'||c==':'||c=='<'||c=='>'||
+           c=='?'||c=='\\'||c=='|'||c=='"')
+            c='_';
+        if(sf_isalpha((char)c)||sf_isdigit((char)c)||
+           c=='-'||c=='_'||c=='.'||c=='('||c==')') {
+            if(pos+6>=cap)return 0;
+            out[pos++]=(char)c;
+        }else {
+            if(pos+8>=cap)return 0;
+            out[pos++]='%';
+            out[pos++]=hexdigits[c>>4];
+            out[pos++]=hexdigits[c&15];
+        }
+    }
+    p=".png";
+    if(pos+strlen(p)+1>cap)return 0;
+    strcpy(out+pos,p);
+    return 1;
+}
+
 /* Only manually provided artwork and NEW theatrical posters count.
  * The V11-13 edition photographs contain plastic Blu-ray cases; never
  * consider them completed artwork for this version. */
