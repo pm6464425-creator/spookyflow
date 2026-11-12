@@ -41,6 +41,11 @@ jobs:
         run: python3 tests/test_bdiso_cover_diagnostics.py
       - name: Public no-key BDISO cover regression checks (22)
         run: python3 tests/test_bdiso_keyless_covers.py
+      - name: BDISO actual movie download button and HTTP checks (20)
+        run: python3 tests/test_bdiso_real_download.py
+      - name: Public movie catalog live network smoke test (not PS3 hardware)
+        continue-on-error: true
+        run: python3 tests/test_bdiso_live_source.py
       - name: 30 identity and cover regression checks
         run: python3 tests/test_custom_identity.py
       - name: Render preview PNGs
@@ -105,14 +110,14 @@ jobs:
       # GitHub release assets can be downloaded directly (without Actions
       # artifact ZIP/login) unlike some sandbox links in the chat client.
       - name: Publish direct-download PS3 PKG release
-        if: github.ref == 'refs/heads/fix/bdiso-keyless-cinemeta-covers'
+        if: github.ref == 'refs/heads/fix/bdiso-real-cover-download'
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp spookyflow.pkg MI_PKG_V5.pkg
-          gh release create mi-pkg-v5 MI_PKG_V5.pkg --target "$GITHUB_SHA" \
-            --title "MI PKG V5 - BDISO portadas sin clave" \
+          cp spookyflow.pkg MI_PKG_V6.pkg
+          gh release create mi-pkg-v6 MI_PKG_V5.pkg --target "$GITHUB_SHA" \
+            --title "MI PKG V6 - BDISO descarga de caratulas corregida" \
             --notes "Portadas BDISO automáticas con Cinemeta sin clave como respaldo; conserva PS3, PS2, PS1, lector NTFS, Cobra y estuche PS3/Blu-ray. Requiere pruebas de conexión en consola."
 
   ps3-pkg-docker:
