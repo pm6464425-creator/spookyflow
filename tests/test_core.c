@@ -1839,6 +1839,7 @@ int main(void)
     test_imgscale();
     test_font_and_draw();
     test_discid();
+    test_ps1_covers_serial_and_sources();
     test_cover_lookup();
     test_bdiso_real_download();
     test_bdiso_flowmovie_manual_cover_paths();
