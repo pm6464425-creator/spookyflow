@@ -49,6 +49,7 @@ int sf_bdntfs_index_online(const unsigned char *data, size_t len)
 
 static ntfs_md *s_mount[8];
 static int s_count[8];
+static int s_last_mount_rc[8]; /* 0 = no mount attempted yet */
 /* FLOW MOVIE scans every partition of each attached USB device.  Keep the
  * partition containing /BDISO, not an arbitrary first partition. */
 static int s_partition[8] = {-1,-1,-1,-1,-1,-1,-1,-1};
@@ -69,6 +70,7 @@ static void bd_release_port(int u,int physical_removed)
     }
     s_count[u]=0;
     s_partition[u]=-1;
+    s_last_mount_rc[u]=0;
     PS3_NTFS_Shutdown(u);
 }
 
@@ -114,6 +116,7 @@ int sf_bdntfs_start(void)
         }
         s_partition[u]=-1;
         n=ntfsMountDevice(s_devices[u],&s_mount[u],NTFS_DEFAULT | NTFS_RECOVER);
+        s_last_mount_rc[u]=n;
         if(n>0 && s_mount[u]) {
             s_count[u]=n;
             s_partition[u]=bd_find_partition(u);
@@ -133,6 +136,13 @@ int sf_bdntfs_start(void)
     }
     return good;
 }
+void sf_bdntfs_probe_port(int port,int *nparts,int *bd_partition,int *last_mount_rc)
+{
+    if(nparts)*nparts=(port>=0&&port<8)?s_count[port]:0;
+    if(bd_partition)*bd_partition=(port>=0&&port<8)?s_partition[port]:-1;
+    if(last_mount_rc)*last_mount_rc=(port>=0&&port<8)?s_last_mount_rc[port]:0;
+}
+
 int sf_bdntfs_has_port(int port)
 {
     return port>=0 && port<8 && s_count[port]>0 &&
