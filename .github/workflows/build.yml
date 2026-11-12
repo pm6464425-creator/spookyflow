@@ -60,6 +60,8 @@ jobs:
           ./build-host/test_movie_edition
       # Includes the V13 regular-poster migration, Spanish-first policy,
       # manually supplied cover priority and the watermark-only visual gate.
+      - name: BDISO cinema 2:3 geometry and strict movie-identity regressions
+        run: python3 tests/test_bdiso_v15.py
       - name: SensaCine theatrical poster HTML parsing tests (real examples)
         run: |
           mkdir -p build-host
@@ -165,14 +167,14 @@ jobs:
       # GitHub release assets can be downloaded directly (without Actions
       # artifact ZIP/login) unlike some sandbox links in the chat client.
       - name: Publish direct-download PS3 PKG release
-        if: github.ref == 'refs/heads/fix/bdiso-sensacine-theatrical-posters'
+        if: github.ref == 'refs/heads/fix/bdiso-cinema-2by3-strict-recognition'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp spookyflow.pkg MI_PKG_V14_CINE_POSTERS.pkg
-          gh release create mi-pkg-v14-cine-posters MI_PKG_V14_CINE_POSTERS.pkg --target "$GITHUB_SHA" \
-            --title "MI PKG V14 - Carteles de cine sin estuche" \
-            --notes "CORRECCION: SensaCine CARTEL cinematografico plano en espanol (como Avatar aportado), nunca imagen fotografiada con caja Blu-ray. Se quita fuente Mubis de ediciones en disco y se ignoran las portadas con caja de V11-V13 sin borrarlas. Se guardan carteles en BDISO/COVERS/CINE con nombre del ISO. Prioridad manual junto al ISO o BDISO/COVERS/MANUAL. Fallback TMDB ES / Cinemeta EN si SensaCine falla. El estuche propio conserva Blu-ray y marca pequena 3D al otro lado solo para ISOs 3D. Se mantiene arreglo de la 4a pestana y NTFS, pruebas del parser y PKG; prueba final sobre PS3 pendiente."
+          cp spookyflow.pkg MI_PKG_V15_CINE_2X3_RIO_FIX.pkg
+          gh release create mi-pkg-v15-cine-2x3-rio-fix MI_PKG_V15_CINE_2X3_RIO_FIX.pkg --target "$GITHUB_SHA" \
+            --title "MI PKG V15 - Portadas 2x3 y reconocimiento correcto" \
+            --notes "V15: corrige SOLO BDISO para carteles de cine 2:3: estrecha el estuche, aplica recorte proporcional centrado sin estirar ni crear franjas negras. Reconocimiento por nombre exacto + ano y ficha oficial Rio (2011) ID SensaCine 146550; descarta Extraño rio 2025 y Rio 2 2014. Mejora verificacion TMDB y Cinemeta. Nuevas caratulas en BDISO/COVERS/POSTERS con nombre del ISO, sin sobrescribir JPG antiguos. Mantiene estuche con marcas pequenas Blu-ray y 3D, compatibilidad NTFS, 4a pestana y juegos PS1/PS2/PS3 sin modificar. PKG y tests verificados; comprobacion real en PS3 pendiente."
 
   ps3-pkg-docker:
     needs: host-tests
