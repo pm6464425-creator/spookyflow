@@ -1632,6 +1632,93 @@ static void test_native_ntfs_bdiso_without_lv2_root(void)
     g_hotplug_mask=0;
 }
 
+/* V15.7 reproduces the ACTUAL USB000 reconnect failure recorded on
+ * the user's PS3: ntfsMountDevice=0 six times, then mount succeeds.
+ * The original FlowMovie 3D retries physical NTFS insertion on subsequent
+ * 45-frame ticks (source/main.cpp::refresh_usb_state). The scan roots MUST
+ * not be frozen at 0 before the successful mount.
+ */
+static int g_delayed_ntfs_probes;
+static int g_delayed_ntfs_ready_after;
+static uint32_t delayed_native_ready(void)
+{
+    g_delayed_ntfs_probes++;
+    if(g_delayed_ntfs_probes<=g_delayed_ntfs_ready_after)return 0;
+    return g_hotplug_mask;
+}
+static void test_flowmovie_delayed_usb_mount(int delayed_probes)
+{
+    AppHost host;
+    int base_n, diag_before;
+    (void)scanner_default_roots(&base_n);
+    printf("FlowMovie USB000 delayed NTFS mount: %d failures, then success\\n",delayed_probes);
+    memset(&host,0,sizeof(host));
+    host.fs_list=test_native_lv2_invisible; /* lv2 USB000 invisible */
+    host.usb_media_mask=test_usb_mask;
+    host.native_bdiso_ready_mask=delayed_native_ready;
+    host.usb_diag=mock_usb_diag;
+    g_hotplug_mask=0;
+    g_usb_diag_events=0;
+    g_delayed_ntfs_ready_after=delayed_probes;
+    g_delayed_ntfs_probes=0;
+    app_init(&g_app,&g_lib,&host);
+    run_frames(0,LOAD_MIN_TIME+2.0f);
+    CHECK(g_app.mode==MODE_FLOW && g_lib.tab[PLAT_BDISO].count==0);
+    diag_before=g_usb_diag_events;
+    CHECK(diag_before==1);
+    g_delayed_ntfs_probes=0; /* count actual insertion attempts only */
+    g_hotplug_mask=1;
+    g_app.tab=PLAT_BDISO;
+    run_frames(0,1.65f);
+    CHECK(g_app.mode==MODE_LOADING);
+    run_frames(0,1.20f);
+    CHECK(g_app.mode==MODE_LOADING); /* two failures don't freeze scan */
+    CHECK(g_usb_diag_events==diag_before);
+    /* 12 in-loading attempts plus ongoing FlowMovie-style retries if needed.
+     * A slow-but-real USB mount MUST recover without a fresh insertion edge. */
+    run_frames(0,24.0f);
+    CHECK(g_delayed_ntfs_probes>=delayed_probes+1);
+    CHECK(g_app.mode==MODE_FLOW);
+    CHECK(g_lib.tab[PLAT_BDISO].count==4);
+    CHECK(g_app.scanner.nroots==base_n+1);
+    CHECK(g_app.tab==PLAT_BDISO);
+    CHECK(g_app.usb_ntfs_pending_mask==0);
+    CHECK(g_usb_diag_events>=diag_before+1);
+    /* Then unplug: the port and its movies must disappear automatically. */
+    g_hotplug_mask=0;
+    run_frames(0,1.65f);
+    run_frames(0,3.0f);
+    CHECK(g_app.mode==MODE_FLOW);
+    CHECK(g_lib.tab[PLAT_BDISO].count==0);
+    CHECK(g_app.usb_ntfs_pending_mask==0);
+}
+static void test_flowmovie_missing_bdiso_does_not_hang(void)
+{
+    AppHost host;
+    printf("FlowMovie USB without NTFS BDISO: bounded initial wait\\n");
+    memset(&host,0,sizeof(host));
+    host.fs_list=test_native_lv2_invisible;
+    host.usb_media_mask=test_usb_mask;
+    host.native_bdiso_ready_mask=delayed_native_ready;
+    g_hotplug_mask=0;
+    g_delayed_ntfs_ready_after=99999; /* present USB, but no BDISO partition */
+    g_delayed_ntfs_probes=0;
+    app_init(&g_app,&g_lib,&host);
+    run_frames(0,LOAD_MIN_TIME+2.0f);
+    g_delayed_ntfs_probes=0;
+    g_hotplug_mask=1;
+    run_frames(0,1.65f);
+    run_frames(0,10.0f);
+    CHECK(g_app.mode==MODE_FLOW);
+    CHECK(g_lib.tab[PLAT_BDISO].count==0);
+    CHECK(g_app.usb_ntfs_pending_mask==1);
+    g_hotplug_mask=0;
+    run_frames(0,1.65f);
+    run_frames(0,3.0f);
+    CHECK(g_app.mode==MODE_FLOW);
+    CHECK(g_app.usb_ntfs_pending_mask==0);
+}
+
 /* V15.6: the native NTFS driver has a separate mount lifecycle from
  * physical presence. The previous V15.5 tests only simulated USB masks and
  * missed stale libntfs mount metadata across a real detach/reconnect. */
@@ -1758,6 +1845,9 @@ int main(void)
     test_usb_movie_hotplug();
     test_native_ntfs_bdiso_without_lv2_root();
     test_native_ntfs_reconnect_decisions();
+    test_flowmovie_delayed_usb_mount(6);
+    test_flowmovie_delayed_usb_mount(15);
+    test_flowmovie_missing_bdiso_does_not_hang();
     test_usb_index_presence();
     test_ntfs_movie_pointer_fallback();
     test_bdiso_cinema_crop_fill();
