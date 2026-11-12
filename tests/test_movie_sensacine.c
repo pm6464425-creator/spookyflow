@@ -36,6 +36,34 @@ int main(void)
  C(!movie_sensacine_pick(avatar,"Thor",poster,sizeof(poster)));
  C(!movie_sensacine_fullsize("https://evil.example.com/c_310_420/a.jpg",original,sizeof(original)));
  C(!movie_sensacine_pick(avatar,"Avatar",poster,4));
+ {
+  const char *search=
+   "<li class=\"mdl\"><img data-src=\"https://es.web.img3.acsta.net/c_310_420/img/estranho.jpg\" "
+    "alt=\"Cartel de Extraño río\" /><span class=\"date\">3 de octubre de 2025</span></li>"
+   "<li class=\"mdl\"><img data-src=\"https://es.web.img3.acsta.net/c_310_420/img/rio2.jpg\" "
+    "alt=\"Cartel de Rio 2\" /><span class=\"date\">4 de abril de 2014</span></li>"
+   "<li class=\"mdl\"><img data-src=\"https://es.web.img3.acsta.net/c_310_420/img/rio2011.jpg\" "
+    "alt=\"Cartel de Rio\" /><span class=\"date\">8 de abril de 2011</span></li>";
+  C(movie_sensacine_pick_year(search,"Rio",2011,poster,sizeof(poster)));
+  C(strstr(poster,"rio2011.jpg")!=NULL);
+  C(!movie_sensacine_pick_year(search,"Rio",2025,poster,sizeof(poster)));
+  C(movie_sensacine_pick_year(search,"Rio 2",2014,poster,sizeof(poster)));
+  C(strstr(poster,"rio2.jpg")!=NULL);
+  C(!movie_sensacine_pick_year(search,"Rio",2016,poster,sizeof(poster)));
+  C(!movie_title_exact("Extraño río","Rio"));
+  C(movie_title_exact("Río","Rio"));
+  C(!movie_title_exact("Rio 2","Rio"));
+  {
+   const char *page=
+    "<meta property=\"og:title\" content=\"Rio\" />"
+    "<meta property=\"og:image\" content=\"https://es.web.img3.acsta.net/pictures/rio_blue_sky_2011.jpg\" />"
+    "<p>Año de producción</p><p>2011</p>";
+   C(movie_sensacine_page_poster(page,"Rio",2011,poster,sizeof(poster)));
+   C(strstr(poster,"rio_blue_sky_2011.jpg")!=NULL);
+   C(!movie_sensacine_page_poster(page,"Rio",2025,poster,sizeof(poster)));
+   C(!movie_sensacine_page_poster(page,"Extraño río",2011,poster,sizeof(poster)));
+  }
+ }
  printf("SensaCine flat movie poster parser: %d passed, %d failed\n",passed,failed);
  return failed?1:0;
 }
