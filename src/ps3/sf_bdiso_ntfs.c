@@ -8,6 +8,10 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <malloc.h>
+#include <unistd.h>
+#include <cobra.h>
+#include "util.h"
 #include <ntfs.h>
 #include "sf_bdiso_ntfs.h"
 #include "log.h"
@@ -177,4 +181,80 @@ int sf_bdntfs_mkdir(const char *path)
     if(!strstr(path,"/BDISO/COVERS") ||
        !sf_bdntfs_path(path,native,sizeof(native))) return -1;
     return ps3ntfs_mkdir(native,0777);
+}
+
+
+/* The exact sector-list format and EMU_BD value are inherited from
+ * FLOW MOVIE 3D's validated raw_iso.sprx implementation. This works
+ * independently of webMAN's .ntfs[BDISO] index once a free VSH plugin
+ * slot is available. It never calls cobra_unload_vsh_plugin(). */
+typedef struct {
+    uint64_t device;
+    uint32_t emu_mode;
+    uint32_t num_sections;
+    uint32_t num_tracks;
+} __attribute__((packed)) SfRawIsoArgs;
+
+#define SF_BD_RAWISO_PATH "/dev_hdd0/game/SPKF00001/USRDIR/raw_iso.sprx"
+#define SF_BD_RAWISO_BUF 0x10000u
+#define SF_BD_RAWISO_MAX ((int)((SF_BD_RAWISO_BUF - sizeof(SfRawIsoArgs)) / 8u))
+
+int sf_bdntfs_mount_raw_iso(const char *path)
+{
+    char native[512];
+    struct stat st;
+    void *plugin_args=NULL;
+    uint32_t *sectors=NULL, *counts=NULL;
+    SfRawIsoArgs *args;
+    int port,nparts,slot,rc=-21,success=0;
+    const unsigned int candidate_slots[]={6,5,4,3,2,1};
+    unsigned int k;
+
+    if(!path || strncmp(path,"/dev_usb00",10)!=0 ||
+       path[10]<'0'||path[10]>'7' || path[11]!='/' ||
+       !strstr(path,"/BDISO/") || !sf_ends_with_i(path,".iso")) return -1;
+    port=path[10]-'0';
+    if(!sf_bdntfs_has_port(port) ||
+       !sf_bdntfs_path(path,native,sizeof(native))) return -2;
+    if(ps3ntfs_stat(native,&st)!=0 || st.st_size<2048) return -3;
+    if(stat(SF_BD_RAWISO_PATH,&st)!=0) {
+        log_printf("bdiso: missing embedded raw_iso.sprx");
+        return -4;
+    }
+    plugin_args=memalign(128,SF_BD_RAWISO_BUF);
+    sectors=(uint32_t*)malloc(SF_BD_RAWISO_MAX*sizeof(uint32_t));
+    counts=(uint32_t*)malloc(SF_BD_RAWISO_MAX*sizeof(uint32_t));
+    if(!plugin_args || !sectors || !counts) {rc=-5;goto cleanup;}
+    memset(plugin_args,0,SF_BD_RAWISO_BUF);
+    nparts=ps3ntfs_file_to_sectors(native,sectors,counts,SF_BD_RAWISO_MAX,1);
+    if(nparts<=0 || nparts>=SF_BD_RAWISO_MAX) {
+        log_printf("bdiso: NTFS sector map invalid/fragmented (%d)",nparts);
+        rc=-6;goto cleanup;
+    }
+    args=(SfRawIsoArgs*)plugin_args;
+    args->device=USB_MASS_STORAGE(port);
+    args->emu_mode=EMU_BD;
+    args->num_sections=(uint32_t)nparts;
+    args->num_tracks=0;
+    memcpy((uint8_t*)plugin_args+sizeof(SfRawIsoArgs),
+           sectors,(size_t)nparts*sizeof(uint32_t));
+    memcpy((uint8_t*)plugin_args+sizeof(SfRawIsoArgs)+
+           (size_t)nparts*sizeof(uint32_t),
+           counts,(size_t)nparts*sizeof(uint32_t));
+    /* IMPORTANT: Never unload slot 0 (webMAN) or any occupied plugin.
+       A failed load leaves the occupied slot untouched. */
+    for(k=0;k<sizeof(candidate_slots)/sizeof(candidate_slots[0]);k++){
+        slot=(int)candidate_slots[k];
+        rc=cobra_load_vsh_plugin((unsigned int)slot,(char*)SF_BD_RAWISO_PATH,
+                                  plugin_args,SF_BD_RAWISO_BUF);
+        if(rc==0){
+            log_printf("bdiso: raw ISO mounted USB%03d via free Cobra plugin slot %d (%d extents)",
+                       port,slot,nparts);
+            success=1;break;
+        }
+    }
+    if(!success) log_printf("bdiso: raw ISO plugin could not load, rc=%d",rc);
+cleanup:
+    free(plugin_args);free(sectors);free(counts);
+    return success?0:(rc?rc:-21);
 }
