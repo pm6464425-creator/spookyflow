@@ -25,7 +25,7 @@ tests=[
     ("HTTP logger does not include full API key query", "host=%.*s" in art and "width<80" in art),
     ("Generic HTTPS requests accept JSON and images", r"Accept: */*\r\n" in http),
     ("No direct HDD movie cover writes", "movie_usb_write" in art),
-    ("Existing cover stays preferred", 'if(ps3_fs_is_file(NULL,cover))return 1;' in art),
+    ("Existing JPEG is preserved and PNG is written separately", "if(repair)continue;" in art and "movie_usb_write(coverpng,port,jpeg,bytes)" in art),
     ("No candidates produce trace", "no poster candidates" in art),
     ("Rejected JPEG produces trace", "returned no usable JPEG" in art),
     ("USB output write failure produces trace", "USB write failed" in art),
