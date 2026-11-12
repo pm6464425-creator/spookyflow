@@ -41,6 +41,20 @@ static unsigned char g_scratch[UI_SCRATCH_BYTES];
 static volatile int g_sys_exit;
 static int g_saved_on_exit;
 
+/* Poll presence without touching native NTFS mount handles or files.
+ * Port 0..7: native storage probe for NTFS; 0..10: LV2 sysFs FAT drives. */
+static uint32_t usb_media_mask(void)
+{
+    uint32_t mask=sf_bdntfs_usb_present_mask();
+    int port;
+    for(port=0;port<SCAN_USB_PORTS;port++){
+        char path[24];
+        snprintf(path,sizeof(path),"/dev_usb%03d",port);
+        if(ps3_fs_exists(path))mask |= (uint32_t)1u<<port;
+    }
+    return mask;
+}
+
 static double now_seconds(void)
 {
     u64 sec = 0, nsec = 0;
@@ -316,6 +330,8 @@ int main(int argc, const char *argv[])
     host.read_wm_config = read_wm_config;
     host.read_at = ps3_read_at;
     host.ntfs_refresh = ntfs_refresh;
+    host.usb_media_mask = usb_media_mask;
+    host.ntfs_bdiso_online = sf_bdntfs_index_online;
     host.music_dir = SF_MUSIC_DIR;
     host.bg_dir = SF_BG_DIR;
     host.load_bg_image = ps3_load_bg_image;
