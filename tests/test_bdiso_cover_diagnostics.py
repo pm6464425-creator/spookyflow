@@ -14,10 +14,10 @@ main=rd("src/ps3/main.c")
 scan=rd("src/core/scanner.c")
 ntfs=rd("src/ps3/sf_bdiso_ntfs.c")
 tests=[
-    ("TMDB 32-char v3 credential still required", 'k!=32' in art and 'isxdigit' in art),
+    ("TMDB v3 key validation preserved when configured", 'k!=32' in art and 'isxdigit' in art),
     ("OMDb metadata credential still supported", '"OMDB_KEY.TXT"' in art),
-    ("Missing keys logged explicitly", 'no valid TMDB_KEY.TXT (32 hex)' in art),
-    ("Missing keys do not consume a retry", art.index("if(attempted(iso_path))")>art.index("if(!tmdb[0] && !omdb[0])")),
+    ("Missing keys trigger public lookup", 'trying keyless public movie catalog' in art),
+    ("Retry guard runs after optional API-key checks", art.index("if(attempted(iso_path))")>art.index("if(!tmdb[0] && !omdb[0])")),
     ("Reset retry function available", 'void sf_bdiso_reset_attempts(void)' in art and 'void sf_bdiso_reset_attempts(void);' in art_h),
     ("Reset clears attempted path hashes", 'memset(s_attempted,0,sizeof(s_attempted))' in art),
     ("Rescan Library triggers reset", "sf_bdiso_reset_attempts();" in main),
