@@ -209,6 +209,16 @@ static int load_case(int plat, const char *path)
     layout_set_case_image(plat, (float)w, (float)h,
                           g[2] / g[0] * (float)w, g[3] / g[1] * (float)h, g[4] / g[0] * (float)w, g[5] / g[1] * (float)h);
     ui_set_case_image(plat, TEX_CASE_PS1 + plat);
+    if (plat == PLAT_PS3) {
+        /* BDISO borrows PS3's exact case texture AND its matching cover
+         * window geometry, including user-customized PS3 cases. Reusing
+         * the texture avoids RSX memory duplication and changes no games. */
+        layout_set_case_image(PLAT_BDISO, (float)w, (float)h,
+                              g[2] / g[0] * (float)w, g[3] / g[1] * (float)h,
+                              g[4] / g[0] * (float)w, g[5] / g[1] * (float)h);
+        ui_set_case_image(PLAT_BDISO, TEX_CASE_PS3);
+        log_printf("cases: BDISO reuses the PS3 case image and cover window");
+    }
     log_printf("cases: using %s (%ux%u)", path, (unsigned)w, (unsigned)h);
     return 1;
 }
