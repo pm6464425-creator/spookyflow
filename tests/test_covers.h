@@ -280,6 +280,84 @@ static void test_discid(void)
     memfs_reset();
 }
 
+/* PS1-only regression: game serial fallback and the verified xlenore
+ * cover collection. PS2/PS3 URLs and the finished BDISO path stay untouched. */
+static void test_ps1_covers_serial_and_sources(void)
+{
+    char id[16],urls[COVER_DL_URLS][COVER_URL_MAX];
+    unsigned char *disc;
+    uint32_t len;
+    int n;
+    const char *multi_cue=
+        "REM COMMENT Multi-file game\n"
+        "FILE \"Audio Track.bin\" BINARY\n"
+        "  TRACK 01 AUDIO\n"
+        "    INDEX 01 00:00:00\n"
+        "FILE \"Data Track.bin\" BINARY\n"
+        "  TRACK 02 MODE2/2352\n"
+        "    INDEX 01 00:00:00\n";
+    printf("PS1 covers: serial fallback, multi-file CUE and xlenore URLs\\n");
+    memfs_reset();
+
+    /* Explicit serials on formats not currently parsed as ISO9660. */
+    CHECK(discid_read(PLAT_PS1,"/dev_hdd0/PSXISO/Metal Gear Solid (USA) [SLUS-00594].chd",
+                      0,mem_read_at,NULL,id,sizeof(id)));
+    CHECK_STR(id,"SLUS00594");
+    CHECK(discid_read(PLAT_PS1,"/dev_hdd0/PSXISO/SCUS-94900 Crash Bandicoot.pbp",
+                      0,mem_read_at,NULL,id,sizeof(id)));
+    CHECK_STR(id,"SCUS94900");
+    CHECK(discid_read(PLAT_PS1,"/dev_hdd0/PSXISO/SLUS_005.94 Metal Gear Solid.cue",
+                      0,mem_read_at,NULL,id,sizeof(id)));
+    CHECK_STR(id,"SLUS00594");
+    CHECK(discid_read(PLAT_PS1,"/dev_hdd0/PSXISO/Game [SLPS-12345].bin",
+                      0,mem_read_at,NULL,id,sizeof(id)));
+    CHECK_STR(id,"SLPS12345");
+    CHECK(!discid_read(PLAT_PS1,"/dev_hdd0/PSXISO/SLUS-005940 Invalid.bin",
+                       0,mem_read_at,NULL,id,sizeof(id)));
+    CHECK(!discid_read(PLAT_PS1,"/dev_hdd0/PSXISO/NotSCUS-94900.bin",
+                       0,mem_read_at,NULL,id,sizeof(id)));
+    CHECK(!discid_read(PLAT_PS1,"/dev_hdd0/PSXISO/Unknown Game.bin",
+                       0,mem_read_at,NULL,id,sizeof(id)));
+    CHECK(!discid_read(PLAT_PS2,"/dev_hdd0/PS2ISO/SLUS-20914.chd",
+                       0,mem_read_at,NULL,id,sizeof(id)));
+
+    /* Older implementation incorrectly opened Audio Track.bin and could
+     * never recover the real data-track game's serial. */
+    disc=make_disc("BOOT = cdrom:\\SLUS_005.94;1\r\n",NULL,1,&len);
+    memfs_put("/dev_hdd0/PSXISO/Audio Track.bin","audio",5);
+    memfs_put("/dev_hdd0/PSXISO/Data Track.bin",disc,len);
+    memfs_put("/dev_hdd0/PSXISO/Multitrack.cue",multi_cue,
+              (uint32_t)strlen(multi_cue));
+    free(disc);
+    CHECK(discid_read(PLAT_PS1,"/dev_hdd0/PSXISO/Multitrack.cue",
+                      0,mem_read_at,NULL,id,sizeof(id)));
+    CHECK_STR(id,"SLUS00594");
+
+    /* Source documented at github.com/xlenore/psx-covers.
+     * Use the exact real serial, not fuzzy title or modified game's ID. */
+    n=cover_dl_urls(PLAT_PS1,"SLUS00594",urls,COVER_DL_URLS);
+    CHECK(n==4);
+    CHECK_STR(urls[0],
+        "https://raw.githubusercontent.com/xlenore/psx-covers/main/covers/default/SLUS-00594.jpg");
+    CHECK_STR(urls[1],
+        "https://rpdbs3.gerbilsoft.com/ps1/cover/SLUS/SLUS-00594.jpg");
+    CHECK_STR(urls[2],
+        "http://rpdb.gerbilsoft.com/ps1/cover/SLUS/SLUS-00594.jpg");
+    CHECK_STR(urls[3],
+        "http://gamecovers.free.fr/download.php?file=SLUS_005.94.jpg");
+    CHECK(cover_dl_urls(PLAT_PS1,"NOT-A-SERIAL",urls,COVER_DL_URLS)==0);
+    n=cover_dl_urls(PLAT_PS2,"SLUS20914",urls,COVER_DL_URLS);
+    CHECK(n>0);
+    CHECK_STR(urls[0],
+        "http://gamecovers.free.fr/download.php?file=SLUS_209.14.jpg");
+    n=cover_dl_urls(PLAT_PS3,"BLUS30443",urls,COVER_DL_URLS);
+    CHECK(n>0);
+    CHECK_STR(urls[0],
+        "http://gamecovers.free.fr/download.php?file=BLUS30443.jpg");
+    CHECK(cover_dl_urls(PLAT_BDISO,"SLUS00594",urls,COVER_DL_URLS)==0);
+    memfs_reset();
+}
+
 static int cand_has(const CoverCand *c, int n, const char *base)
 {
     int i;
