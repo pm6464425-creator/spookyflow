@@ -1,80 +1,61 @@
-# Portadas BDISO 3D: cuatro proveedores y comunidades
+# Portadas BDISO automáticas para SpookyFlow
 
-Esta integración amplía el buscador de posters de la versión «MI PKG V2».
-No cambia el lector NTFS, el montaje Cobra, el carrusel, el estuche PS3
-ni el logotipo Blu-ray. **La coincidencia exacta de edición comercial
-3D no puede garantizarse por el nombre de la película solamente.**
+## Comportamiento
 
-## Descarga automática de pósteres (prioridad)
+1. Si ya existe una carátula manual, se utiliza sin descargar otra. Compatible
+   con JPG/PNG junto al ISO o en «BDISO/COVERS», por ejemplo
+   «BDISO/COVERS/2009 Avatar 3D-001.jpg».
+2. Para una película marcada como 3D, se busca una **carátula frontal de una
+   edición Blu-ray 3D española** en Mubis, que publica esas ediciones.
+   Como respaldo, se consultan algunas ediciones 3D españolas verificadas
+   de Blu-ray.com.
+3. Si falta la española, se intentan **carátulas 3D inglesas** de ediciones
+   de Blu-ray.com verificadas (título y año). Hay una tabla de ediciones
+   conocidas: no es un buscador universal.
+4. Si falla la búsqueda 3D, se utiliza una **portada normal en español**:
+   TMDB (si hay clave personal) y ediciones españolas normales de Mubis.
+5. Finalmente se busca la **portada normal en inglés**, mediante otras
+   fuentes configuradas o Cinemeta sin clave.
 
-**Sin crear cuentas ni claves:** si las fuentes configuradas no encuentran una portada,
-la aplicación consulta el catálogo público **Cinemeta/Stremio** mediante HTTPS,
-compara título y año con el ISO y guarda una carátula en el USB NTFS.
-No promete el diseño exacto de la edición Blu-ray 3D de cada país.
-Es un servicio externo que puede cambiar o limitar las consultas.
+Las imágenes se descargan como JPG frontal, **sin marco/estuche incluido
+artificialmente por la app**. El estuche PS3/Blu-ray de SpookyFlow queda
+exactamente como antes: no se agrega franja ni texto «BLU-RAY 3D» sobre
+él. Una ficha comercial marcada 3D es una referencia de edición, pero
+no hay OCR de la propia foto: algunos diseños pueden no llevar un sello 3D
+visible en la imagen. Una portada manual tiene prioridad siempre.
 
-1. **TMDB** — se usa primero el póster en español, después su póster
-   estándar si no hay más alternativas. Necesita la clave que ya
-   utilizaba la aplicación: «BDISO/COVERS/TMDB_KEY.TXT».
-2. **Fanart.tv** — posters de su API oficial mediante el TMDB ID.
-   Clave opcional de **proyecto**:
-   «BDISO/COVERS/FANART_KEY.TXT».
-   Si dispones de una clave **personal**, colócala en
-   «BDISO/COVERS/FANART_PERSONAL_KEY.TXT».
-   La API de fanart.tv usa «client_key» para las claves personales.
-3. **OMDb** — posters registrados en su API, como respaldo.
-   Clave opcional «BDISO/COVERS/OMDB_KEY.TXT».
-   *El servicio específico de posters de alta resolución de OMDb
-   requiere un plan autorizado; las URLs devueltas por la API pueden
-   estar limitadas por el proveedor.*
-4. **MoviePosterDB** — URL estable por identificador IMDb;
-   «BDISO/COVERS/MOVIEPOSTERDB_KEY.TXT» con token propio
-   «mpdb_pk_...». La cuenta gratuita puede limitar la resolución
-   a unos 200 píxeles, por eso se usa como último respaldo.
+## Almacenamiento
 
-Las claves API son **opcionales**: Cinemeta permite probar búsquedas
-sin claves. TMDB y OMDb proporcionan fuentes adicionales cuando tienes
-credenciales propias. No se incluyen claves personales en el PKG.
+Con «/dev_usb000/BDISO/2009 Avatar 3D-001.iso» se guarda:
 
-En la aplicación se respetan, por orden: **la portada elegida
-manualmente** y la portada descargada ya existente. El proceso no
-sobrescribe deliberadamente las portadas guardadas.
+  /dev_usb000/BDISO/COVERS/2009 Avatar 3D-001.jpg
 
-## Ediciones Blu-ray 3D y foros
+La misma imagen se reconoce al volver a abrir SpookyFlow. No se cambia
+el nombre de la ISO ni se escriben portadas originales en el HDD interno.
+Si ya has copiado una foto manual junto al ISO con el mismo nombre sin
+«.iso», SpookyFlow también la lee.
 
-La API de TMDB y los proveedores de posters no documentan de manera
-fiable todas las ediciones comerciales 3D. Para títulos cuyo archivo
-ISO incluya «3D», la aplicación crea:
+El código anterior creaba ficheros «.sources.txt» con enlaces a foros:
+**ya no se crean esos archivos**. No son imágenes.
 
-  BDISO/COVERS/<nombre exacto de la ISO sin .iso>.sources.txt
+## Fuentes y claves
 
-Incluye enlaces de búsqueda a estas fuentes:
-- Catálogo de lanzamientos: https://www.blu-ray.com/
-- Foro de carátulas: https://forum.blu-ray.com/showthread.php?t=100007
-- Comunidad de diseño de carátulas: https://www.covercity.net/
-- Foro español con apartado BluRay 3D: https://www.swarzycustom.com/
+- Ediciones 3D españolas: https://www.mubis.es/
+- Ediciones 3D españolas/inglesas verificadas: https://www.blu-ray.com/
+- Póster normal en español opcional: https://www.themoviedb.org/
+- Otros pósteres opcionales: https://fanart.tv/ , https://www.omdbapi.com/
+- Último recurso sin clave: https://v3-cinemeta.strem.io/
 
-Se usan búsquedas web por título, año y «3D Blu-ray»; **la PS3 no
-realiza scraping de foros**, descarga imágenes protegidas ni presume
-que una carátula genérica es la edición 3D exacta. Si escoges una imagen
-de esas comunidades, verifica permisos y coloca el archivo JPG en:
+«TMDB_KEY.TXT», «FANART_KEY.TXT», «OMDB_KEY.TXT» y
+«MOVIEPOSTERDB_KEY.TXT» siguen siendo opcionales y nunca están
+incluidos en el PKG. Las conexiones a sitios externos pueden fallar
+o cambiar. Se respetan las restricciones del proveedor de imágenes;
+no se imitan credenciales, se fuerzan bloqueos ni se rehostean portadas.
 
-  BDISO/COVERS/<nombre exacto de la ISO sin .iso>.jpg
+## Pruebas
 
-Por ejemplo, «Avatar (2009) 3D.iso» usa
-«BDISO/COVERS/Avatar (2009) 3D.jpg».
-
-La descarga automática guarda en el **mismo disco USB** los JPG
-y títulos (archivos .title), sin usar el HDD interno para arte original.
-
-## Fuentes públicas oficiales (consulta)
-
-- TMDB: https://developer.themoviedb.org/reference/movie-images
-- fanart.tv: https://api.fanart.tv/
-- OMDb: https://www.omdbapi.com/
-- MoviePosterDB: https://movieposterdb.com/embed/docs
-
-**Estado de las pruebas**: el CI verifica compilación e invariantes
-de integración. El acierto de portada por proveedor, autenticación
-personal, conexión HTTPS desde PS3 y montaje real siguen requiriendo
-una prueba en consola y con las claves del propietario.
+Las pruebas incluyen la selección de ediciones originales 3D,
+rechazo de imágenes no confiables, conservación de carátulas manuales,
+títulos en español, decodificación de JPEG progresivo, NTFS y
+compilación PS3. **La reproducción y conexión reales deben
+comprobarse en la consola del usuario**.
