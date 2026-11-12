@@ -40,7 +40,7 @@ checks={
  "25 PS1 texture dimensions": '*w = 384; *h = 384;' in art,
  "26 PS2 texture dimensions": '*w = 320; *h = 448;' in art,
  "27 PS3 texture dimensions": '*w = 384; *h = 448;' in art,
- "28 aspect scaling unchanged": 'cover_process(rgba, w, h, cover_art_aspect' in art,
+ "28 original PS1 PS2 PS3 scaling unchanged": 'cover_process(rgba,w,h,cover_art_aspect(j->plat)' in art and 'cover_process_impl(rgba,w,h,aspect,dst,tw,th,0)' in art,
  "29 Cobra registration unchanged": 'host.launch_ps3 = sf_cobra_mount_ps3;' in main,
  "30 original webMAN fallback": 'host.launch = launch_via_webman;' in main,
 }
