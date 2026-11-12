@@ -27,6 +27,7 @@
 #include "ps3_platform.h"
 #include "sf_cobra_mount.h"
 #include "sf_bdiso_ntfs.h"
+#include "sf_bdiso_art.h"
 #include "util.h"
 #include "ui.h"
 
@@ -161,6 +162,7 @@ static int ntfs_refresh(void)
     char resp[600];
     const char *p;
     int games = -1;
+    sf_bdiso_reset_attempts();
     if (ps3_webman_get_wait("/refresh.ps3?prepntfs", 180, resp, sizeof(resp)) != 0) return -1;
     p = strstr(resp, "NTFS VOLUMES:");
     log_printf("ntfs: webMAN: %.120s", p ? p : resp);
