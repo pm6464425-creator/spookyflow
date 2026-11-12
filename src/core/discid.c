@@ -234,6 +234,40 @@ static int ps3_folder_id(ReadAtFn rd, void *ctx, const char *path, char *out, si
     return ok;
 }
 
+/* A multi-file PlayStation CUE can list an AUDIO FILE before the actual
+ * data track. The previous routine always followed the first FILE and
+ * discarded a valid disc serial if it contained audio. Select the FILE
+ * preceding the first MODE1/MODE2 data TRACK. Retain legacy first-FILE
+ * fallback for simple/partial CUE sheets with no TRACK declarations. */
+static int ps1_cue_data_file(const char *cue_path,const char *txt,size_t len,
+                             char *out,size_t cap)
+{
+    char current[600]="";
+    size_t i=0;
+    while(i<len) {
+        size_t end=i,p=i;
+        while(end<len && txt[end]!='\n' && txt[end]!='\r')end++;
+        while(p<end && (txt[p]==' ' || txt[p]=='\t'))p++;
+        if(end-p>5 && sf_strnicmp(txt+p,"FILE",4)==0 &&
+           (txt[p+4]==' '||txt[p+4]=='\t')) {
+            if(!discid_cue_first_file(cue_path,txt+p,end-p,current,sizeof(current)))
+                current[0]='\0';
+        } else if(current[0] && end-p>10 && sf_strnicmp(txt+p,"TRACK",5)==0) {
+            size_t q;
+            for(q=p+5;q+5<end;q++) {
+                if(sf_strnicmp(txt+q,"MODE1/",6)==0 ||
+                   sf_strnicmp(txt+q,"MODE2/",6)==0) {
+                    sf_strlcpy(out,current,cap);
+                    return 1;
+                }
+            }
+        }
+        i=end;
+        while(i<len && (txt[i]=='\n'||txt[i]=='\r'))i++;
+    }
+    return discid_cue_first_file(cue_path,txt,len,out,cap);
+}
+
 int discid_read(int plat, const char *path, int is_dir, ReadAtFn rd, void *ctx, char *out, size_t cap)
 {
     char img[600];
@@ -251,12 +285,16 @@ int discid_read(int plat, const char *path, int is_dir, ReadAtFn rd, void *ctx, 
     if (is_dir) return 0;
     if (sf_ends_with_i(path, ".enc") || sf_ends_with_i(path, ".chd") || sf_ends_with_i(path, ".pbp"))
         return plat==PLAT_PS1 ? ps1_filename_serial(path,out,cap) : 0;
-    buf = (unsigned char *)malloc(SECTOR);
+    buf = (unsigned char *)malloc(sf_ends_with_i(path,".cue") ? 8192u : SECTOR);
     if (!buf) return 0;
     sf_strlcpy(img, path, sizeof(img));
     if (sf_ends_with_i(path, ".cue")) {
-        int n = rd(ctx, path, 0, buf, SECTOR - 1);
-        if (n <= 0 || !discid_cue_first_file(path, (const char *)buf, (size_t)n, img, sizeof(img))) { free(buf); return 0; }
+        int n = rd(ctx, path, 0, buf, 8191u);
+        if (n <= 0 || !ps1_cue_data_file(path,(const char *)buf,(size_t)n,
+                                         img,sizeof(img))) {
+            free(buf);
+            return plat==PLAT_PS1 ? ps1_filename_serial(path,out,cap) : 0;
+        }
     }
     iso.rd = rd; iso.ctx = ctx; iso.path = img;
     if (iso_open(&iso, buf) == 0) ok = psx_id(&iso, buf, out, cap);
