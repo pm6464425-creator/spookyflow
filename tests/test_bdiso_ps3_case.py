@@ -15,7 +15,7 @@ main = src("src/ps3/main.c")
 scanner = src("src/core/scanner.c")
 art = src("src/ps3/sf_bdiso_art.c")
 
-before_overlay, after_overlay = ui.split('/* Blu-ray films retain the PS3 case texture.', 1)
+before_overlay, after_overlay = ui.split('/* Keep the original PS3-shaped case and the subtle Blu-ray text.', 1)
 checks = [
     ("BDISO remains the fourth tab", '"BDISO"' in ui),
     ("PS3 case texture remains loaded normally", "ui_set_case_image(plat, TEX_CASE_PS1 + plat);" in tabimg),
@@ -28,9 +28,9 @@ checks = [
     ("solid blue old banner removed", "0x277BE6FFu" not in ui and "0x08357CFFu" not in ui),
     ("old blue side spine removed", "0x4C9EE5FFu" not in ui and "0x103E79FFu" not in ui),
     ("BDISO placeholder has no extra blue header", "if (plat != PLAT_BDISO)" in ui),
-    ("Blu-ray fallback watermark retained", '"Blu-ray",ALIGN_CENTER' in after_overlay),
-    ("Blu-ray fallback watermark is translucent", "alpha*0.68f" in after_overlay),
-    ("3D edition visibly labeled on case", '"BLU-RAY 3D"' in after_overlay),
+    ("Blu-ray fallback watermark retained", '"Blu-ray", ALIGN_CENTER' in after_overlay),
+    ("Blu-ray fallback watermark is translucent", "alpha * 0.68f" in after_overlay),
+    ("No unwanted 3D stripe on the case", '"BLU-RAY 3D"' not in after_overlay),
     ("3D filename recognition retained", "static int movie_3d" in art),
     ("movie and game mounts still separate", "host.launch_bdiso" in main and "host.launch_ps3" in main),
     ("NTFS reader still included", "int sf_bdntfs_start(void)" in ntfs),
