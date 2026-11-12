@@ -60,6 +60,8 @@ jobs:
           ./build-host/test_movie_edition
       # Includes the V13 regular-poster migration, Spanish-first policy,
       # manually supplied cover priority and the watermark-only visual gate.
+      - name: Real PS3 V15.4 NTFS root discovery regression and hotplug integration
+        run: python3 tests/test_native_bdiso_root.py
       - name: PS3 forensic USB/NTFS diagnostic report invariants
         run: python3 tests/test_usb_diagnostics.py
       - name: V15.3 restore valid BDISO NTFS index entries (unreadable legacy headers)
@@ -244,6 +246,16 @@ jobs:
           gh release create spookyflow-v15-4-diagnostico-usb-ntfs SPOOKYFLOW_V15_4_DIAGNOSTICO_USB_NTFS.pkg --target "$GITHUB_SHA" \
             --title "SpookyFlow V15.4 - Diagnostico real USB/NTFS/BDISO" \
             --notes "Compilacion de diagnostico de solo lectura. Guarda /dev_hdd0/tmp/spookyflow/diagnostico_usb_ntfs.txt con los resultados reales de los puertos USB, montajes NTFS, carpetas BDISO, webMAN y escaneo de la biblioteca. No altera archivos externos ni cambia algoritmos de reconocimiento V15.3. Pruebas host y PKG completadas; se necesita el TXT de la PS3 para identificar el problema concreto."
+
+      - name: Publish direct V15.5 native USB BDISO detection fix
+        if: github.ref == 'refs/heads/fix/bdiso-native-root-discovery-v15-5'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp spookyflow.pkg SPOOKYFLOW_V15_5_RECONOCIMIENTO_NTFS_REAL.pkg
+          gh release create spookyflow-v15-5-native-bdiso-root-fix SPOOKYFLOW_V15_5_RECONOCIMIENTO_NTFS_REAL.pkg --target "$GITHUB_SHA" \
+            --title "SpookyFlow V15.5 - Detecta BDISO NTFS visible solo en libntfs" \
+            --notes "Corrige el problema identificado por diagnostico_usb_ntfs.txt de PS3: NTFS USB000 montado, cuatro ISO en BDISO leidos por libntfs, pero SCANNER_USB_MOVIE_ROOTS=0. Al preparar la biblioteca, detecta particiones BDISO NTFS realmente montadas e incorpora su raiz aunque /dev_usb000 no exista en lv2. Mantiene retirada/reconexion USB, correccion Bajo el mar (2009), carteles 2:3 y las otras plataformas. Incluye diagnostico en /dev_hdd0/tmp/spookyflow/diagnostico_usb_ntfs.txt. Pruebas simuladas del fallo y compilacion verificadas; confirmar comportamiento final en PS3."
 
   ps3-pkg-docker:
     needs: host-tests
