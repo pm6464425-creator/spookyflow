@@ -13,13 +13,17 @@
 #define SF_COVER_CACHE_H
 
 #include <stdint.h>
+#include "layout.h"  /* PLAT_COUNT: PS1, PS2, PS3 and BDISO */
 
 #define CC_MAX_SLOTS        64
 #define CC_DEFAULT_BUDGET   64     /* slots in use */
 #define CC_MAIN_WINDOW      30     /* games kept around the selection of the shown tab */
 #define CC_SIDE_WINDOW      15     /* ...and around the selection of each other tab, so a
                                       tab switch shows covers at once */
-#define CC_TABS             3
+/* Critical: keep cover-cache tab count synchronized with the library.
+ * A stale value of 3 made cc_update() reject BDISO (platform index 3),
+ * so it never requested any movie cover from the already downloaded JPGs. */
+#define CC_TABS             PLAT_COUNT
 #define CC_LOADS_PER_FRAME  4
 #define CC_GPU_FRAMES       3
 
