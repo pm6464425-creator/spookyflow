@@ -7,6 +7,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/systime.h>
 #include "ps3_platform.h"
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
@@ -19,13 +20,24 @@
 #define MOVIE_PATH_MAX 512
 static uint64_t s_attempted[64];
 static unsigned s_attempt_index;
+/* The visible-case loader and Download Missing Covers can run on different
+ * threads. Only one movie download may access its NTFS artwork and retry
+ * table at a time. This prevents partially-written JPG files. */
+static volatile int s_art_busy;
+static void art_lock(void)
+{
+    while (__sync_lock_test_and_set(&s_art_busy,1)) sysUsleep(1000);
+}
+static void art_unlock(void) { __sync_lock_release(&s_art_busy); }
 /* Called on Rescan Library: release per-session failed lookups so a newly
  * configured API key or temporary network failure can be retried. */
 void sf_bdiso_reset_attempts(void)
 {
+    art_lock();
     memset(s_attempted,0,sizeof(s_attempted));
     s_attempt_index=0;
-    log_printf("bdiso: poster lookup attempts reset by Rescan Library");
+    art_unlock();
+    log_printf("bdiso: poster lookup attempts reset for retry");
 }
 
 static uint64_t hash_key(const char *s)
@@ -472,7 +484,7 @@ static int movie_from_cinemeta(const char *json,const char *query,int year,
     return 1;
 }
 
-int sf_bdiso_ensure_art(const char *iso_path)
+static int sf_bdiso_ensure_art_locked(const char *iso_path)
 {
     char dir[MOVIE_PATH_MAX],stem[256],cover[MOVIE_PATH_MAX],titlepath[MOVIE_PATH_MAX];
     char tmdb[80]="",fanart[100]="",fanart_client[100]="",omdb[100]="",mpdb[140]="";
@@ -683,4 +695,14 @@ done:
                    stem,status);
     free(jpeg);free(json);
     return status;
+}
+
+/* Serialize downloading and USB writes across the two cover workers. */
+int sf_bdiso_ensure_art(const char *iso_path)
+{
+    int result;
+    art_lock();
+    result=sf_bdiso_ensure_art_locked(iso_path);
+    art_unlock();
+    return result;
 }
