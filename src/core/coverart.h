@@ -112,7 +112,7 @@ void  cover_cache_stem(const char *cache_dir, int plat, const char *game_path, u
  * The PS3's own SSL is too old for most sites, so HTTPS needs a build with
  * its own TLS; a source that only answers over HTTPS is reported once. */
 #define COVER_DL_DIR       "/dev_hdd0/tmp/spookyflow/downloaded"
-#define COVER_URL_MAX      200
+#define COVER_URL_MAX      512
 #define COVER_DL_MAX_BYTES (3u * 1024u * 1024u)
 #define COVER_DL_URLS      8
 
@@ -147,6 +147,9 @@ typedef struct {
 
 /* The URLs to try for a game, best first. Returns the count. */
 int  cover_dl_urls(int plat, const char *id, char out[][COVER_URL_MAX], int max);
+/* PS1: exact filename+region fallback from Libretro's official boxart CDN.
+ * No guessed game ID or fuzzy regional matching; percent-encode path safely. */
+int  cover_dl_ps1_title_url(const char *game_path,char *out,size_t cap);
 /* 1 if the game already has a cover (cache or any lookup folder). */
 int  cover_has_art(const CoverIO *io, int plat, const char *path, int is_dir, uint64_t size, const char *id);
 /* Thread body: goes through d->item, sets d->finished at the end. */
