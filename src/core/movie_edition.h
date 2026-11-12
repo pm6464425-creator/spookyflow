@@ -6,5 +6,6 @@
 #include <stddef.h>
 int movie_edition_slug(const char *title,char *out,size_t cap);
 int movie_edition_mubis_html(const char *page,char *poster,size_t cap);
+int movie_edition_mubis_normal_html(const char *page,char *poster,size_t cap);
 int movie_edition_bluray_id(const char *title,int year,int spanish);
 #endif
