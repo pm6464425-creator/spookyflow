@@ -632,6 +632,49 @@ static void test_cover_cache(void)
     CHECK(cc_resident_count(&cc) == CC_LOADS_PER_FRAME);
 }
 
+/* Regression for the actual PS3 V11 report: 23 JPGs had been written,
+ * yet ALL BDISO covers showed PANTALLA_SIN and no SOLICITUD.  BDISO was tab
+ * index 3 while the cache still supported only three tabs (0..2). */
+static int g_movie_tab_loads;
+static int movie_tab_mock_loader(void *ctx,int tab,int index,int slot,CcSlot *s)
+{
+    (void)ctx;(void)slot;(void)s;
+    if(tab==PLAT_BDISO && index>=0)g_movie_tab_loads++;
+    return CC_LOADING;
+}
+static void test_bdiso_cache_fourth_tab(void)
+{
+    CoverCache cc;
+    int f,slot,i;
+    printf("BDISO fourth tab cover cache regression\n");
+    CHECK(CC_TABS==PLAT_COUNT);
+    CHECK(PLAT_BDISO==3);
+    g_movie_tab_loads=0;
+    cc_init(&cc,CC_DEFAULT_BUDGET,movie_tab_mock_loader,NULL);
+    cc_set_side(&cc,PLAT_PS1,0,3);
+    cc_set_side(&cc,PLAT_PS2,0,3);
+    cc_set_side(&cc,PLAT_PS3,0,3);
+    cc_set_side(&cc,PLAT_BDISO,1,26);
+    for(f=0;f<12;f++)cc_update(&cc,PLAT_BDISO,1,26);
+    CHECK(g_movie_tab_loads>=26);
+    CHECK(cc_resident_count(&cc)>=26);
+    slot=cc_lookup(&cc,PLAT_BDISO,1); /* 2009 Avatar 3D-001 */
+    CHECK(slot>=0);
+    if(slot>=0) {
+        CHECK(cc.slot[slot].state==CC_LOADING);
+        cc_mark(&cc,slot,200+slot); /* simulate PS3 decoded texture */
+        CHECK(cc.slot[slot].state==CC_READY);
+        CHECK(cc.slot[slot].tex==200+slot);
+        CHECK(cc_lookup(&cc,PLAT_BDISO,1)==slot);
+    }
+    for(i=0;i<26;i++)CHECK(cc_lookup(&cc,PLAT_BDISO,i)>=0);
+    /* Game tabs must retain their behavior when BDISO is active. */
+    for(f=0;f<12;f++)cc_update(&cc,PLAT_PS3,1,4);
+    CHECK(cc_lookup(&cc,PLAT_PS3,1)>=0);
+    for(f=0;f<12;f++)cc_update(&cc,PLAT_BDISO,1,26);
+    CHECK(cc_lookup(&cc,PLAT_BDISO,1)>=0);
+}
+
 /* ------------------------------------------------------------------ */
 /* Fake filesystem for the scanner */
 typedef struct { const char *dir; const char *name; int is_dir; uint64_t size; } FakeEnt;
@@ -1395,6 +1438,7 @@ int main(void)
     test_input_repeat();
     test_hold_exit();
     test_cover_cache();
+    test_bdiso_cache_fourth_tab();
     test_scanner();
     test_app();
     test_sfo();
