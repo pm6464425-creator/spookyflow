@@ -60,6 +60,8 @@ jobs:
           ./build-host/test_movie_edition
       # Includes the V13 regular-poster migration, Spanish-first policy,
       # manually supplied cover priority and the watermark-only visual gate.
+      - name: V15.7 FlowMovie native NTFS retry and real hardware log regression
+        run: python3 tests/test_flowmovie_native_retry.py
       - name: V15.6 native NTFS detach and reconnection recovery regressions
         run: python3 tests/test_bdiso_reconnect.py
       - name: Real PS3 V15.4 NTFS root discovery regression and hotplug integration
@@ -268,6 +270,16 @@ jobs:
           gh release create spookyflow-v15-6-ntfs-reconnect-fix SPOOKYFLOW_V15_6_RECONECTA_USB_NTFS.pkg --target "$GITHUB_SHA" \
             --title "SpookyFlow V15.6 - Reconexion automatica USB NTFS" \
             --notes "V15.6: recupera el montaje nativo libntfs al retirar y volver a conectar el disco. Registra la desconexion fisica, invalida montajes NTFS obsoletos y remonta la particion BDISO si su acceso falla. Incluye diagnostico_usb_ntfs.txt en /dev_hdd0/tmp/spookyflow, mantiene portadas 2:3 y correcciones V15.5. Pruebas de host y PKG completadas; la confirmacion con USB real en PS3 sigue pendiente."
+
+      - name: Publish direct-download V15.7 FlowMovie USB NTFS auto-reconnect fix
+        if: github.ref == 'refs/heads/fix/flowmovie-ntfs-retry-v15-7'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp spookyflow.pkg SPOOKYFLOW_V15_7_FLOWMOVIE_NTFS_RECONNECT.pkg
+          gh release create spookyflow-v15-7-flowmovie-ntfs-retry SPOOKYFLOW_V15_7_FLOWMOVIE_NTFS_RECONNECT.pkg --target "$GITHUB_SHA" \
+            --title "SpookyFlow V15.7 - Reconexion NTFS basada en FlowMovie 3D" \
+            --notes "Implementacion comparada con fuente original FlowMovie 3D source/main.cpp (refresh_usb_state). Corrige falla real PS3: tras conectar USB, ntfsMountDevice fallo 6 veces y solo despues monto la particion, cuando scan roots ya se habia fijado a cero. V15.7 reintenta en intervalos antes de construir rutas BDISO y continua recuperacion mientras disco siga conectado. Los lectores de carpetas ya no montan NTFS de forma oculta. Mantiene PS1/PS2/PS3, caratulas y diagnostico en /dev_hdd0/tmp/spookyflow/diagnostico_usb_ntfs.txt. Pruebas y compilacion automatizada verificables; pendiente prueba USB fisica."
 
   ps3-pkg-docker:
     needs: host-tests
