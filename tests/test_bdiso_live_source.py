@@ -1,34 +1,35 @@
 #!/usr/bin/env python3
-"""Non-blocking live source smoke test. Runs on GitHub (NOT on PS3 hardware)."""
-import json,urllib.parse,urllib.request,urllib.error
+"""Live metadata + real production C parser + JPEG, from GitHub runner only."""
+import json, subprocess, tempfile, urllib.parse, urllib.request
+from pathlib import Path
 from urllib.parse import urlparse
 
-movie="Avatar"
-url="https://v3-cinemeta.strem.io/catalog/movie/top/search="+urllib.parse.quote(movie)+".json"
-h={"User-Agent":"spookyflow/MI-PKG (PS3)","Accept":"*/*","Accept-Encoding":"identity"}
-try:
-    req=urllib.request.Request(url,headers=h)
-    with urllib.request.urlopen(req,timeout=18) as resp:
-        body=resp.read(600_000)
-        print("Catalog:",resp.status,"final host:",urlparse(resp.geturl()).hostname,
-              "type:",resp.headers.get("Content-Type"),
-              "encoding:",resp.headers.get("Transfer-Encoding"),
-              "bytes:",len(body))
-    d=json.loads(body)
-    metas=d.get("metas",[])
-    assert metas, "no movie results returned"
-    matches=[x for x in metas if x.get("name","").lower()=="avatar"]
-    assert matches, f"search returned {len(metas)} but no Avatar"
-    poster=matches[0].get("poster")
-    assert poster and poster.startswith("https://")
-    print("Movie:",matches[0].get("name"),"artwork host:",urlparse(poster).hostname)
-    with urllib.request.urlopen(urllib.request.Request(poster,headers=h),timeout=18) as resp:
-        head=resp.read(64)
-        print("Poster:",resp.status,"final host:",urlparse(resp.geturl()).hostname,
-              "content type:",resp.headers.get("Content-Type"),
-              "first bytes:",head[:8].hex())
-    assert head.startswith(b"\xff\xd8\xff"),"poster endpoint did not return JPEG"
-    print("PASS: real public catalog and JPEG poster available from GitHub runner")
-except Exception as exc:
-    print("LIVE SOURCE UNAVAILABLE:",type(exc).__name__,str(exc))
-    raise
+h={"User-Agent":"spookyflow/MI-PKG (PS3)",
+   "Accept":"*/*","Accept-Encoding":"identity"}
+exe=Path("build-host/movie_catalog_cli")
+subprocess.run(["cc","-std=c99","-O2","-Wall","-Wextra","-Werror",
+                "-Isrc/core","src/core/movie_catalog.c",
+                "tests/movie_catalog_cli.c","-o",str(exe)],check=True)
+
+for movie,year in [("Avatar",2009),("Thor",2011),("Shrek",2001),("Dredd",2012)]:
+    url="https://v3-cinemeta.strem.io/catalog/movie/top/search="+urllib.parse.quote(movie)+".json"
+    with urllib.request.urlopen(urllib.request.Request(url,headers=h),timeout=20) as resp:
+        raw=resp.read(600_000)
+        assert resp.status==200
+        print("Live catalog:",movie,"bytes:",len(raw),
+              "encoding:",resp.headers.get("Transfer-Encoding"))
+    parsed=json.loads(raw)
+    assert parsed.get("metas"),"No results from public catalog"
+    with tempfile.NamedTemporaryFile(suffix=".json") as f:
+        f.write(raw);f.flush()
+        subprocess.run([str(exe),f.name,movie,str(year)],check=True,timeout=8)
+    if movie=="Avatar":
+        item=next(m for m in parsed["metas"]
+                  if m.get("name","").lower()=="avatar" and m.get("poster"))
+        poster=item["poster"]
+        with urllib.request.urlopen(urllib.request.Request(poster,headers=h),timeout=20) as resp:
+            head=resp.read(64)
+            print("Live poster:",resp.status,"host:",urlparse(resp.geturl()).hostname,
+                  "first bytes:",head[:8].hex())
+            assert head.startswith(b"\xff\xd8\xff")
+print("PASS: shipping C parser matched 4 real public API responses and a real JPEG")
