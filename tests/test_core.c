@@ -1465,7 +1465,17 @@ static void test_bdiso_flowmovie_manual_cover_paths(void)
 /* Physical USB attach/detach integration: BDISO must follow the disk, with
  * the flow remaining on the fourth tab and without a manual rescan. */
 static uint32_t g_hotplug_mask;
+static int g_usb_diag_events,g_usb_diag_last_bd;
 static uint32_t test_usb_mask(void) { return g_hotplug_mask; }
+static void mock_usb_diag(const char *phase,const Library *lib,
+                          const Scanner *scanner,uint32_t mask)
+{
+    (void)phase;(void)mask;
+    g_usb_diag_events++;
+    g_usb_diag_last_bd=lib->tab[PLAT_BDISO].count;
+    CHECK(scanner->done==1);
+    CHECK(scanner->found[PLAT_BDISO]>=g_usb_diag_last_bd);
+}
 static int test_usb_list(void *ctx, const char *dir, FsEntry *out, int max)
 {
     (void)ctx;
@@ -1493,6 +1503,8 @@ static void test_usb_movie_hotplug(void)
     memset(&host,0,sizeof(host));
     host.fs_list=test_usb_list;
     host.usb_media_mask=test_usb_mask;
+    host.usb_diag=mock_usb_diag;
+    g_usb_diag_events=0;g_usb_diag_last_bd=-1;
     g_hotplug_mask=0;
     app_init(&g_app,&g_lib,&host);
     run_frames(0,LOAD_MIN_TIME+2.0f);
@@ -1526,6 +1538,8 @@ static void test_usb_movie_hotplug(void)
     CHECK(g_app.mode==MODE_FLOW);
     CHECK(g_lib.tab[PLAT_BDISO].count==1);
     CHECK(g_lib.tab[PLAT_PS3].count==ps3_before);
+    CHECK(g_usb_diag_events==4); /* startup + attach + detach + attach */
+    CHECK(g_usb_diag_last_bd==1);
     g_hotplug_mask=0;
 }
 
