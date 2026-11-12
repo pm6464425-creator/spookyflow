@@ -19,6 +19,7 @@ tests=[
     ("TMDB imagery endpoint preserved", "/3/movie/%d/images" in art),
     ("Fanart.tv provider present", "https://webservice.fanart.tv/v3.2/movies/" in art),
     ("Fanart API credential optional", 'movie_key(dir,"FANART_KEY.TXT"' in art),
+    ("Fanart personal key supported", 'movie_key(dir,"FANART_PERSONAL_KEY.TXT"' in art and "client_key=%s" in art),
     ("Fanart prioritizes Spanish movie posters", "movieposter" in art and 'sf_stricmp(lang,"es")' in art),
     ("OMDb metadata/poster fallback present", "https://www.omdbapi.com/" in art),
     ("OMDb optional credential on external disk", 'movie_key(dir,"OMDB_KEY.TXT"' in art),
