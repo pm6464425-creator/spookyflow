@@ -1,34 +1,43 @@
-# SpookyFlow V14 — CARTEL DE PELÍCULA, no caja Blu-ray
+# SpookyFlow V15 — Ajuste BDISO 2:3 y reconocimiento estricto
 
-## Corrección del problema de V13
+## Corrección 1: estuche y carátula sin franjas
 
-La fuente «2D-ES-Mubis» publicaba imágenes de carátulas de ediciones Blu-ray. Aunque no fueran 3D, incluían el **estuche fotografiado dentro del JPG**, que SpookyFlow volvía a meter dentro de su propio estuche.
+El código anterior dibujaba los carteles de cine en una ventana de proporción aproximada **260:300 (0,867)**, demasiado ancha para un cartel cinematográfico. Si la diferencia superaba el 20 %, añadía franjas oscuras.
 
-**V14 elimina por completo esa fuente** y ya no muestra las imágenes descargadas de ediciones Blu-ray en V11–V13. Se conservan en el USB; no se borran ni modifican.
+**V15 cambia únicamente la geometría de BDISO:** el área visible es ahora **2:3 (0,667)**. El estuche exterior se estrecha proporcionalmente. Se sigue reutilizando la misma textura de estuche Blu-ray sin tocar los estuches de PS1, PS2 o PS3.
 
-## De dónde vienen las portadas nuevas
+La imagen se adapta mediante **recorte centrado proporcional**: llena todo el espacio sin bordes añadidos y sin deformar ni estirar actores ni letras. Si un cartel tiene una proporción diferente, se recorta un poco de los lados o de arriba/abajo. Si la fotografía original ya trae franjas negras impresas dentro, el recorte no garantiza eliminarlas.
 
-1. **Primero SensaCine España:** busca el título de la película y recoge exclusivamente el JPG de la entrada etiquetada «Cartel de [título]». Acepta nombres completos o una traducción conocida; rechaza secuelas que no coincidan, imágenes de actores, fotos de rodaje, fotogramas, carteles genéricos y sitios externos no autorizados. Es un **póster cinematográfico plano**, como el Avatar de ejemplo.
-2. Si está configurada una clave **TMDB**, los pósteres de cine en español de TMDB son una segunda fuente.
-3. Si SensaCine o TMDB no pueden ofrecer ese cartel, el programa utiliza carteles de cine de otros catálogos (MoviePosterDB, fanart.tv, OMDb) o **Cinemeta sin clave** como respaldo. El idioma puede ser inglés.
-4. El texto «3D» aparece únicamente como **marca de agua discreta en el extremo izquierdo del estuche**, frente a «Blu-ray» a la derecha, y solo para las películas cuyos ISO indican 3D. No hay bandas ni cajas en el propio JPG.
+Conserva las discretas marcas «Blu-ray» y «3D» sobre el estuche; no las dibuja dentro del JPG.
 
-## Carpeta nueva y migración automática
+## Corrección 2: identificar la película correcta, no palabras parecidas
 
-Los carteles descargados se guardan en:
+**Río, 2011** (Carlos Saldanha, Blue Sky Studios) es una película distinta de **Extraño río, 2025**. V14 podía encontrar la segunda porque la búsqueda aceptaba coincidencias por terminación en títulos cortos y el listado de SensaCine muestra numerosos resultados antes de Río.
 
-`/dev_usb000/BDISO/COVERS/CINE/2009 Avatar 3D-001.jpg`
+**V15:**
+- Extrae el año desde el nombre del ISO, sin confundir el sufijo `3D-001` con el año.
+- El nombre `Rio` (o `Río`) sin año se identifica como la película de **2011** para esta biblioteca.
+- Utiliza la ficha cinematográfica original de SensaCine: `https://www.sensacine.com/peliculas/pelicula-146550/` para Río, y verifica el título y año.
+- Para otros títulos usa coincidencia exacta de nombre y comprueba el año que aparece en el resultado de SensaCine. No acepta otra película porque termine en la misma palabra.
+- También verifica **título y año** de los resultados de TMDB antes de descargar sus carteles; Cinemeta continúa comprobando el año.
+- Si una coincidencia no puede verificarse, prefiere no asignar una carátula equivocada.
 
-Esa ruta mantiene el mismo nombre del ISO, pero **no reutiliza** la carpeta NORMAL de V13 porque allí había fotos de productos Blu-ray.
+## Carpeta nueva V15
 
-Para utilizar tu propia imagen, puedes guardar un JPG/PNG plano junto al ISO, por ejemplo `/dev_usb000/BDISO/2009 Avatar 3D-001.jpg`, o ponerlo en `BDISO/COVERS/MANUAL/` con el mismo nombre. La imagen manual tiene prioridad sobre la descargada.
+Las nuevas portadas cinematográficas se escriben en:
 
-Los JPG antiguos en `BDISO/COVERS/` y `BDISO/COVERS/NORMAL/` **se conservan en el disco, pero esta versión no los carga** porque pueden tener estuche. No es necesario borrarlos ni reinstalar ISO. SpookyFlow busca nuevamente las portadas de las películas en su primera ejecución o al pulsar «Download Missing Covers».
+`/dev_usb000/BDISO/COVERS/POSTERS/2011 Rio 3D-001.jpg`
 
-## Diagnóstico
+Los carteles anteriores de V14 en `BDISO/COVERS/CINE` no tienen prioridad ni bloquean la búsqueda y los JPG de V11–V13 con caja Blu-ray tampoco. Ninguno de los archivos anteriores se borra.
 
-Si no puede obtener una imagen, no copia de nuevo el viejo JPG con caja para fingir que la carátula está arreglada. Se muestra la tarjeta con el título y se mantiene el informe real de la consola:
+Una imagen manual personalizada colocada junto al ISO o en `BDISO/COVERS/MANUAL` sigue teniendo prioridad. Conserva el mismo nombre de la película sin `.iso`.
+
+Las portadas de cine normales vienen de SensaCine en español; TMDB en español, Cinemeta y otros proveedores siguen como respaldo. El acceso a internet depende de la conexión de PS3 y de las fuentes externas.
+
+## Prueba
+
+Instala el PKG, abre BDISO, ejecuta **Download Missing Covers** y comprueba especialmente `Río (2011)`. La ruta de diagnóstico sigue disponible:
 
 `/dev_hdd0/tmp/spookyflow/diagnostico_portadas.txt`
 
-La disponibilidad de SensaCine es externa y no se garantiza si la web cambia o hay problemas de conexión en PS3. El programa conserva las protecciones de rutas, montaje NTFS y lectura de las películas originales.
+Las pruebas de compilación y los tests de C no sustituyen la verificación visual en una PS3 física.
