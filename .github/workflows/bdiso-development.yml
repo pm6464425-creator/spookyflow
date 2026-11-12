@@ -1,0 +1,19 @@
+name: BDISO integration source snapshot
+on:
+  push:
+    branches: [feature/bdiso-spookyflow-integrated]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export source for integration audit
+        run: zip -qr spookyflow-source.zip src tests tools Makefile README.md .github/workflows || true
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spookyflow-bdiso-source-snapshot
+          path: spookyflow-source.zip
+          if-no-files-found: error
