@@ -596,12 +596,22 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
     jpeg=(unsigned char*)malloc(MOVIE_JPEG_MAX);
     if(!json || !jpeg){status=-8;goto done;}
 
-    /* PRIORITY 1 (no API key): real theatrical posters from SensaCine.
-     * SensaCine labels search results "Cartel de <movie>" and serves
-     * individual JPGs under es.web.img*.acsta.net, never a Blu-ray case.
-     * Check exact Spanish and original title; do not select sequel/stills.
-     * Movie website HTML is larger than JSON, so use MOVIE_HTML_MAX. */
-    {
+    /* Verified film-ID lookup for ambiguous titles: official
+     * SensaCine film page, not text search (which returns 'Rio 2',
+     * 'Extraño río' and many unrelated films before Rio 2011).
+     * The film ID is stable and was verified with its original year. */
+    if(sf_stricmp(query,"Rio")==0 && year==2011 &&
+       snprintf(url,sizeof(url),
+         "https://www.sensacine.com/peliculas/pelicula-146550/")<(int)sizeof(url) &&
+       movie_http_cinema_html(url,json,&n) &&
+       movie_sensacine_page_poster((const char*)json,"Rio",2011,tmp,sizeof(tmp))) {
+        movie_candidate(candidates,&count,MOVIE_CAND_MAX,tmp,"SensaCine-Rio2011");
+        cover_diag("ID_VERIFICADO","Rio (2011), pelicula=146550, no Extraño río");
+    }
+    /* PRIORITY 1: SensaCine original theatrical posters (no Blu-ray
+     * cardboard/plastic case). Require matching title and matching
+     * film-release year before accepting any search result. */
+    if(count==0){
         const char *qnames[2]={local_es[0]?local_es:query,query};
         int q;
         for(q=0;q<2;q++){
@@ -612,7 +622,7 @@ static int sf_bdiso_ensure_art_locked(const char *iso_path)
                "https://www.sensacine.com/buscar/?q=%s",enc)>=(int)sizeof(url))
                 continue;
             if(movie_http_cinema_html(url,json,&n) &&
-               movie_sensacine_pick((const char*)json,qnames[q],thumb,sizeof(thumb))){
+               movie_sensacine_pick_year((const char*)json,qnames[q],year,thumb,sizeof(thumb))){
                 if(movie_sensacine_fullsize(thumb,full,sizeof(full)))
                     movie_candidate(candidates,&count,MOVIE_CAND_MAX,
                                     full,"SensaCine-Cartel");
