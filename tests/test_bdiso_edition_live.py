@@ -8,6 +8,13 @@ samples=[
  ("es-avatar","https://www.mubis.es/titulos/avatar-blu-ray-3d"),
  ("es-thor","https://www.mubis.es/titulos/thor-blu-ray-3d"),
 ]
+# The production PS3 client uses a custom User-Agent. Verify that
+# Mubis serves identical metadata to non-browser console clients.
+ps3h=dict(h)
+ps3h["User-Agent"]="spookyflow/1.4 (PS3)"
+with urllib.request.urlopen(urllib.request.Request(samples[0][1],headers=ps3h),timeout=15) as r:
+ print("PS3-client User-Agent HTML:",r.status)
+ assert r.status==200
 for name,url in samples:
  with urllib.request.urlopen(urllib.request.Request(url,headers=h),timeout=15) as r:
   html=r.read(160000).decode("utf-8","replace")
