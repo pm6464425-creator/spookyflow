@@ -114,8 +114,10 @@ int sf_bdntfs_start(void)
         uint32_t bit=(uint32_t)1u<<u;
         int inserted=PS3_NTFS_IsInserted(u);
         /* Mark a detached port without ever touching that missing disk. */
-        if(!inserted && s_count[u]>0)
-            __sync_fetch_and_or(&s_detach_seen,bit);
+        if(!inserted){
+            if(s_count[u]>0)
+                __sync_fetch_and_or(&s_detach_seen,bit);
+        }
         /* Consume remembered absence, even if the disk has just come back. */
         int lost=(__sync_fetch_and_and(&s_detach_seen,~bit)&bit)!=0;
         int previous=s_count[u]>0 && s_mount[u]!=NULL;
