@@ -18,7 +18,7 @@ checks=[
  ("TMDB image host allowed", "https://image.tmdb.org/" in cat),
  ("Cinemeta image proxy host allowed", "https://images.metahub.space/" in cat),
  ("Matches film titles before cover choice", "strcmp(qalias,norm)==0" in cat),
- ("Rejects different known release years", "if(year && y && y!=year)score=0;" in cat),
+ ("Rejects different known release years", "if(year && y!=year)score=0;" in cat),
  ("Chooses best matching search result", "if(score>best)" in cat),
  ("Avoids huge result scans", "seen<60" in cat),
  ("Automatically downloads first public JPEG with valid metadata", '"Cinemeta-no-key"' in art and "movie_http_jpeg(candidates[i].url" in art),
@@ -31,7 +31,7 @@ checks=[
  ("PS3 native hook remains", "sf_bdiso_ensure_art(path)" in ps3),
  ("API-key movie providers remain optional", "FANART_KEY.TXT" in art and "TMDB_KEY.TXT" in art),
  ("Rescan resets old failed-attempt guard", "sf_bdiso_reset_attempts" in art),
- ("SensaCine cinema posters and discreet 3D watermark documented", "COVERS/POSTERS" in docs and "marca de agua" in docs),
+ ("SensaCine cinema posters and discreet 3D watermark documented", "COVERS/POSTERS" in docs and "marcas" in docs),
 ]
 for i,(name,p) in enumerate(checks,1):print(f"{i:02d}. {'PASS' if p else 'FAIL'} {name}")
 n=sum(int(ok) for _,ok in checks)
