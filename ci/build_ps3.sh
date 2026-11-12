@@ -144,6 +144,26 @@ done
 test -s third_party/lib/libntfs_ext.a
 end
 
+# --- Blu-ray ISO sector plugin (embedded in the SAME PKG) -----------------------
+say "Bundling vetted raw_iso.sprx from IRISMAN (7930 bytes)"
+mkdir -p pkgfiles/USRDIR
+curl --retry 3 --retry-delay 2 -fsSL \
+  "https://raw.githubusercontent.com/aldostools/IRISMAN/91ac4e820e76fb9c1bbf9ec0cdd7592deb35f70d/rawseciso/bin2c/rawseciso.c" \
+  -o /tmp/spookyflow_rawiso.c
+python3 - <<'PY'
+from pathlib import Path
+import re, hashlib
+s=Path("/tmp/spookyflow_rawiso.c").read_text()
+m=re.search(r'raw_iso_sprx\[7930\]\s*=\s*\{([^}]+)\}',s,re.S)
+assert m,"Unexpected IRISMAN raw_iso source format"
+data=bytes(int(v,16) for v in re.findall(r'0x([0-9a-fA-F]{2})',m.group(1)))
+assert len(data)==7930,(len(data),"Unexpected raw_iso payload size")
+assert data[:4]==b'SCE\x00',"raw_iso.sprx must be a PS3 SELF module"
+Path("pkgfiles/USRDIR/raw_iso.sprx").write_bytes(data)
+print("raw_iso.sprx",len(data),"bytes",hashlib.sha256(data).hexdigest())
+PY
+end
+
 # --- build ----------------------------------------------------------------------
 say "make pkg (SF_TLS=$TLS)"
 make clean >/dev/null 2>&1 || true
