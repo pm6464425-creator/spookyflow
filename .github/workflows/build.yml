@@ -60,6 +60,8 @@ jobs:
           ./build-host/test_movie_edition
       # Includes the V13 regular-poster migration, Spanish-first policy,
       # manually supplied cover priority and the watermark-only visual gate.
+      - name: V15.8 PS1 covers serial and verified source regressions
+        run: python3 tests/test_ps1_cover_fix.py
       - name: V15.7 FlowMovie native NTFS retry and real hardware log regression
         run: python3 tests/test_flowmovie_native_retry.py
       - name: V15.6 native NTFS detach and reconnection recovery regressions
@@ -280,6 +282,16 @@ jobs:
           gh release create spookyflow-v15-7-flowmovie-ntfs-retry SPOOKYFLOW_V15_7_FLOWMOVIE_NTFS_RECONNECT.pkg --target "$GITHUB_SHA" \
             --title "SpookyFlow V15.7 - Reconexion NTFS basada en FlowMovie 3D" \
             --notes "Implementacion comparada con fuente original FlowMovie 3D source/main.cpp (refresh_usb_state). Corrige falla real PS3: tras conectar USB, ntfsMountDevice fallo 6 veces y solo despues monto la particion, cuando scan roots ya se habia fijado a cero. V15.7 reintenta en intervalos antes de construir rutas BDISO y continua recuperacion mientras disco siga conectado. Los lectores de carpetas ya no montan NTFS de forma oculta. Mantiene PS1/PS2/PS3, caratulas y diagnostico en /dev_hdd0/tmp/spookyflow/diagnostico_usb_ntfs.txt. Pruebas y compilacion automatizada verificables; pendiente prueba USB fisica."
+
+      - name: Publish direct-download V15.8 PS1 cover recovery PKG
+        if: github.ref == 'refs/heads/fix/ps1-cover-id-sources-v15-8'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp spookyflow.pkg SPOOKYFLOW_V15_8_CARATULAS_PS1_FIX.pkg
+          gh release create spookyflow-v15-8-caratulas-ps1 SPOOKYFLOW_V15_8_CARATULAS_PS1_FIX.pkg --target "$GITHUB_SHA" \
+            --title "SpookyFlow V15.8 - Caratulas PS1 mejoradas" \
+            --notes "Correccion exclusiva PS1: deteccion de seriales SLUS SCUS SLES y otros en nombres CHD PBP BIN y CUE cuando no se lee el ID interno; seleccion del data TRACK en CUE multifichero; fuente verificada xlenore prioritaria y reintentos frente a marcadores 404 antiguos; log por titulo sin serial, no disponible online o error de red. BDISO V15.7, PS2 y PS3 sin cambios funcionales. Pruebas automatizadas y PKG verificados; validar portadas en PS3 real."
 
   ps3-pkg-docker:
     needs: host-tests
