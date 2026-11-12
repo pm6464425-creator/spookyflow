@@ -293,10 +293,11 @@ static void scan_iso_dir(Scanner *s, Library *lib, int plat, const char *dir, in
                          * an available Spanish display title.  Custom
                          * Spanish .title files still take precedence. */
                         if(movie_spanish_title(e->name,
-                            have_sidecar?sidecar:NULL,spanish,sizeof(spanish)) ||
-                           (have_sidecar &&
-                            (sf_strlcpy(spanish,sidecar,sizeof(spanish)),1))){
+                            have_sidecar?sidecar:NULL,spanish,sizeof(spanish))){
                             snprintf(titlebuf,sizeof(titlebuf),"%s.iso",spanish);
+                            display=titlebuf;
+                        }else if(have_sidecar){
+                            snprintf(titlebuf,sizeof(titlebuf),"%s.iso",sidecar);
                             display=titlebuf;
                         }
                         dup=bd_movie_pointer_duplicate(lib,e->name);
