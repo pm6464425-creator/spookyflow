@@ -4,4 +4,6 @@
 #ifndef SF_BDISO_ART_H
 #define SF_BDISO_ART_H
 int sf_bdiso_ensure_art(const char *iso_path);
+/* A manual library rescan retries failed online poster requests. */
+void sf_bdiso_reset_attempts(void);
 #endif
