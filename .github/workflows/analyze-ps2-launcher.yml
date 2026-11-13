@@ -1,0 +1,62 @@
+name: Read-only audit of reference PS2 Classics Launcher PKG
+on:
+  push:
+    branches:
+      - research/ps2-classics-launcher-video-audit
+    paths:
+      - .github/workflows/analyze-ps2-launcher.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  inspect-reference-pkg:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Download exact aldostools 18,571,728-byte reference package (no installation)
+        run: |
+          curl -fLSs --retry 3 --connect-timeout 15 --max-time 200 \
+            -o "$RUNNER_TEMP/PS2_Classics_Launcher.pkg" \
+            "https://github.com/aldostools/Resources/releases/download/Launchers/PS2_Classics_Launcher.pkg"
+          test "$(stat -c %s "$RUNNER_TEMP/PS2_Classics_Launcher.pkg")" = 18571728
+          sha256sum "$RUNNER_TEMP/PS2_Classics_Launcher.pkg"
+          file "$RUNNER_TEMP/PS2_Classics_Launcher.pkg"
+      - name: Obtain public read-only PKG extractor and crypto dependency
+        run: |
+          python3 -m pip install --quiet pycryptodome
+          git clone -q --depth=1 https://github.com/infinitykkj/PS3-PKG-Module.git "$RUNNER_TEMP/pkg-inspector"
+      - name: Inspect header and list exact packaged paths
+        run: |
+          python3 "$RUNNER_TEMP/pkg-inspector/main.py" "$RUNNER_TEMP/PS2_Classics_Launcher.pkg" --content-id
+          python3 "$RUNNER_TEMP/pkg-inspector/main.py" "$RUNNER_TEMP/PS2_Classics_Launcher.pkg" --list-files
+      - name: Extract and parse PARAM.SFO, resolution/category/video flags
+        run: |
+          python3 "$RUNNER_TEMP/pkg-inspector/main.py" "$RUNNER_TEMP/PS2_Classics_Launcher.pkg" --sfo -o "$RUNNER_TEMP/ps2-sfo"
+          find "$RUNNER_TEMP/ps2-sfo" -type f -printf '%p %s bytes\n'
+          SFO=$(find "$RUNNER_TEMP/ps2-sfo" -name PARAM.SFO -type f | head -1)
+          test -n "$SFO"
+          python3 "$RUNNER_TEMP/pkg-inspector/sfo_editor.py" "$SFO"
+          python3 - "$SFO" <<'PY'
+          import pathlib,sys,struct
+          p=pathlib.Path(sys.argv[1])
+          b=p.read_bytes()
+          assert b[:4]==b'\x00PSF'
+          print('SFO_SIZE=',len(b),'SFO_SHA256=',__import__('hashlib').sha256(b).hexdigest())
+          _,_,ks,ds,n=struct.unpack_from('<4sIIII',b,0)
+          entries={}
+          for i in range(n):
+              ko,fmt,dlen,mlen,do=struct.unpack_from('<HHIII',b,0x14+16*i)
+              k=b[ks+ko:b.find(b'\x00',ks+ko)].decode()
+              v=b[ds+do:ds+do+dlen]
+              val=struct.unpack('<I',v[:4])[0] if fmt==0x404 and len(v)>=4 else v.rstrip(b'\x00').decode('utf8','replace')
+              entries[k]=val
+          for k in ('CATEGORY','TITLE_ID','BOOTABLE','RESOLUTION','ATTRIBUTE','SOUND_FORMAT','PS3_SYSTEM_VER','PARENTAL_LEVEL','TITLE','APP_VER'):
+              print('VIDEO_AUDIT',k,repr(entries.get(k,'NOT_PRESENT')))
+          PY
+      - name: Extract reference file directory, checksums and video-related resources
+        run: |
+          python3 "$RUNNER_TEMP/pkg-inspector/main.py" "$RUNNER_TEMP/PS2_Classics_Launcher.pkg" --full -o "$RUNNER_TEMP/ps2-full"
+          find "$RUNNER_TEMP/ps2-full" -type f -printf '%P | %s bytes\n' | sort
+          find "$RUNNER_TEMP/ps2-full" -type f \( -iname '*.SFO' -o -iname '*CONFIG*' -o -iname 'EBOOT.BIN' \) \
+            -exec sha256sum {} \;
+          echo "Audit complete. Package not installed or redistributed."
