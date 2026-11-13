@@ -54,6 +54,15 @@ jobs:
         run: python3 tests/test_ps2_hen_integration.py
       - name: V15.21 PS2 HEN XMB autoplay - 24 safety checks
         run: python3 tests/test_ps2_hen_autoplay.py
+      - name: V15.27 PS1 general CUE engine file-track layouts and gaps
+        run: |
+          mkdir -p build-host
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined \
+             -fno-omit-frame-pointer -Isrc/core \
+             src/core/sf_ps1_cue_general.c tests/test_ps1_cue_general.c \
+             -o build-host/test_ps1_cue_general
+          ./build-host/test_ps1_cue_general
+          python3 tests/test_ps1_general_integration.py
       - name: V15.26 PS1 CUE regional BIN filename resolution and ambiguity tests
         run: |
           mkdir -p build-host
@@ -457,6 +466,23 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title "SpookyFlow V15.21 - Inicio PS2 Classics automatico desde XMB (experimental)" \
             --notes "Envía orden local a webMAN tras preparar el PS2 Classics Launcher (PS2U10000); espera al XMB, luego inicia automáticamente. Sin webMAN conserva inicio manual. Mantiene la V15.20, CONFIG, PS1, PS3, BDISO y único diagnóstico. Pruebas automáticas, no validado en PS3 HEN física."
+      - name: Publish V15.27 general PS1 CUE file/track engine (experimental)
+        if: github.ref == 'refs/heads/feat/v15-27-general-ps1-cue-engine'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          head=$(gh api "repos/$GITHUB_REPOSITORY/branches/feat%2Fv15-27-general-ps1-cue-engine" --jq '.commit.sha')
+          if [ "$GITHUB_SHA" != "$head" ]; then
+            echo "Not publishing outdated build"
+            exit 0
+          fi
+          short="${GITHUB_SHA:0:8}"
+          cp spookyflow.pkg SPOOKYFLOW_V15_27_PS1_MONTADOR_GENERAL_CUE.pkg
+          gh release create "spookyflow-v15-27-ps1-general-${short}" \
+            SPOOKYFLOW_V15_27_PS1_MONTADOR_GENERAL_CUE.pkg \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "SpookyFlow V15.27 - Motor general BIN CUE PS1 para HEN" \
+            --notes "Reemplaza supuesto de un archivo BIN por pista con un motor CUE general. Compatibilidad ampliada para un BIN con varias pistas, varios BIN con varias pistas dentro de un mismo BIN, INDEX00/01, PREGAP, POSTGAP de final de archivo, directorios relativos seguros y recuperacion de nombres regionales. Para layout Redump clasico de Tekken se conserva ruta comprobada V15.25; otro CUE soportado se reconstruye en cache /dev_hdd0/tmp/spookyflow/ps1_unido_*.bin con LV2 64-bit, tabla de pistas y audio intactos, progreso asíncrono y montaje Cobra nativo sin webMAN. Solo diagnostico_ps1.txt sobrescrito en cada arranque. Los archivos originales no se alteran. No se garantiza soporte CHD, PBP, MP3, subcanales LibCrypt, RAW no 2352, NTFS, discos dañados o CUE invalidos: se rechazan con diagnostico para no perder audio. PS2 V15.22, PS3, BDISO y portadas sin cambios. Test en PS3 HEN real pendiente."
       - name: Publish V15.26 PS1 CUE real BIN name auto-recovery (experimental)
         if: github.ref == 'refs/heads/fix/v15-26-ps1-cue-bin-name-resolver'
         env:
