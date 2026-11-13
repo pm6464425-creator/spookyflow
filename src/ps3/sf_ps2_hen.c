@@ -118,11 +118,11 @@ static int launcher_installed(void)
     FILE *f=fopen(SF_LAUNCHER_PROBE,"wb");
     if(f){
         (void)fprintf(f,
-            "BACKEND=PS2_CLASSICS_HEN\\nAPP_ID=PS2U10000\\n"
-            "USRDIR_EXISTS=%d\\nPARAM_SFO_EXISTS=%d\\n"
-            "USRDIR_EBOOT_EXISTS=%d\\nROOT_EBOOT_EXISTS=%d\\n"
-            "CLASSICS_IMAGE_EXISTS=%d\\nLAUNCHER_ACCEPTED=%d\\n"
-            "APP_PATH=%s\\nGAME_PATH=%s\\n",
+            "BACKEND=PS2_CLASSICS_HEN\nAPP_ID=PS2U10000\n"
+            "USRDIR_EXISTS=%d\nPARAM_SFO_EXISTS=%d\n"
+            "USRDIR_EBOOT_EXISTS=%d\nROOT_EBOOT_EXISTS=%d\n"
+            "CLASSICS_IMAGE_EXISTS=%d\nLAUNCHER_ACCEPTED=%d\n"
+            "APP_PATH=%s\nGAME_PATH=%s\n",
             usrdir,param,eboot,alt,image,accepted,SF_CLASSICS_APP,SF_CLASSICS_DIR);
         (void)fflush(f);(void)fclose(f);
     }
