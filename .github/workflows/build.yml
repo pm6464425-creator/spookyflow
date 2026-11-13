@@ -54,6 +54,15 @@ jobs:
         run: python3 tests/test_ps2_hen_integration.py
       - name: V15.21 PS2 HEN XMB autoplay - 24 safety checks
         run: python3 tests/test_ps2_hen_autoplay.py
+      - name: V15.26 PS1 CUE regional BIN filename resolution and ambiguity tests
+        run: |
+          mkdir -p build-host
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined \
+             -fno-omit-frame-pointer -Isrc/core \
+             src/core/sf_ps1_file_match.c tests/test_ps1_file_match.c \
+             -o build-host/test_ps1_file_match
+          ./build-host/test_ps1_file_match
+          python3 tests/test_ps1_name_resolver_integration.py
       - name: V15.25 PS1 28 BIN / 28 tracks and audio CUE validation
         run: |
           mkdir -p build-host
@@ -441,6 +450,23 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title "SpookyFlow V15.21 - Inicio PS2 Classics automatico desde XMB (experimental)" \
             --notes "Envía orden local a webMAN tras preparar el PS2 Classics Launcher (PS2U10000); espera al XMB, luego inicia automáticamente. Sin webMAN conserva inicio manual. Mantiene la V15.20, CONFIG, PS1, PS3, BDISO y único diagnóstico. Pruebas automáticas, no validado en PS3 HEN física."
+      - name: Publish V15.26 PS1 CUE real BIN name auto-recovery (experimental)
+        if: github.ref == 'refs/heads/fix/v15-26-ps1-cue-bin-name-resolver'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-26-ps1-cue-bin-name-resolver" --jq '.commit.sha')
+          if [ "$GITHUB_SHA" != "$current" ]; then
+            echo "Skip outdated build"
+            exit 0
+          fi
+          short="${GITHUB_SHA:0:8}"
+          cp spookyflow.pkg SPOOKYFLOW_V15_26_PS1_CUE_BIN_COMPATIBILIDAD.pkg
+          gh release create "spookyflow-v15-26-ps1-cue-bin-${short}" \
+            SPOOKYFLOW_V15_26_PS1_CUE_BIN_COMPATIBILIDAD.pkg \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "SpookyFlow V15.26 — PS1 CUE/BIN reconocimiento de nombres" \
+            --notes "Corrige causa confirmada por diagnostico de Metal Slug X: Metal Slug X.cue apuntaba a Metal Slug X (Europe).bin, que no existia con ese nombre, mientras Tekken multiBIN ya funcionaba en V15.25. Si falta el BIN indicado, recorre solo la misma carpeta y recupera coincidencia unica del mismo titulo con diferencias de mayusculas o regiones (Europe USA Japan etc); conserva numeros de pista/disco y modificaciones, rechaza coincidencias ambiguas y archivos distintos. Funciona con CUE de un BIN y para cada track en CUE multiBIN. No cambia nombres ni contenido del BIN/CUE; conserva preparacion de 28 pistas y montaje Cobra de V15.25, diagnostico_ps1.txt unico (se sobrescribe cada arranque), PS2 V15.22, PS3, BDISO y caratulas. No garantiza formatos comprimidos CHD/PBP ni archivos fisicamente ausentes. Verificado con tests host y compilacion PKG; pendiente test PS3 HEN."
       - name: Publish V15.25 PS1 Redump multi-BIN autodetect and Cobra (experimental)
         if: github.ref == 'refs/heads/fix/v15-25-ps1-multibin-cobra-auto'
         env:
