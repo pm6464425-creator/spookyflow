@@ -80,8 +80,10 @@ media_paths=["src/core/icons_data.c","src/core/images_data.c",
              "src/core/sounds_data.c","src/core/stage_data.c",
              "src/core/music.c","src/core/anim.c"]
 # 5: Controller input + PS3 launch unchanged, including Cobra/webMAN.
-control_paths=["src/core/input.c",
-               "src/ps3/sf_cobra_mount.c","src/ps3/ps3_webman.c"]
+# Cobra's TXT diagnostic functions were intentionally disabled by V15.17.
+# Verify PS3/BDISO mount opcodes and host callbacks instead of a byte hash.
+control_paths=["src/core/input.c","src/ps3/ps3_webman.c"]
+cobra_mount=read("src/ps3/sf_cobra_mount.c")
 # 6: All PS1 cover/BDISO scanning, fetching, decoding and mounting intact.
 cover_paths=["src/core/library.c","src/core/coverart.c","src/core/ps1_name_match.c",
              "src/core/scanner.c","src/ps3/ps3_covers.c",
@@ -121,7 +123,11 @@ checks=[
  ("5. Controles y motores originales intactos; nuevo PS2 aislado",
       unchanged(control_paths) and 'host.launch_ps3 = sf_cobra_mount_ps3;' in read("src/ps3/main.c")
       and 'host.launch_bdiso = launch_bdiso;' in read("src/ps3/main.c")
-      and 'host.launch = launch_via_webman;' in read("src/ps3/main.c")),
+      and 'host.launch = launch_via_webman;' in read("src/ps3/main.c")
+      and 'lv2syscall3(8, 0x7024' in cobra_mount
+      and 'lv2syscall3(8, 0x7026' in cobra_mount
+      and 'int sf_cobra_mount_ps3(' in cobra_mount
+      and '#ifdef SF_DISABLE_DIAG_TXT' in cobra_mount),
  ("6. PS1, BDISO y descarga de carátulas intactos", unchanged(cover_paths)),
  ("7. Archivos de ajustes y título de XMB compatibles",
       unchanged(["sfo.xml"]) and all(k in settings for k in serialized_keys)),
