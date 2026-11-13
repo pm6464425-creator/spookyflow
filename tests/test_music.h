@@ -1641,7 +1641,7 @@ static void test_display_mode(void)
     CHECK(!app_main_context(&g_app));       /* ◯ cannot arm hold-to-exit here */
     /* the bar */
     ui_bar_layout(3, &L);
-    CHECK(L.n == 3 && strcmp(L.g[0].label, "Jugar") == 0 && L.g[0].item[0].icon == ICON_CROSS &&
+    CHECK(L.n == 3 && strcmp(L.g[0].label, "Iniciar") == 0 && L.g[0].item[0].icon == ICON_CROSS &&
           strcmp(L.g[1].label, "Ajustes del juego") == 0 && L.g[1].item[0].icon == ICON_TRIANGLE &&
           strcmp(L.g[2].label, "Volver") == 0 && L.g[2].item[0].icon == ICON_CIRCLE);
     ui_bar_layout(0, &L);
