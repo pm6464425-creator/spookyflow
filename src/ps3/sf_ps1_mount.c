@@ -6,6 +6,7 @@
  */
 #include "sf_ps1_mount.h"
 #include "sf_ps1_native_plan.h"
+#include "ps3_platform.h"
 #include "log.h"
 #include <cobra.h>
 #include <stdint.h>
@@ -157,17 +158,12 @@ static int prepare(const char *path,int emulator)
                s_plan.image);
     return 0;
 }
-int sf_ps1_mount(const char *path,int emulator)
+static int mount_prepared(void)
 {
+    const char *path=s_plan.image;
     uint32_t v=0xffffffffu,real=0,effective=0,virt=0;
     int rc,ejected=0,mounted=0;
     unsigned i;
-    rc=prepare(path,emulator);
-    if(rc!=0){
-        log_printf("PS1_DIAG STAGE=PREFLIGHT RESULT=FALLBACK RC=%d PATH=%s",
-                   rc,path?path:"(null)");
-        return -41;
-    }
     /* Cobra must be present. Failed preflight has no disc-side effects. */
     rc=ps1_cobra_version(&v);
     log_printf("PS1_DIAG STAGE=COBRA_VERSION SYS_RC=%d VERSION=%08x",
@@ -216,4 +212,37 @@ fail:
                rc,s_plan.image);
     log_printf("PS1_MOUNT RESULT=ERROR RC=%d IMAGE=%s",rc,s_plan.image);
     return rc;
+}
+
+int sf_ps1_mount(const char *path,int emulator)
+{
+    int rc=prepare(path,emulator);
+    if(rc!=0){
+        log_printf("PS1_DIAG STAGE=PREFLIGHT RESULT=FALLBACK RC=%d PATH=%s",
+                   rc,path?path:"(null)");
+        return -41;
+    }
+    return mount_prepared();
+}
+int sf_ps1_mount_staged(const char *path,const SfPs1Track *tracks,unsigned n)
+{
+    size_t len;
+    static const char prefix[]=SF_DATA_DIR "/ps1_unido_";
+    if(!path || !tracks || n<2 || n>SF_PS1_MAX_TRACKS ||
+       strncmp(path,prefix,sizeof(prefix)-1)!=0)return -81;
+    len=strlen(path);
+    if(len>=sizeof(s_plan.image) || !ends(path,".bin"))return -81;
+    if(!valid_image(path,tracks[n-1].lba))return -82;
+    memset(&s_plan,0,sizeof(s_plan));
+    strcpy(s_plan.image,path);
+    s_plan.num_tracks=n;
+    for(unsigned i=0;i<n;i++){
+        if((i==0 && (tracks[i].lba!=0 || tracks[i].is_audio)) ||
+           (i>0 && tracks[i].lba<=tracks[i-1].lba))
+            return -83;
+        s_plan.tracks[i]=tracks[i];
+    }
+    log_printf("PS1_DIAG STAGE=MULTIBIN_STAGED RESULT=VERIFIED "
+               "TRACKS=%u IMAGE=%s",n,path);
+    return mount_prepared();
 }
