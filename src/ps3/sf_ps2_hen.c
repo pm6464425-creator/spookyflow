@@ -25,6 +25,7 @@
 #include "sfo.h"
 #include "sf_ps2_media.h"
 #include "sf_ps2_cdrom.h"
+#include "sf_ps2_largefile.h"
 #ifdef SF_PS2_HEN_HOST_TEST
 #include <pthread.h>
 typedef pthread_t sys_ppu_thread_t;
@@ -315,19 +316,28 @@ static int build_header(uint8_t h[SEG],uint64_t vsize)
     if(omac(key,h,0x60,h+0x60))return -1;
     return 0;
 }
-static int read_bytes(FILE *f,uint64_t offset,void *buf,size_t len)
+/* All PS2 disc/media I/O uses 64-bit offsets on PS3, unlike PPU stdio. */
+static int read_bytes(SfPS2LargeFile *f,uint64_t offset,void *buf,size_t len)
 {
-    if(fseeko(f,(off_t)offset,SEEK_SET)!=0)return -1;
-    return fread(buf,1,len,f)==len?0:-1;
+    return sf_ps2_large_read_at(f,offset,buf,len);
 }
-static int write_bytes(FILE *f,const void *buf,size_t len)
+static int write_bytes(SfPS2LargeFile *f,const void *buf,size_t len)
 {
-    return fwrite(buf,1,len,f)==len?0:-1;
+    return sf_ps2_large_write(f,buf,len);
+}
+static int large_io_error(const char *operation,const SfPS2LargeFile *f,
+                          int code,int progress)
+{
+    log_printf("PS2_DIAG LARGEFILE_IO_ERROR=1 OP=%s SYS_RC=%d "
+               "FILE_OFFSET=%llu PROGRESS=%d RC=%d",
+               operation,f?f->error:-1,
+               (unsigned long long)(f?f->position:0),progress,code);
+    return code;
 }
 /* Return 1 when LIMG already belongs to the source, 0 on new LIMG.
  * mode describes physical sector layout. The conversion of cooked 2048 CD
  * userdata into raw 2352 Mode2/Form1 is carried out during AES streaming. */
-static int validate_iso(FILE *in,uint64_t size,const char *id,
+static int validate_iso(SfPS2LargeFile *in,uint64_t size,const char *id,
                         uint8_t limg[SEG],uint64_t *virtual_size,
                         int *mode,uint64_t *media_size)
 {
@@ -395,13 +405,14 @@ static int source_fingerprint(const char *source,uint64_t size,char hex[41])
 {
     unsigned char raw[2*SEG],digest[20];
     static const char alphabet[]="0123456789abcdef";
-    FILE *f;int i,rc=0;
+    SfPS2LargeFile f;int i,rc=0;
     if(size<SEG)return -1;
-    f=fopen(source,"rb");if(!f)return -1;
-    if(read_bytes(f,0,raw,SEG)!=0 ||
-       read_bytes(f,size-SEG,raw+SEG,SEG)!=0 ||
+    if(sf_ps2_large_open(&f,source,0)!=0)return -1;
+    if(read_bytes(&f,0,raw,SEG)!=0 ||
+       read_bytes(&f,size-SEG,raw+SEG,SEG)!=0 ||
        mbedtls_sha1_ret(raw,sizeof(raw),digest)!=0)rc=-1;
-    if(fclose(f)!=0)rc=-1;
+    if(rc!=0)large_io_error("SOURCE_FINGERPRINT",&f,-20,0);
+    if(sf_ps2_large_close(&f)!=0)rc=-1;
     if(rc!=0)return -1;
     for(i=0;i<20;i++){hex[2*i]=alphabet[digest[i]>>4];
                         hex[2*i+1]=alphabet[digest[i]&15];}
@@ -647,14 +658,14 @@ typedef struct {
     size_t cursor;
     uint32_t lba;
 } SfCookedCDStream;
-static int cooked_cd_fill(FILE *in,SfCookedCDStream *stream,
+static int cooked_cd_fill(SfPS2LargeFile *in,SfCookedCDStream *stream,
                           uint8_t blk[SEG],size_t length)
 {
     size_t n=0;
     while(n<length) {
         size_t take;
         if(stream->cursor>=2352u) {
-            if(fread(stream->userdata,1,2048,in)!=2048)return -1;
+            if(sf_ps2_large_read(in,stream->userdata,2048)!=0)return -1;
             sf_cdrom_mode2_form1(stream->sector,stream->userdata,stream->lba++);
             stream->cursor=0;
         }
@@ -667,22 +678,25 @@ static int cooked_cd_fill(FILE *in,SfCookedCDStream *stream,
 }
 static int perform_conversion(const char *path)
 {
-    FILE *in=NULL,*out=NULL;
+    SfPS2LargeFile in,out;
     mbedtls_aes_context aes_data,aes_meta;
     uint8_t *blk=NULL,*meta=NULL,*header=NULL,*limg=NULL;
     uint8_t iv[16],derived_data[16],derived_meta[16];
     uint64_t size=0,vsize=0,blocks,i,j,pos=0,media_size=0;
     int rc=-30,had_limg=0,mode=SF_PS2_IMAGE_DVD_2048;
     SfCookedCDStream cdstream;
+    sf_ps2_large_init(&in);sf_ps2_large_init(&out);
     memset(&cdstream,0,sizeof(cdstream));
     cdstream.cursor=2352;
     mbedtls_aes_init(&aes_data);mbedtls_aes_init(&aes_meta);
     if(file_size(path,&size)!=0){rc=-20;goto cleanup;}
     if(ready_manifest(path,size)){rc=ps2_stage_config(s_job.gameid);goto cleanup;}
-    in=fopen(path,"rb");if(!in){rc=-20;goto cleanup;}
+    if(sf_ps2_large_open(&in,path,0)!=0){
+        rc=large_io_error("SOURCE_OPEN",&in,-20,0);goto cleanup;
+    }
     blk=malloc(SEG);meta=malloc(SEG);header=malloc(SEG);limg=malloc(SEG);
     if(!blk || !meta || !header || !limg){rc=-31;goto cleanup;}
-    had_limg=validate_iso(in,size,s_job.gameid,limg,&vsize,&mode,&media_size);
+    had_limg=validate_iso(&in,size,s_job.gameid,limg,&vsize,&mode,&media_size);
     if(had_limg<0){rc=had_limg;goto cleanup;}
     if(vsize%SEG){rc=-22;goto cleanup;}
     if(build_header(header,vsize)){rc=-32;goto cleanup;}
@@ -691,18 +705,25 @@ static int perform_conversion(const char *path)
        aes_cbc_16(key_meta,klic,derived_meta)){rc=-32;goto cleanup;}
     if(mbedtls_aes_setkey_enc(&aes_data,derived_data,128)!=0 ||
        mbedtls_aes_setkey_enc(&aes_meta,derived_meta,128)!=0){rc=-32;goto cleanup;}
-    out=fopen(SF_CLASSICS_TMP,"wb+");
-    if(!out){rc=-33;goto cleanup;}
-    if(write_bytes(out,header,SEG)){rc=-34;goto cleanup;}
-    if(fseeko(in,0,SEEK_SET)!=0){rc=-20;goto cleanup;}
+    if(sf_ps2_large_open(&out,SF_CLASSICS_TMP,1)!=0){
+        rc=large_io_error("OUTPUT_OPEN",&out,-33,0);goto cleanup;
+    }
+    if(write_bytes(&out,header,SEG)){
+        rc=large_io_error("HEADER_WRITE",&out,-34,0);goto cleanup;
+    }
+    if(sf_ps2_large_seek(&in,0)!=0){
+        rc=large_io_error("SOURCE_REWIND",&in,-20,0);goto cleanup;
+    }
     blocks=vsize/SEG;
     for(i=0;i<blocks;){
-        off_t meta_offset;uint64_t group_end;
+        uint64_t meta_offset;uint64_t group_end;
         if(s_job.cancel){rc=-70;goto cleanup;}
         memset(meta,0,SEG);
-        meta_offset=ftello(out);
-        if(meta_offset<0){rc=-34;goto cleanup;}
-        if(write_bytes(out,meta,SEG)){rc=-34;goto cleanup;}
+        meta_offset=sf_ps2_large_tell(&out);
+        if(write_bytes(&out,meta,SEG)){
+            rc=large_io_error("METADATA_PLACEHOLDER_WRITE",&out,-34,s_job.progress);
+            goto cleanup;
+        }
         group_end=i+BLOCKS_PER_META;if(group_end>blocks)group_end=blocks;
         for(j=0;i<group_end;j++,i++,pos+=SEG){
             size_t readn=0;
@@ -712,11 +733,13 @@ static int perform_conversion(const char *path)
                 uint64_t remaining=media_size-pos;
                 readn=(size_t)(remaining<SEG?remaining:SEG);
                 if(mode==SF_PS2_IMAGE_CD_COOKED_2048 && !had_limg) {
-                    if(cooked_cd_fill(in,&cdstream,blk,readn)){
-                        rc=-25;goto cleanup;
+                    if(cooked_cd_fill(&in,&cdstream,blk,readn)){
+                        rc=large_io_error("CD_COOKED_READ",&in,-25,s_job.progress);
+                        goto cleanup;
                     }
-                }else if(fread(blk,1,readn,in)!=readn){
-                    rc=-20;goto cleanup;
+                }else if(sf_ps2_large_read(&in,blk,readn)!=0){
+                    rc=large_io_error("SOURCE_READ",&in,-20,s_job.progress);
+                    goto cleanup;
                 }
             }else if(!had_limg && pos==vsize-SEG){
                 memcpy(blk,limg,SEG);
@@ -725,19 +748,41 @@ static int perform_conversion(const char *path)
             if(mbedtls_aes_crypt_cbc(&aes_data,MBEDTLS_AES_ENCRYPT,SEG,iv,blk,blk)!=0){rc=-32;goto cleanup;}
             if(mbedtls_sha1_ret(blk,SEG,meta+j*0x20)!=0){rc=-32;goto cleanup;}
             put32(meta+j*0x20+0x14,(uint32_t)i);
-            if(write_bytes(out,blk,SEG)){rc=-34;goto cleanup;}
+            if(write_bytes(&out,blk,SEG)){
+                rc=large_io_error("ENCRYPTED_BLOCK_WRITE",&out,-34,s_job.progress);
+                goto cleanup;
+            }
             s_job.progress=(int)((i+1)*100/blocks);
         }
         memset(iv,0,16);
         if(mbedtls_aes_crypt_cbc(&aes_meta,MBEDTLS_AES_ENCRYPT,SEG,iv,meta,meta)!=0){rc=-32;goto cleanup;}
-        {off_t end=ftello(out);if(end<0 || fseeko(out,meta_offset,SEEK_SET)!=0 ||
-         write_bytes(out,meta,SEG) || fseeko(out,end,SEEK_SET)!=0){rc=-34;goto cleanup;}}
-        if(fflush(out)!=0){rc=-34;goto cleanup;}
+        {uint64_t end=sf_ps2_large_tell(&out);
+         if(sf_ps2_large_seek(&out,meta_offset)!=0){
+             rc=large_io_error("METADATA_SEEK_BACK",&out,-34,s_job.progress);
+             goto cleanup;
+         }
+         if(write_bytes(&out,meta,SEG)){
+             rc=large_io_error("METADATA_PATCH_WRITE",&out,-34,s_job.progress);
+             goto cleanup;
+         }
+         if(sf_ps2_large_seek(&out,end)!=0){
+             rc=large_io_error("ENCRYPTED_STREAM_SEEK_FORWARD",&out,-34,s_job.progress);
+             goto cleanup;
+         }}
+        if(sf_ps2_large_flush(&out)!=0){
+            rc=large_io_error("OUTPUT_FLUSH",&out,-34,s_job.progress);
+            goto cleanup;
+        }
         record("CIFRANDO",path,0,s_job.progress);
     }
-    if(fflush(out)!=0){rc=-34;goto cleanup;}
-    if(fclose(out)!=0){out=NULL;rc=-34;goto cleanup;}
-    out=NULL;
+    if(sf_ps2_large_sync(&out)!=0){
+        rc=large_io_error("OUTPUT_FINAL_SYNC",&out,-34,s_job.progress);
+        goto cleanup;
+    }
+    if(sf_ps2_large_close(&out)!=0){
+        rc=large_io_error("OUTPUT_CLOSE",&out,-34,s_job.progress);
+        goto cleanup;
+    }
     /* Source integrity: reject media changed during the conversion. */
     {uint64_t size_after=0;
       if(file_size(path,&size_after)!=0 || size_after!=size){rc=-45;goto cleanup;}}
@@ -745,8 +790,10 @@ static int perform_conversion(const char *path)
     rc=finish_atomic(path,size);
     if(rc==0)rc=ps2_stage_config(s_job.gameid);
 cleanup:
-    if(out)fclose(out);
-    if(in)fclose(in);
+    if(sf_ps2_large_close(&out)!=0 && rc==0)
+        rc=large_io_error("OUTPUT_CLEANUP_CLOSE",&out,-34,s_job.progress);
+    if(sf_ps2_large_close(&in)!=0 && rc==0)
+        rc=large_io_error("SOURCE_CLOSE",&in,-20,s_job.progress);
     if(blk)free(blk);if(meta)free(meta);if(header)free(header);if(limg)free(limg);
     mbedtls_aes_free(&aes_data);mbedtls_aes_free(&aes_meta);
     if(rc!=0){(void)remove(SF_CLASSICS_TMP);(void)remove(SF_CLASSICS_META_TMP);}
@@ -763,7 +810,7 @@ static uint32_t diag_be32(const unsigned char *p)
     return ((uint32_t)p[0]<<24)|((uint32_t)p[1]<<16)|
            ((uint32_t)p[2]<<8)|(uint32_t)p[3];
 }
-static int diag_sample_block(FILE *f, uint64_t block, uint64_t enc_size,
+static int diag_sample_block(SfPS2LargeFile *f, uint64_t block, uint64_t enc_size,
                              const unsigned char kd[16],
                              const unsigned char km[16], int is_last,
                              unsigned char *meta,unsigned char *cipher,
@@ -820,7 +867,7 @@ void sf_ps2_hen_report_state(void)
 {
     uint64_t size=0,vsize=0;
     uint8_t hdr[0x90]={0};
-    FILE *f;
+    SfPS2LargeFile f;
     unsigned char derived_data[16],derived_meta[16];
     unsigned char *meta=NULL,*cipher=NULL,*plain=NULL;
     uint64_t count=0;
@@ -834,10 +881,12 @@ void sf_ps2_hen_report_state(void)
     }
     log_printf("PS2_DIAG IMAGE_PRESENT=1 IMAGE_BYTES=%llu",
                (unsigned long long)size);
-    f=fopen(SF_CLASSICS_IMAGE,"rb");
-    if(!f){log_printf("PS2_DIAG IMAGE_OPEN_FAILED=%d",errno);goto config_check;}
-    if(fread(hdr,1,sizeof(hdr),f)!=sizeof(hdr)){
-        log_printf("PS2_DIAG IMAGE_HEADER_UNREADABLE=1");(void)fclose(f);goto config_check;
+    if(sf_ps2_large_open(&f,SF_CLASSICS_IMAGE,0)!=0){
+        log_printf("PS2_DIAG IMAGE_OPEN_FAILED=%d",f.error);goto config_check;
+    }
+    if(sf_ps2_large_read(&f,hdr,sizeof(hdr))!=0){
+        log_printf("PS2_DIAG IMAGE_HEADER_UNREADABLE=1");
+        (void)sf_ps2_large_close(&f);goto config_check;
     }
     vsize=get64(hdr+0x88);
     count=vsize/SEG;
@@ -853,7 +902,7 @@ void sf_ps2_hen_report_state(void)
        diag_be32(hdr+0x84)!=SEG || !vsize || vsize>MAX_INPUT+SEG ||
        vsize%SEG || size!=expected_size(vsize)){
         log_printf("PS2_DIAG IMAGE_STRUCTURAL_ERROR=1");
-        (void)fclose(f);goto config_check;
+        (void)sf_ps2_large_close(&f);goto config_check;
     }
     meta=malloc(SEG);cipher=malloc(SEG);plain=malloc(SEG);
     if(!meta || !cipher || !plain){
@@ -863,15 +912,15 @@ void sf_ps2_hen_report_state(void)
        aes_cbc_16(key_meta,klic,derived_meta)!=0){
         log_printf("PS2_DIAG INSPECT_KEY_DERIVATION_FAILED=1");goto close_image;
     }
-    first=diag_sample_block(f,0,size,derived_data,derived_meta,0,meta,cipher,plain);
-    last=diag_sample_block(f,count-1,size,derived_data,derived_meta,1,meta,cipher,plain);
+    first=diag_sample_block(&f,0,size,derived_data,derived_meta,0,meta,cipher,plain);
+    last=diag_sample_block(&f,count-1,size,derived_data,derived_meta,1,meta,cipher,plain);
     rc=(first==0 && last==0)?1:0;
     log_printf("PS2_DIAG ENCRYPTED_SAMPLES_VALID=%d",rc);
 close_image:
     if(meta)free(meta);
     if(cipher)free(cipher);
     if(plain)free(plain);
-    (void)fclose(f);
+    (void)sf_ps2_large_close(&f);
 config_check:
     log_printf("PS2_DIAG CONFIG_PRESENT=%d CONFIG_ENCRYPTED_VALID=%d",
                exists_file(SF_CFG_TARGET),verify_cfg(SF_CFG_TARGET));
