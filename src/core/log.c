@@ -20,7 +20,7 @@ int log_open(const char *path)
     g_log=(path && path[0])?fopen(path,"wb"):NULL;
     if (!g_log) return -1;
     {const char *header =
-        "SPOOKYFLOW - DIAGNOSTICO UNICO (V15.21)\n"
+        "SPOOKYFLOW - DIAGNOSTICO UNICO (V15.22)\n"
         "El informe se sobrescribe en cada inicio. NO captura directamente\n"
         "errores del ejecutable externo PS2 Classics Launcher despues del XMB.\n"
         "Solo nombres conocidos de diagnosticos antiguos se eliminan.\n"
