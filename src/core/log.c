@@ -20,10 +20,10 @@ int log_open(const char *path)
     g_log=(path && path[0])?fopen(path,"wb"):NULL;
     if (!g_log) return -1;
     {const char *header =
-        "SPOOKYFLOW - DIAGNOSTICO UNICO (V15.22)\n"
-        "El informe se sobrescribe en cada inicio. NO captura directamente\n"
-        "errores del ejecutable externo PS2 Classics Launcher despues del XMB.\n"
-        "Solo nombres conocidos de diagnosticos antiguos se eliminan.\n"
+        "SPOOKYFLOW - DIAGNOSTICO PS1 (V15.24)\n"
+        "Un unico archivo diagnostico_ps1.txt, reemplazado en cada inicio.\n"
+        "Incluye montaje Cobra PS1, pistas CUE y errores de respaldo webMAN.\n"
+        "No altera juegos, ISO, ajustes ni el cifrado PS2 Classics.\n"
         "--------------------------------------------------------------\n";
      size_t n=strlen(header);
      if(fwrite(header,1,n,g_log)!=n) { fclose(g_log);g_log=NULL;return -1; }
@@ -67,15 +67,11 @@ void log_printf(const char *fmt, ...)
 #ifdef SF_SINGLE_DIAG_FILE
     if(g_log) {
         const char *msg=line+n;
-        /* A focused report avoids megabytes of per-frame/per-cover chatter.
-         * Always retain PS2 preparation, mount failures and system context. */
+        /* PS1 only: avoid the old PS2/PS3/BDISO chatter. All PS1 mounts
+         * and fallback decisions have explicit PS1_DIAG/PS1_MOUNT tags. */
         int important =
-            strstr(msg,"PS2") || strstr(msg,"ps2") ||
-            strstr(msg,"cobra") || strstr(msg,"Cobra") ||
-            strstr(msg,"BDISO") || strstr(msg,"bdiso") ||
-            strstr(msg,"ERROR") || strstr(msg,"error") ||
-            strstr(msg,"FALLO") || strstr(msg,"network:") ||
-            strstr(msg,"====") || strstr(msg,"ntfs:");
+            strstr(msg,"PS1_DIAG") || strstr(msg,"PS1_MOUNT") ||
+            strstr(msg,"ps1:") || strstr(msg,"====");
         size_t len=strlen(line);
         if(important && s_file_bytes+len+1<SF_DIAG_MAX_BYTES) {
             fputs(line,g_log);fputc('\n',g_log);(void)fflush(g_log);
