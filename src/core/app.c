@@ -1408,6 +1408,36 @@ static void launch_disc(App *a, int disc)
         return;
     }
     c = settings_game_get(&a->settings, lib_key(a->lib, g));   /* one set of settings for all discs */
+    /* V15.13: PS2 has its own independent Cobra backend; PS1 legacy stays
+     * unchanged. Reject incompatible HEN BEFORE writing any CONFIG file. */
+    if (a->tab == PLAT_PS2 && a->host.launch_ps2) {
+        int result = a->host.ps2_preflight ? a->host.ps2_preflight(path) : -1;
+        if (result != 0) {
+            log_printf("ps2: safe preflight failed rc=%d for %s", result, path);
+            if (result == -41)
+                app_show_toast(a, "PS3 HEN: ISO de PS2 requiere PS2 Classics");
+            else if (result == -42)
+                app_show_toast(a, "PS2 ISO: cópiala a /dev_hdd0/PS2ISO");
+            else if (result == -45)
+                app_show_toast(a, "Montaje PS2: Cobra no disponible");
+            else
+                app_show_toast(a, "PS2 ISO no disponible (ver registro)");
+            return;
+        }
+        ps2cfg_apply(a, path, lib_str(a->lib, d ? d->id : g->id), c.ps2cfg);
+        log_printf("ps2: mounting directly with Cobra: %s emulator=%d", path, c.emulator);
+        result = a->host.launch_ps2(path, c.emulator);
+        if (result != 0) {
+            log_printf("ps2: mount failed rc=%d for %s", result, path);
+            app_show_toast(a, "Falló el montaje PS2 (ver registro)");
+            return;
+        }
+        sound_play(SND_CONFIRM);
+        sf_strlcpy(a->last_launch, name, sizeof(a->last_launch));
+        a->launched = 1;
+        app_request_exit(a, "ps2 cobra mount");
+        return;
+    }
     /* PS3 build: local Cobra mounting; leave all existing UI and settings untouched. */
     if (a->tab == PLAT_PS3 && a->host.launch_ps3) {
         int result, folder = (g->flags & GAME_DIR) != 0;

@@ -27,6 +27,7 @@
 #include "sound.h"
 #include "ps3_platform.h"
 #include "sf_cobra_mount.h"
+#include "sf_ps2_mount.h"
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
 #include "sf_usb_diag.h"
@@ -340,7 +341,9 @@ int main(int argc, const char *argv[])
     host.own_sfo_path = "/dev_hdd0/game/" SF_APPID "/PARAM.SFO";
     /* Preserve original optional services; PS3 mounting never calls webMAN. */
     host.power_off = power_off_via_webman;
-    host.launch = launch_via_webman; /* Legacy PS1/PS2 only. */
+    host.launch = launch_via_webman; /* Legacy PS1 only. PS2 uses Cobra. */
+    host.ps2_preflight = sf_ps2_preflight;
+    host.launch_ps2 = sf_ps2_mount;
     host.launch_ps3 = sf_cobra_mount_ps3;
     host.launch_bdiso = launch_bdiso;
     host.diag_ps3_select = sf_cobra_diag_selection;

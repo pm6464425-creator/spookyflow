@@ -74,6 +74,9 @@ typedef struct {
      * webMAN took it (the app then exits to the XMB, where webMAN mounts and
      * starts the game). NULL = launching not available. */
     int (*launch)(const char *request);
+    /* PS2: read-only preflight then local Cobra mount; independent of webMAN. */
+    int (*ps2_preflight)(const char *path);
+    int (*launch_ps2)(const char *path, int emulator);
     /* Optional local PS3 Cobra/HEN mounting callback. */
     int (*launch_ps3)(const char *path, int is_folder, const char *title_id);
     /* Blu-ray movies use Cobra BD opcode 0x7026, not PS3 game opcode 0x7024. */
