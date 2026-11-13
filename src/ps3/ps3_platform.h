@@ -14,7 +14,10 @@
 #define SF_BG_DIR        SF_DATA_DIR "/backgrounds"   /* the user's background pictures */
 #define SF_CASES_DIR     SF_DATA_DIR "/cases"    /* optional case images */
 #define SF_COVERS_DIR    SF_DATA_DIR "/covers"   /* processed cover cache (safe to delete) */
-#define SF_LOG_PATH      SF_DATA_DIR "/log.txt"
+/* One diagnostic report, rewritten from zero on every SpookyFlow start.
+ * No auto-numbered files, no duplicate logs. */
+#define SF_DIAG_SINGLE_PATH SF_DATA_DIR "/diagnostico.txt"
+#define SF_LOG_PATH SF_DIAG_SINGLE_PATH
 #define SF_USB_DIAG_PATH SF_DATA_DIR "/diagnostico_usb_ntfs.txt"
 #define SF_SETTINGS_PATH SF_DATA_DIR "/settings.ini"
 
@@ -35,6 +38,9 @@ void     ps3_pad_end(void);
 int  ps3_fs_list(void *ctx, const char *dir, FsEntry *out, int max);
 int  ps3_fs_exists(const char *path);
 void ps3_fs_mkdirs(void);
+/* Delete only known legacy diagnostic report names inside SF_DATA_DIR.
+ * Never delete user covers, settings, ISO files, source indexes or folders. */
+int  ps3_fs_cleanup_legacy_diagnostics(void);
 int  ps3_fs_is_file(void *ctx, const char *path);
 int  ps3_fs_write_file(const char *path, const void *data, uint32_t len);   /* 0 = written */
 int  ps3_fs_remove_file(const char *path);                                   /* 0 = removed */

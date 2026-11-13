@@ -40,6 +40,40 @@ void ps3_fs_mkdirs(void)
     sysFsMkdir(SF_COVERS_DIR "/ps3", 0777);
 }
 
+/* V15.18 one-time cleanup on each app start. Strict allowlist from our own
+ * previous releases. No recursive traversal, no wildcard, no deletion on USB.
+ * Missing files or directories simply count as zero. */
+int ps3_fs_cleanup_legacy_diagnostics(void)
+{
+    static const char *const names[]={
+        "log.txt",
+        "diagnostico_portadas.txt",
+        "diagnostico_usb_ntfs.txt",
+        "cobra_startup_probe.txt",
+        "cobra_selection_probe.txt",
+        "cobra_last_mount.txt",
+        "cobra_trace.txt",
+        "cobra_previous_interruption.txt",
+        "ps2_hen_last.txt",
+        "ps2_launcher_probe.txt",
+        "ps2_last_mount.txt",
+        "ps2_mount_trace.txt"
+    };
+    size_t i;
+    int removed=0;
+    for(i=0;i<sizeof(names)/sizeof(names[0]);i++) {
+        char path[256];
+        sysFSStat st;
+        if(snprintf(path,sizeof(path),"%s/%s",SF_DATA_DIR,names[i]) >=
+            (int)sizeof(path)) continue;
+        if(sysFsStat(path,&st)!=0) continue;
+        /* An unexpected directory with a report name is never deleted. */
+        if((st.st_mode & SF_S_IFMT)==SF_S_IFDIR) continue;
+        if(sysFsUnlink(path)==0)removed++;
+    }
+    return removed;
+}
+
 int ps3_fs_list(void *ctx, const char *dir, FsEntry *out, int max)
 {
     s32 fd;

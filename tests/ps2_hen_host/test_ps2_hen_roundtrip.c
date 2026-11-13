@@ -7,13 +7,25 @@
 #include <openssl/sha.h>
 #include <openssl/cmac.h>
 #include <stdio.h>
+#include <stdarg.h>
 #include <stdlib.h>
 #include <stdint.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
-/* Host-only logger supplied by the full PS3 application at runtime. */
-void log_printf(const char *fmt,...) {(void)fmt;}
+/* Host logger captures the SAME read-only encrypted image inspection
+ * performed on the PS3, independently verifying its reported status. */
+static int diag_good_images,diag_good_limg,diag_good_config;
+void log_printf(const char *fmt,...)
+{
+    char buf[1024];va_list a;
+    va_start(a,fmt);vsnprintf(buf,sizeof(buf),fmt,a);va_end(a);
+    if(strstr(buf,"PS2_DIAG ENCRYPTED_SAMPLES_VALID=1"))diag_good_images++;
+    if(strstr(buf,"PS2_DIAG LIMG_PRESENT=1") &&
+       strstr(buf,"VALID=1"))diag_good_limg++;
+    if(strstr(buf,"PS2_DIAG CONFIG_PRESENT=1 CONFIG_ENCRYPTED_VALID=1"))
+       diag_good_config++;
+}
 #define SEG 16384u
 static int checks;
 #define CHECK(x) do {if(!(x)){fprintf(stderr,"PS2 HEN FAIL line %d: %s\n",__LINE__,#x);exit(1);}checks++;}while(0)
@@ -135,6 +147,10 @@ int main(void)
     {unsigned char buf[sizeof(base_data)];CHECK(fread(buf,1,sizeof(buf),f)==sizeof(buf));
      SHA1(buf,sizeof(buf),next_sha);CHECK(!memcmp(original_sha,next_sha,20));}
     fclose(f);
+    /* Worker inspected the installed ciphertext and LIMG before returning. */
+    CHECK(diag_good_images>=1);
+    CHECK(diag_good_limg>=1);
+    CHECK(diag_good_config>=1);
     CHECK(size_file(USER_BACKUP)==27);
     CHECK(size_file(DIR "/CONFIG.sf-original")==20);
     CHECK(size_file(DIR "/CONFIG")==49152);
@@ -208,6 +224,8 @@ int main(void)
      write_file(cdpath,cd,sizeof(cd));
      CHECK(sf_ps2_hen_start(cdpath,NULL)==0);
      CHECK(wait_done()==1);
+     CHECK(diag_good_images>=2);
+     CHECK(diag_good_limg>=2);
      f=fopen(IMAGE,"rb");CHECK(f!=NULL);
      CHECK(fseeko(f,(off_t)((2u+blocks-1u)*SEG),SEEK_SET)==0);
      CHECK(fread(last_cipher,1,SEG,f)==SEG);

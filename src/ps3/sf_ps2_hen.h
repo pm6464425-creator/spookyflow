@@ -6,6 +6,9 @@
  * or a negative error code. Never modifies the source ISO.
  */
 int sf_ps2_hen_start(const char *path,const char *gameid);
+/* Read-only PS2 Classics encrypted image, CONFIG and LIMG inspection.
+ * Logs to the one app-wide diagnostics report; never edits PS2 games. */
+void sf_ps2_hen_report_state(void);
 /* 0=in progress; 1=fully prepared; negative=failed. Percent 0..100. */
 int sf_ps2_hen_poll(int *percent);
 /* Signal cancellation (on an OS-forced exit, a .sf-part can remain). */

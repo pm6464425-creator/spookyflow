@@ -18,7 +18,10 @@ checks={
  "06 no insecure crypto-disabled fallback": "make pkg SF_TLS=0" not in build,
  "07 make defaults TLS enabled": "SF_TLS ?= 1" in m,
  "08 make defaults TXT reports disabled": "-DSF_DISABLE_DIAG_TXT" in m,
- "09 general application log file creation disabled": '#ifdef SF_DISABLE_DIAG_TXT' in src("src/core/log.c"),
+ "09 general logs use ONE central report; legacy logs disabled":
+     '#ifdef SF_SINGLE_DIAG_FILE' in src("src/core/log.c") and
+     '#elif defined(SF_DISABLE_DIAG_TXT)' in src("src/core/log.c") and
+     '-DSF_SINGLE_DIAG_FILE' in m,
  "10 covers diagnostic TXT creation disabled": '#ifdef SF_DISABLE_DIAG_TXT' in src("src/core/cover_diag.c"),
  "11 USB diagnostics begin and snapshots disabled": src("src/ps3/sf_usb_diag.c").count("#ifdef SF_DISABLE_DIAG_TXT")==2,
  "12 Cobra early and selection probes disabled": src("src/ps3/sf_cobra_mount.c").count("#ifdef SF_DISABLE_DIAG_TXT")==3,

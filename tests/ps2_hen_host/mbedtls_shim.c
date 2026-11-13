@@ -10,6 +10,8 @@ void mbedtls_aes_init(mbedtls_aes_context *ctx){memset(ctx,0,sizeof(*ctx));}
 void mbedtls_aes_free(mbedtls_aes_context *ctx){memset(ctx,0,sizeof(*ctx));}
 int mbedtls_aes_setkey_enc(mbedtls_aes_context *ctx,const unsigned char *key,unsigned int bits)
 {if(bits!=128)return -1;memcpy(ctx->key,key,16);return 0;}
+int mbedtls_aes_setkey_dec(mbedtls_aes_context *ctx,const unsigned char *key,unsigned int bits)
+{if(bits!=128)return -1;memcpy(ctx->key,key,16);return 0;}
 static int crypt(const unsigned char *key,int mode,int cbc,size_t n,unsigned char *iv,
                  const unsigned char *in,unsigned char *out)
 {

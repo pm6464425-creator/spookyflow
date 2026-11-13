@@ -1855,7 +1855,11 @@ void app_update(App *a, uint32_t held, float dt)
             app_request_exit(a,"ps2 classics prepared");
         } else {
             log_printf("ps2 hen: conversion failed rc=%d",status);
-            app_show_toast(a,"Error de conversión PS2 Classics");
+            {char msg[112];
+             snprintf(msg,sizeof(msg),
+                      "PS2 Classics: error %d (ver diagnostico.txt)",status);
+             app_show_toast(a,msg);
+            }
         }
         return;
     }

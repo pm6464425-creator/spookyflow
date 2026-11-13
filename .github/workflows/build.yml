@@ -65,6 +65,12 @@ jobs:
           ./build-host/test_ps2_hen_roundtrip
       - name: V15.17 PS2 mandatory encryption and no TXT diagnostic files
         run: python3 tests/test_ps2_no_txt_crypto.py
+      - name: V15.18 one diagnostic, strict cleanup and encrypted PS2 validation
+        run: |
+          python3 tests/test_ps2_single_diag.py
+          cc -std=c99 -O2 -Wall -Wextra -Werror -DSF_SINGLE_DIAG_FILE -DSF_DISABLE_DIAG_TXT -Isrc/core \
+             src/core/log.c tests/test_log_single.c -o build-host/test_log_single
+          ./build-host/test_log_single
       - name: Cobra launch integration static checks
         run: python3 tests/test_cobra_integration.py
       - name: Real 3D release website and JPEG smoke checks
@@ -321,6 +327,23 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title "SpookyFlow V15.17 — PS2 Classics HEN cifrado corregido sin TXT de errores" \
             --notes "EXPERIMENTAL: obliga a compilar AES/SHA1 con mbedTLS 2.28, corrige mbedtls_sha1_ret y elimina el fallback SF_TLS=0, que generaba un PKG sin cifrado. Inhabilita nuevos informes TXT de errores (PS2, Cobra, USB, portadas y log general) sin borrar registros anteriores ni archivos TXT de datos. Mantiene PS1, PS3, BDISO y diseño V15.12. Aprobado en CI; prueba física PS3 pendiente. Ver PS2_V15_17_SIN_TXT_ES.md."
+      - name: Publish V15.18 PS2 diagnostic and cleanup prerelease
+        if: github.ref == 'refs/heads/fix/v15-18-ps2-single-diagnostic'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-18-ps2-single-diagnostic" --jq '.commit.sha')
+          if [ "$current" != "$GITHUB_SHA" ]; then
+            echo "Older revision; refusing to release"
+            exit 0
+          fi
+          short="${GITHUB_SHA:0:8}"
+          cp spookyflow.pkg SPOOKYFLOW_V15_18_DIAGNOSTICO_UNICO_PS2_HEN.pkg
+          gh release create "spookyflow-v15-18-ps2-diag-${short}" \
+            SPOOKYFLOW_V15_18_DIAGNOSTICO_UNICO_PS2_HEN.pkg \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "SpookyFlow V15.18 — PS2 Classics y diagnóstico único (experimental)" \
+            --notes "Genera y sobrescribe /dev_hdd0/tmp/spookyflow/diagnostico.txt en cada inicio; elimina SOLO 12 nombres conocidos de diagnósticos antiguos, manteniendo settings.ini, sf_blank.iso, covers y juegos. Inspecciona ISO.BIN.ENC, CONFIG, LIMG CD/DVD, tamaño de archivo, cifrado SHA1 de bloques y estado del launcher. Sin webMAN MOD para preparar PS2. Mantiene V15.17 AES/SHA1 obligatorio. Pruebas automatizadas aprobadas y PKG compilado, pero el arranque PS2 Classics externo todavía requiere validación real en la consola. Más detalles: PS2_V15_18_DIAGNOSTICO_ES.md."
       # GitHub release assets can be downloaded directly (without Actions
       # artifact ZIP/login) unlike some sandbox links in the chat client.
       - name: Publish direct-download PS3 PKG release

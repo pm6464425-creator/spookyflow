@@ -237,7 +237,10 @@ static uint64_t get64(const uint8_t *p)
 static void record(const char *stage,const char *path,int code,int progress)
 {
 #ifdef SF_DISABLE_DIAG_TXT
-    (void)stage; (void)path; (void)code; (void)progress;
+    /* Single V15.18 diagnostic: write events into the ONE central report
+     * instead of creating a separate ps2_hen_last.txt at every stage. */
+    log_printf("PS2_DIAG STAGE=%s RC=%d PROGRESS=%d SOURCE=%s",
+               stage?stage:"UNKNOWN",code,progress,path?path:"(none)");
     return;
 #else
     FILE *f=fopen(SF_HEN_DIAG,"wb");
@@ -334,6 +337,10 @@ static int validate_iso(FILE *in,uint64_t size,uint8_t limg[SEG],uint64_t *virtu
     padded=(size+(SEG-1))&~((uint64_t)SEG-1u);
     if(padded>MAX_INPUT-SEG)return -22;
     memset(limg,0,SEG);
+    log_printf("PS2_DIAG ISO9660_LAYOUT=%s INPUT_BYTES=%llu "
+               "LIMG_DISC_TYPE=%d LIMG_SECTOR_SIZE=%d",
+               dvd?"DVD_2048":"CD_RAW_2352",(unsigned long long)size,
+               dvd?1:2,dvd?2048:2352);
     if(read_bytes(in,(dvd?0x8000u:0x9318u)+0x54u,sectors,4))return -23;
     memcpy(limg,"LIMG",4);
     limg[7]=dvd?1:2;
@@ -610,12 +617,165 @@ cleanup:
     if(rc!=0){(void)remove(SF_CLASSICS_TMP);(void)remove(SF_CLASSICS_META_TMP);}
     return rc;
 }
+/* V15.18 forensic validation: read-only inspection of the PS2 Classics
+ * image produced in the previous run. An external PS2 Classics crash/return
+ * to XMB is not directly visible from inside this application; the fields
+ * below let us distinguish malformed encrypted output, missing CONFIG, and
+ * potentially unsupported CD LIMG before changing anything again.
+ */
+static uint32_t diag_be32(const unsigned char *p)
+{
+    return ((uint32_t)p[0]<<24)|((uint32_t)p[1]<<16)|
+           ((uint32_t)p[2]<<8)|(uint32_t)p[3];
+}
+static int diag_sample_block(FILE *f, uint64_t block, uint64_t enc_size,
+                             const unsigned char kd[16],
+                             const unsigned char km[16], int is_last,
+                             unsigned char *meta,unsigned char *cipher,
+                             unsigned char *clear)
+{
+    uint64_t group=block/BLOCKS_PER_META;
+    uint64_t meta_off=(1+group*(BLOCKS_PER_META+1u))*(uint64_t)SEG;
+    uint64_t data_off=(2+block+group)*(uint64_t)SEG;
+    unsigned int index=(unsigned int)(block%BLOCKS_PER_META);
+    unsigned char iv[16]={0},digest[20];
+    mbedtls_aes_context aes;
+    int good=0,index_ok=0,hash_ok=0,rc=-1;
+    if(meta_off+SEG>enc_size || data_off+SEG>enc_size) {
+        log_printf("PS2_DIAG SAMPLE_%s=OFFSET_OUT_OF_RANGE",is_last?"LAST":"FIRST");
+        return -1;
+    }
+    if(read_bytes(f,meta_off,meta,SEG) || read_bytes(f,data_off,cipher,SEG)){
+        log_printf("PS2_DIAG SAMPLE_%s=READ_FAILED",is_last?"LAST":"FIRST");
+        return -1;
+    }
+    mbedtls_aes_init(&aes);
+    if(mbedtls_aes_setkey_dec(&aes,km,128)!=0)goto done;
+    if(mbedtls_aes_crypt_cbc(&aes,MBEDTLS_AES_DECRYPT,SEG,iv,meta,meta)!=0)goto done;
+    index_ok=diag_be32(meta+index*0x20+0x14)==(uint32_t)block;
+    hash_ok=mbedtls_sha1_ret(cipher,SEG,digest)==0 &&
+            memcmp(digest,meta+index*0x20,20)==0;
+    memset(iv,0,16);
+    if(mbedtls_aes_setkey_dec(&aes,kd,128)!=0)goto done;
+    if(mbedtls_aes_crypt_cbc(&aes,MBEDTLS_AES_DECRYPT,SEG,iv,cipher,clear)!=0)
+        goto done;
+    good=hash_ok && index_ok;
+    log_printf("PS2_DIAG SAMPLE_%s BLOCK=%llu HASH_OK=%d INDEX_OK=%d",
+               is_last?"LAST":"FIRST",(unsigned long long)block,hash_ok,index_ok);
+    if(is_last) {
+        uint32_t sectors=diag_be32(clear+8);
+        unsigned int disc_type=clear[7],sector_size=(unsigned int)clear[14]*256u+clear[15];
+        int limg_ok=!memcmp(clear,"LIMG",4) &&
+                   ((disc_type==1 && sector_size==2048) ||
+                    (disc_type==2 && sector_size==2352));
+        log_printf("PS2_DIAG LIMG_PRESENT=%d DISC_TYPE=%u SECTORS=%u SECTOR_SIZE=%u VALID=%d",
+                   !memcmp(clear,"LIMG",4),disc_type,(unsigned)sectors,
+                   sector_size,limg_ok);
+        /* This is diagnostic only: some real PS2 CDs need alternative LIMG
+         * settings. Do not auto-change a game that already failed to boot. */
+        if(!limg_ok) good=0;
+    }
+    rc=good?0:-1;
+done:
+    mbedtls_aes_free(&aes);
+    if(rc!=0)log_printf("PS2_DIAG SAMPLE_%s_FAILED=1",is_last?"LAST":"FIRST");
+    return rc;
+}
+void sf_ps2_hen_report_state(void)
+{
+    uint64_t size=0,vsize=0;
+    uint8_t hdr[0x90]={0};
+    FILE *f;
+    unsigned char derived_data[16],derived_meta[16];
+    unsigned char *meta=NULL,*cipher=NULL,*plain=NULL;
+    uint64_t count=0;
+    int rc=0,first=0,last=0;
+    log_printf("PS2_DIAG INSPECT_BEGIN=1");
+    log_printf("PS2_DIAG LAUNCHER_ID=PS2U10000 INSTALLED=%d",launcher_installed());
+    log_printf("PS2_DIAG ENCRYPTED_IMAGE=%s",SF_CLASSICS_IMAGE);
+    if(file_size(SF_CLASSICS_IMAGE,&size)!=0){
+        log_printf("PS2_DIAG IMAGE_PRESENT=0");
+        goto config_check;
+    }
+    log_printf("PS2_DIAG IMAGE_PRESENT=1 IMAGE_BYTES=%llu",
+               (unsigned long long)size);
+    f=fopen(SF_CLASSICS_IMAGE,"rb");
+    if(!f){log_printf("PS2_DIAG IMAGE_OPEN_FAILED=%d",errno);goto config_check;}
+    if(fread(hdr,1,sizeof(hdr),f)!=sizeof(hdr)){
+        log_printf("PS2_DIAG IMAGE_HEADER_UNREADABLE=1");(void)fclose(f);goto config_check;
+    }
+    vsize=get64(hdr+0x88);
+    count=vsize/SEG;
+    log_printf("PS2_DIAG HEADER_MAGIC_OK=%d CONTENT_ID_OK=%d "
+               "SEGMENT=%u VIRTUAL_BYTES=%llu EXPECTED_BYTES=%llu SIZE_OK=%d",
+               !memcmp(hdr,"PS2\0",4),!memcmp(hdr+0x10,CID,36),
+               diag_be32(hdr+0x84),(unsigned long long)vsize,
+               (unsigned long long)(vsize>0&&vsize<=MAX_INPUT+SEG?
+                                    expected_size(vsize):0),
+               vsize>0 && vsize<=MAX_INPUT+SEG && vsize%SEG==0 &&
+               size==expected_size(vsize));
+    if(memcmp(hdr,"PS2\0",4) || memcmp(hdr+0x10,CID,36) ||
+       diag_be32(hdr+0x84)!=SEG || !vsize || vsize>MAX_INPUT+SEG ||
+       vsize%SEG || size!=expected_size(vsize)){
+        log_printf("PS2_DIAG IMAGE_STRUCTURAL_ERROR=1");
+        (void)fclose(f);goto config_check;
+    }
+    meta=malloc(SEG);cipher=malloc(SEG);plain=malloc(SEG);
+    if(!meta || !cipher || !plain){
+        log_printf("PS2_DIAG INSPECT_NO_MEMORY=1");goto close_image;
+    }
+    if(aes_cbc_16(key_data,klic,derived_data)!=0 ||
+       aes_cbc_16(key_meta,klic,derived_meta)!=0){
+        log_printf("PS2_DIAG INSPECT_KEY_DERIVATION_FAILED=1");goto close_image;
+    }
+    first=diag_sample_block(f,0,size,derived_data,derived_meta,0,meta,cipher,plain);
+    last=diag_sample_block(f,count-1,size,derived_data,derived_meta,1,meta,cipher,plain);
+    rc=(first==0 && last==0)?1:0;
+    log_printf("PS2_DIAG ENCRYPTED_SAMPLES_VALID=%d",rc);
+close_image:
+    if(meta)free(meta);
+    if(cipher)free(cipher);
+    if(plain)free(plain);
+    (void)fclose(f);
+config_check:
+    log_printf("PS2_DIAG CONFIG_PRESENT=%d CONFIG_ENCRYPTED_VALID=%d",
+               exists_file(SF_CFG_TARGET),verify_cfg(SF_CFG_TARGET));
+    {char line[512];FILE *m=fopen(SF_CFG_OWNER,"rb");
+     if(m){
+         if(fgets(line,sizeof(line),m)) {
+             line[strcspn(line,"\r\n")]=0;
+             log_printf("PS2_DIAG CONFIG_ORIGIN=%.300s",line);
+         }
+         (void)fclose(m);
+     }else log_printf("PS2_DIAG CONFIG_ORIGIN=(not managed by SpookyFlow)");
+    }
+    {char line[1200];FILE *m=fopen(SF_CLASSICS_META,"rb");
+     if(m){
+         if(fgets(line,sizeof(line),m)){
+             line[strcspn(line,"\r\n")]=0;
+             log_printf("PS2_DIAG SOURCE_MANIFEST=%.500s",line);
+         }
+         (void)fclose(m);
+     }else log_printf("PS2_DIAG SOURCE_MANIFEST_MISSING=1");
+    }
+    log_printf("PS2_DIAG PENDING_PARTIAL=%d OLD_BACKUP_PENDING=%d "
+               "ORIGINAL_BACKUP=%d",
+               exists_file(SF_CLASSICS_TMP),
+               exists_file(SF_CLASSICS_OLD),
+               exists_file(SF_CLASSICS_USER_BACKUP));
+    log_printf("PS2_DIAG EXTERNAL_LAUNCH_STATUS=NOT_OBSERVABLE_FROM_SPOOKYFLOW");
+    log_printf("PS2_DIAG INSPECT_END=1");
+}
+
 static void ps2_thread(void *arg)
 {
     int rc; (void)arg;
     record("PREPARANDO",s_job.path,0,0);
     rc=perform_conversion(s_job.path);
     record(rc==0?"LISTO":"ERROR",s_job.path,rc,s_job.progress);
+    /* Immediately validate the staged file before returning to XMB.
+     * A new SpookyFlow session repeats the same read-only diagnosis. */
+    if(rc==0)sf_ps2_hen_report_state();
     __sync_synchronize();
     s_job.state=rc?rc:1;
     sysThreadExit(0);
@@ -646,6 +806,8 @@ int sf_ps2_hen_start(const char *path,const char *gameid)
      * decryption is verified; do not silently encrypt only disc segment 0. */
     if(ends(path,".iso.0"))return -62;
     if(file_size(path,&s)!=0 || s<0x20000 || s>MAX_INPUT)return -63;
+    log_printf("PS2_DIAG SELECTED_ISO=%s ISO_BYTES=%llu GAME_ID=%s",
+               path,(unsigned long long)s,gameid&&gameid[0]?gameid:"(unknown)");
     if(!launcher_installed()){record("LAUNCHER_NOT_FOUND",path,-64,0);return -64;}
 #ifndef SF_HAVE_TLS
     (void)n;return -65;

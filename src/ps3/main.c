@@ -304,16 +304,30 @@ int main(int argc, const char *argv[])
     /* Create a persistent trace BEFORE any graphics, pad, audio or UI work.
      * This separates an early startup freeze from a Cobra mount freeze. */
     ps3_fs_mkdirs();
+#ifdef SF_SINGLE_DIAG_FILE
+    {int removed=ps3_fs_cleanup_legacy_diagnostics();
+     int diag_rc=log_open(SF_DIAG_SINGLE_PATH);
+     if(diag_rc==0) {
+         log_printf("==== SPOOKYFLOW V15.18 - diagnostic report started ====");
+         log_printf("PS2_DIAG CLEANUP_LEGACY_REPORTS_REMOVED=%d",removed);
+     }
+    }
+#endif
     rc = sf_usb_diag_begin();
     log_printf("usb_diag: report open status=%d at " SF_USB_DIAG_PATH,rc);
     rc = cover_diag_start(SF_DATA_DIR "/diagnostico_portadas.txt");
     log_printf("bdiso diag: report open status=%d at " SF_DATA_DIR "/diagnostico_portadas.txt",rc);
     cover_diag("INICIO","El programa arranco. Solo portadas BDISO. No altera ISO ni COVERS");
     rc = sf_cobra_diag_startup("BEFORE_TINY3D_INIT");
+#ifndef SF_SINGLE_DIAG_FILE
     if (log_open(SF_LOG_PATH) == 0) {
+#endif
         log_printf("==== %s %s starting ====", APP_NAME, APP_VERSION);
         log_printf("cobra early-probe build EARLY_PROBE_20261109_R1, startup result=%d", rc);
+#ifndef SF_SINGLE_DIAG_FILE
     }
+#endif
+    sf_ps2_hen_report_state(); /* Read-only inspection of last PS2 Classics stage. */
     sf_cobra_diag_report_previous();
     sf_usb_diag_snapshot("PRE_NATIVE_NTFS",NULL,NULL,usb_media_mask());
 

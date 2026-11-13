@@ -7,6 +7,7 @@ typedef struct { unsigned char key[16]; } mbedtls_aes_context;
 void mbedtls_aes_init(mbedtls_aes_context *ctx);
 void mbedtls_aes_free(mbedtls_aes_context *ctx);
 int mbedtls_aes_setkey_enc(mbedtls_aes_context *ctx, const unsigned char key[16], unsigned int bits);
+int mbedtls_aes_setkey_dec(mbedtls_aes_context *ctx, const unsigned char key[16], unsigned int bits);
 int mbedtls_aes_crypt_ecb(mbedtls_aes_context *ctx,int mode,const unsigned char in[16],unsigned char out[16]);
 int mbedtls_aes_crypt_cbc(mbedtls_aes_context *ctx,int mode,size_t n,unsigned char iv[16],const unsigned char *in,unsigned char *out);
 #endif
