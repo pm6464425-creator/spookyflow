@@ -95,7 +95,7 @@ serialized_keys=["autoplay=%d","offline=%d","music_volume=%d",
   "last_key_%s=%s","ps2cfg_copy=%08x"]
 # 8: Actual rendered menu text is localized, without changing RowKind IDs.
 # 9: About, downloads, controls and on-screen notices in Spanish.
-ui_targets=["Jugar","Vista","Ajustes del juego","Ajustes generales",
+ui_targets=["Iniciar","Vista","Ajustes del juego","Ajustes generales",
             "Volver","Elegir","Cambiar","Salir (mantén)",
             "Descargar carátulas faltantes","Buscando carátulas",
             "Sin juegos","Sin películas","Almacenamiento",
