@@ -1080,7 +1080,7 @@ static void test_music_app(void)
     run_frames(0, 0.05f);
     for (i = 0; i < 40; i++) music_mix(buf, 256);
     tap(SFB_SELECT);
-    CHECK(strstr(g_app.toast, "Music is off") != NULL);
+    CHECK(strstr(g_app.toast, "La música está apagada") != NULL);
     g_app.settings.music_volume = 50;
     run_frames(0, TOAST_TIME + 0.1f);
     /* exit: music fades out */
@@ -1242,7 +1242,7 @@ static void test_ps2_config(void)
         relaunch_reset(); run_frames(0, 0.1f);
         cfg_open_row();
         app_row_value(&g_app, ROW_G_PS2CFG, v, sizeof(v));
-        CHECK_STR(v, "SOFT (missing)");
+        CHECK_STR(v, "SOFT (no existe)");
         tap(SFB_CIRCLE); run_frames(0, 0.4f);
     }
 
@@ -1302,7 +1302,7 @@ static void test_ps2_config(void)
     tap(SFB_LEFT); tap(SFB_LEFT);
     while (g_app.panel_cfg.ps2cfg != PS2CFG_AUTO) tap(SFB_RIGHT);
     app_row_value(&g_app, ROW_G_PS2CFG, v, sizeof(v));
-    CHECK_STR(v, "Auto (off in webMAN)");
+    CHECK_STR(v, "Auto (webMAN apagado)");
     tap(SFB_CIRCLE); run_frames(0, 0.4f);
     g_app.host.read_wm_config = NULL;
 
@@ -1311,9 +1311,9 @@ static void test_ps2_config(void)
     cfg_open_row();
     CHECK(!g_app.ps2cfg_ok);
     app_row_value(&g_app, ROW_G_PS2CFG, v, sizeof(v));
-    CHECK_STR(v, "Not available");
+    CHECK_STR(v, "No disponible");
     tap(SFB_RIGHT);
-    CHECK(strstr(g_app.toast, "PS2 ISOs") != NULL);
+    CHECK(strstr(g_app.toast, "ISO en el disco interno") != NULL);
     tap(SFB_CIRCLE); run_frames(0, TOAST_TIME + 0.2f);
     memfs_reset();
 }
@@ -1534,7 +1534,7 @@ static void test_bg_pictures(void)
     CHECK(g_app.settings.background == BG_CUSTOM && strcmp(g_app.settings.bg_image, "A.jpg") == 0);
     CHECK(g_bg_loads == 1 && strcmp(g_bg_last, "/bgs/A.jpg") == 0);
     app_row_value(&g_app, ROW_F_BACKGROUND, v, sizeof(v));
-    CHECK_STR(v, "Picture: A");
+    CHECK_STR(v, "Imagen: A");
     tap(SFB_RIGHT);
     CHECK(strcmp(g_app.settings.bg_image, "b.png") == 0 && g_bg_loads == 2);
     tap(SFB_RIGHT);                                          /* the last one: stays */
@@ -1641,12 +1641,12 @@ static void test_display_mode(void)
     CHECK(!app_main_context(&g_app));       /* ◯ cannot arm hold-to-exit here */
     /* the bar */
     ui_bar_layout(3, &L);
-    CHECK(L.n == 3 && strcmp(L.g[0].label, "Launch") == 0 && L.g[0].item[0].icon == ICON_CROSS &&
-          strcmp(L.g[1].label, "Game Settings") == 0 && L.g[1].item[0].icon == ICON_TRIANGLE &&
-          strcmp(L.g[2].label, "Back") == 0 && L.g[2].item[0].icon == ICON_CIRCLE);
+    CHECK(L.n == 3 && strcmp(L.g[0].label, "Jugar") == 0 && L.g[0].item[0].icon == ICON_CROSS &&
+          strcmp(L.g[1].label, "Ajustes del juego") == 0 && L.g[1].item[0].icon == ICON_TRIANGLE &&
+          strcmp(L.g[2].label, "Volver") == 0 && L.g[2].item[0].icon == ICON_CIRCLE);
     ui_bar_layout(0, &L);
-    CHECK(L.n == 7 && L.g[1].item[0].icon == ICON_SQUARE && strcmp(L.g[1].label, "Display") == 0 &&
-          L.g[2].item[0].icon == ICON_TRIANGLE && strcmp(L.g[2].label, "Game Settings") == 0);   /* 0.7.3: ■ before ▲ */
+    CHECK(L.n == 7 && L.g[1].item[0].icon == ICON_SQUARE && strcmp(L.g[1].label, "Vista") == 0 &&
+          L.g[2].item[0].icon == ICON_TRIANGLE && strcmp(L.g[2].label, "Ajustes del juego") == 0);   /* 0.7.3: ■ before ▲ */
     /* 0.7.3: Game Settings opens from display mode, and ◯ there comes back to it */
     tap(SFB_TRIANGLE);
     CHECK(g_app.panel == PANEL_GAME && g_app.display == 1);
@@ -1724,14 +1724,14 @@ static void test_panels_m6(void)
     CHECK(menu_toggle(ROW_F_SHUFFLE, &s) == 1 && menu_toggle(ROW_F_REFLECT, &s) == 0);
     CHECK(menu_toggle(ROW_F_BACKGROUND, &s) == -1 && menu_toggle(ROW_F_VOLUME, &s) == -1 && menu_toggle(ROW_FG_LOOK, &s) == -1);
     gc.autoplay = AP_OFF;
-    CHECK(menu_segments(ROW_G_AUTOPLAY, PLAT_PS2, &gc, &names, &cur) == 3 && cur == 2 && strcmp(names[0], "Default") == 0);
+    CHECK(menu_segments(ROW_G_AUTOPLAY, PLAT_PS2, &gc, &names, &cur) == 3 && cur == 2 && strcmp(names[0], "Predet.") == 0);
     gc.emulator = 1;
-    CHECK(menu_segments(ROW_G_EMULATOR, PLAT_PS1, &gc, &names, &cur) == 2 && cur == 1 && strcmp(names[0], "Standard") == 0);
+    CHECK(menu_segments(ROW_G_EMULATOR, PLAT_PS1, &gc, &names, &cur) == 2 && cur == 1 && strcmp(names[0], "Estándar") == 0);
     CHECK(menu_segments(ROW_G_PS2CFG, PLAT_PS2, &gc, &names, &cur) == 0);
     CHECK(g_icons.count == ICON_COUNT && ICON_DPAD_LR == ICON_THUMB0 + 7);
     for (i = ICON_THUMB0; i < ICON_DPAD_LR; i++) CHECK(icons_aspect(i) > 1.7f && icons_aspect(i) < 1.8f);   /* 16:9 */
     ui_bar_layout(4, &L);
-    CHECK(L.n == 2 && strcmp(L.g[0].label, "Select") == 0);
+    CHECK(L.n == 2 && strcmp(L.g[0].label, "Elegir") == 0);
 
     lib_clear(&g_lib);
     memset(&host, 0, sizeof(host));
@@ -1796,7 +1796,7 @@ static void test_panels_082(void)
     n = menu_group_rows(ROW_FG_SOUND, r, 8);
     CHECK(n == 3 && r[0] == ROW_F_SFX && r[1] == ROW_F_VOLUME && r[2] == ROW_F_SHUFFLE);
     ui_bar_layout(1, &L);
-    CHECK(L.n == 2 && L.g[0].item[0].icon == ICON_DPAD_LR && strcmp(L.g[0].label, "Change") == 0);
+    CHECK(L.n == 2 && L.g[0].item[0].icon == ICON_DPAD_LR && strcmp(L.g[0].label, "Cambiar") == 0);
     ui_bar_layout(5, &L);
     CHECK(L.n == 1 && L.g[0].item[0].icon == ICON_CIRCLE);
     lib_clear(&g_lib);
@@ -2529,7 +2529,7 @@ static void test_098(void)
     memset(&g, 0, sizeof(g));
     CHECK(s.case_light == CASE_LIGHT_SOFT);
     menu_value_text(ROW_F_CASE_LIGHT, 0, &s, &g, t, sizeof(t));
-    CHECK(strcmp(t, "Soft") == 0);
+    CHECK(strcmp(t, "Suave") == 0);
     CHECK(menu_change(ROW_F_CASE_LIGHT, 0, 1, &s, &g) == MENU_FX_CHANGED && s.case_light == CASE_LIGHT_FULL);
     CHECK(menu_change(ROW_F_CASE_LIGHT, 0, 1, &s, &g) == MENU_FX_NONE && s.case_light == CASE_LIGHT_FULL);
     CHECK(menu_change(ROW_F_CASE_LIGHT, 0, -1, &s, &g) == MENU_FX_CHANGED);
