@@ -1197,6 +1197,39 @@ static void ps2cfg_apply(App *a, const char *iso, const char *lib_id, int type)
     app_save(a);
 }
 
+/* Cobra mounts PS2 without webMAN: for AUTO configuration, mimic webMAN's
+ * standard CONFIG lookup ourselves. A user's existing file is never replaced.
+ * ps2cfg_apply(AUTO) has already restored any user backup or removed a copy
+ * that SpookyFlow owns before this function is called. */
+static void ps2cfg_auto_cobra(App *a, const char *iso, const char *lib_id)
+{
+    static const int order[] = {
+        PS2CFG_APP, PS2CFG_CUSTOM, PS2CFG_NET, PS2CFG_GX, PS2CFG_SOFT
+    };
+    char cfg[COVER_PATH_MAX], gid[16], src[COVER_PATH_MAX];
+    int t;
+    if (!ps2cfg_is_iso(iso) || !a->host.is_file || !a->host.read_at ||
+        !a->host.write_file || !a->host.remove_file) return;
+    g_isfile_app = a;
+    if (snprintf(cfg,sizeof(cfg),"%s.CONFIG",iso)>=(int)sizeof(cfg)) return;
+    if (host_is_file(NULL,cfg)) return; /* user file or existing valid CONFIG */
+    if (!ps2_disc_id(a,iso,lib_id,gid,sizeof(gid))) {
+        log_printf("ps2: Cobra AUTO CONFIG has no disc ID for %s",iso);
+        return;
+    }
+    for (t=0;t<(int)(sizeof(order)/sizeof(order[0]));t++) {
+        if (!ps2cfg_find(order[t],gid,host_is_file,NULL,src,sizeof(src)))
+            continue;
+        if (cfg_copy(a,src,cfg)==0) {
+            settings_cfg_copy_add(&a->settings,sf_hash(cfg));
+            app_save(a);
+            log_printf("ps2: Cobra AUTO CONFIG %s -> %s",src,cfg);
+        } else log_printf("ps2: failed to copy AUTO CONFIG to %s",cfg);
+        return;
+    }
+    log_printf("ps2: Cobra AUTO CONFIG not found for %s",gid);
+}
+
 /* Flow Settings groups: ✖ on a group opens its page, ◯ comes back */
 static void flow_enter_group(App *a, RowKind g)
 {
@@ -1425,6 +1458,8 @@ static void launch_disc(App *a, int disc)
             return;
         }
         ps2cfg_apply(a, path, lib_str(a->lib, d ? d->id : g->id), c.ps2cfg);
+        if (c.ps2cfg == PS2CFG_AUTO)
+            ps2cfg_auto_cobra(a, path, lib_str(a->lib, d ? d->id : g->id));
         log_printf("ps2: mounting directly with Cobra: %s emulator=%d", path, c.emulator);
         result = a->host.launch_ps2(path, c.emulator);
         if (result != 0) {

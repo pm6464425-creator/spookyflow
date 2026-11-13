@@ -34,6 +34,9 @@ checks={
  "23 Cobra kernel version before changes": mount.index('raw_version(&version)') < mount.index('cobra_send_fake_disc_eject_event()'),
  "24 HEN user-facing diagnosis": "PS3 HEN: ISO de PS2 requiere PS2 Classics" in app,
  "25 Cobra types available before header": mount.index('#include <stdint.h>') < mount.index('#include <cobra.h>'),
+ "26 clear previous PS3 maps before PS2 mount": mount.index('sys_map_path("/dev_bdvd",NULL)') < mount.index("cobra_mount_ps2_disc_image(parts,n,tracks,1)"),
+ "27 preserve and automatically apply PS2 CONFIG": 'ps2cfg_auto_cobra(a, path' in app and 'PS2CFG_APP, PS2CFG_CUSTOM, PS2CFG_NET, PS2CFG_GX, PS2CFG_SOFT' in app,
+ "28 never overwrite own PS2 CONFIG": "if (host_is_file(NULL,cfg)) return;" in app,
 }
 for name,ok in checks.items():print(("PASS " if ok else "FAIL ")+name)
 print("PS2 static checks %d/%d"%(sum(map(bool,checks.values())),len(checks)))

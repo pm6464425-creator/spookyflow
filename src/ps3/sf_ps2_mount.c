@@ -111,6 +111,12 @@ int sf_ps2_mount(const char *path,int emulator)
     ejected=1;
     rc=cobra_send_fake_disc_eject_event();
     if(rc!=0){rc=-49;goto fail;}
+    /* Clear any old PS3 folder mapping before mounting a PS2 disc, matching
+     * the existing Cobra PS3 backend. Never map the user's game files here. */
+    if(journal("BEFORE_CLEAR_MAPS",path,0,1)!=0){rc=-46;goto fail;}
+    if(sys_map_path("/dev_bdvd",NULL)!=0 ||
+       sys_map_path("//dev_bdvd",NULL)!=0 ||
+       sys_map_path("/app_home",NULL)!=0){rc=-52;goto fail;}
     if(journal("BEFORE_UMOUNT",path,0,1)!=0){rc=-46;goto fail;}
     (void)cobra_umount_disc_image(); /* No previous image is a normal state. */
     if(journal("BEFORE_MOUNT_7028",path,0,1)!=0){rc=-46;goto fail;}
