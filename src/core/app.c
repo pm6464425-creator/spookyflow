@@ -127,7 +127,7 @@ void app_init(App *a, Library *lib, const AppHost *host)
     a->music_card_len = MUSIC_CARD_TIME;
     a->music_swap_t = 1.0f;
     a->reveal_start = -1000.0f;
-    sf_strlcpy(a->load_status, "Starting\xE2\x80\xA6", sizeof(a->load_status));
+    sf_strlcpy(a->load_status, "Iniciando\xE2\x80\xA6", sizeof(a->load_status));
 }
 
 const Game *app_selected_game(const App *a, int tab)
@@ -366,7 +366,7 @@ static void sync_bg_image(App *a)
     } else {
         a->bg_loaded[0] = '\0';
         log_printf("backgrounds: %s could not be loaded", path);
-        if (a->mode == MODE_FLOW) app_show_toast(a, "That picture couldn't be loaded (see log)");
+        if (a->mode == MODE_FLOW) app_show_toast(a, "No se pudo cargar esa imagen (ver registro)");
     }
 }
 
@@ -454,8 +454,8 @@ static void music_skip(App *a)
 {
     if (music_track_count() > 0 && a->settings.music_volume > 0) { music_next(); return; }
     if (!a->host.music_dir) return;
-    if (a->settings.music_volume == 0) app_show_toast(a, "Music is off (Music Volume in Flow Settings)");
-    else app_show_toast(a, "No music: put .mp3 files in /dev_hdd0/tmp/spookyflow/music");
+    if (a->settings.music_volume == 0) app_show_toast(a, "La música está apagada (ajusta el volumen)");
+    else app_show_toast(a, "Sin música: coloca MP3 en /dev_hdd0/tmp/spookyflow/music");
 }
 
 /* ---- 0.9.0: folder games' sizes --------------------------------------
@@ -588,7 +588,7 @@ static void download_start(App *a, int automatic)
     a->dl_got = a->dl_missing = a->dl_have = a->dl_noid = a->dl_error = a->dl_tls = 0;
     a->dl_note[0] = '\0';
     if (!a->host.http_get || !a->host.covers || (automatic && !a->host.run_async)) {
-        sf_strlcpy(a->dl_note, "Downloading isn't available here", sizeof(a->dl_note));
+        sf_strlcpy(a->dl_note, "La descarga no está disponible", sizeof(a->dl_note));
         a->dl_total = 0;
         log_printf("covers: download not available (no network functions)");
         return;
@@ -596,10 +596,10 @@ static void download_start(App *a, int automatic)
     for (t = 0; t < PLAT_COUNT; t++)
         for (i = 0; i < a->lib->tab[t].count; i++) if (!(a->lib->tab[t].games[i].flags & GAME_DEMO)) n++;
     a->dl_total = n;
-    if (n == 0) { sf_strlcpy(a->dl_note, "No games to look for (only the demo library)", sizeof(a->dl_note)); return; }
+    if (n == 0) { sf_strlcpy(a->dl_note, "No hay juegos (solo biblioteca de prueba)", sizeof(a->dl_note)); return; }
     d = (CoverDl *)calloc(1, sizeof(CoverDl));
     if (d) d->item = (CoverDlItem *)calloc((size_t)n, sizeof(CoverDlItem));
-    if (!d || !d->item) { dl_free(d); sf_strlcpy(a->dl_note, "Not enough memory", sizeof(a->dl_note)); return; }
+    if (!d || !d->item) { dl_free(d); sf_strlcpy(a->dl_note, "Memoria insuficiente", sizeof(a->dl_note)); return; }
     for (t = 0; t < PLAT_COUNT; t++)
         for (i = 0; i < a->lib->tab[t].count; i++) {
             const Game *g = &a->lib->tab[t].games[i];
@@ -656,8 +656,8 @@ static void download_poll(App *a)
         a->dl = NULL;
         if (!was_auto && !(a->about && a->card == CARD_DOWNLOAD)) {  /* auto scan: don't interrupt user */
             if (a->dl_note[0]) sf_strlcpy(msg, a->dl_note, sizeof(msg));
-            else if (a->dl_got > 0) snprintf(msg, sizeof(msg), "%d cover%s downloaded", a->dl_got, a->dl_got == 1 ? "" : "s");
-            else sf_strlcpy(msg, "No new covers found", sizeof(msg));
+            else if (a->dl_got > 0) snprintf(msg, sizeof(msg), "%d carátula%s descargada%s", a->dl_got, a->dl_got == 1 ? "" : "s", a->dl_got == 1 ? "" : "s");
+            else sf_strlcpy(msg, "No se encontraron carátulas nuevas", sizeof(msg));
             app_show_toast(a, msg);
         }
     }
@@ -710,7 +710,7 @@ static void loading_update(App *a, float dt)
             if (a->host.covers && !a->usb_auto_rescan)
                 cover_wipe_cache(a->host.covers);
         }
-        sf_strlcpy(a->load_status, a->rescan ? "Rescanning library\xE2\x80\xA6" : "Loading settings\xE2\x80\xA6", sizeof(a->load_status));
+        sf_strlcpy(a->load_status, a->rescan ? "Reescaneando juegos\xE2\x80\xA6" : "Cargando ajustes\xE2\x80\xA6", sizeof(a->load_status));
         a->load_target = 0.06f;
         a->load_step = LOAD_SETTINGS;      /* do the work next frame so this frame renders */
         break;
@@ -730,7 +730,7 @@ static void loading_update(App *a, float dt)
         /* a PKG reinstall resets PARAM.SFO: re-apply the saved choice */
         if (!a->rescan && sync_xmb_priority(a) > 0)
             log_printf("xmb: position re-applied; it shows after the next PS3 restart");
-        sf_strlcpy(a->load_status, "Preparing graphics\xE2\x80\xA6", sizeof(a->load_status));
+        sf_strlcpy(a->load_status, "Preparando gráficos\xE2\x80\xA6", sizeof(a->load_status));
         a->load_target = 0.12f;
         a->load_step = LOAD_PREPARE;
         break;
@@ -752,7 +752,7 @@ static void loading_update(App *a, float dt)
                 a->usb_ntfs_retry_t += dt;
                 if (a->usb_ntfs_retry_t < 0.60f) {
                     snprintf(a->load_status,sizeof(a->load_status),
-                             "Waiting for USB NTFS (%d/12)",
+                             "Esperando USB NTFS (%d/12)",
                              a->usb_ntfs_retry_attempts);
                     break;
                 }
@@ -829,8 +829,8 @@ static void loading_update(App *a, float dt)
     case LOAD_SCAN:
         if (a->scan_async) {
             if (a->scan_busy) {
-                if (a->ntfs_busy) sf_strlcpy(a->load_status, "Updating NTFS drives\xE2\x80\xA6", sizeof(a->load_status));
-                else snprintf(a->load_status, sizeof(a->load_status), "Scanning %s games\xE2\x80\xA6",
+                if (a->ntfs_busy) sf_strlcpy(a->load_status, "Actualizando discos NTFS\xE2\x80\xA6", sizeof(a->load_status));
+                else snprintf(a->load_status, sizeof(a->load_status), "Buscando juegos de %s\xE2\x80\xA6",
                               k_plat_name[scanner_platform(&a->scanner)]);
                 a->load_target = 0.15f + 0.70f * scanner_progress(&a->scanner);
                 break;
@@ -843,14 +843,14 @@ static void loading_update(App *a, float dt)
                 if (scanner_step(&a->scanner, a->lib, a->host.fs_list, a->host.fs_ctx)) break;
             }
         }
-        snprintf(a->load_status, sizeof(a->load_status), "Scanning %s games\xE2\x80\xA6",
+        snprintf(a->load_status, sizeof(a->load_status), "Buscando juegos de %s\xE2\x80\xA6",
                  k_plat_name[scanner_platform(&a->scanner)]);
         a->load_target = 0.15f + 0.70f * scanner_progress(&a->scanner);
         if (a->scanner.done || !a->host.fs_list) {
             log_printf("scan: done, %d dirs, found PS1=%d PS2=%d PS3=%d (%d of them on NTFS drives)",
                        a->scanner.dirs_listed, a->scanner.found[0], a->scanner.found[1], a->scanner.found[2],
                        a->scanner.found_ntfs);
-            sf_strlcpy(a->load_status, "Sorting\xE2\x80\xA6", sizeof(a->load_status));
+            sf_strlcpy(a->load_status, "Ordenando\xE2\x80\xA6", sizeof(a->load_status));
             a->load_target = 0.90f;
             a->load_step = LOAD_SORT;
         }
@@ -864,7 +864,7 @@ static void loading_update(App *a, float dt)
         a->auto_covers_started = 0;
         sizes_start(a);
         scan_music(a);
-        sf_strlcpy(a->load_status, "Doing the Heavy Lifting", sizeof(a->load_status));
+        sf_strlcpy(a->load_status, "Casi listo", sizeof(a->load_status));
         a->load_target = 1.0f;
         a->load_step = LOAD_READY;
         break;
@@ -1089,11 +1089,11 @@ static void ps2cfg_cycle(App *a, int dir)
     int cur = sf_clampi(a->panel_cfg.ps2cfg, 0, PS2CFG_COUNT - 1), i, d = dir == 0 ? 1 : dir;
     char val[64];
     if (!a->ps2cfg_ok) {
-        app_show_toast(a, "PS2 configs work with PS2 ISOs on the internal drive");
+        app_show_toast(a, "Los ajustes de PS2 requieren ISO en el disco interno");
         return;
     }
     if (a->ps2cfg_avail == 1u) {
-        app_show_toast(a, "No PS2 config files found for this game");
+        app_show_toast(a, "No hay archivos de configuración para este juego");
         return;
     }
     for (i = 0; i < PS2CFG_COUNT; i++) {
@@ -1120,20 +1120,20 @@ void app_row_value(const App *a, RowKind k, char *out, size_t cap)
         sf_strlcpy(nm, a->settings.bg_image, sizeof(nm));
         dot = strrchr(nm, '.');
         if (dot && dot != nm) *dot = '\0';
-        snprintf(out, cap, "Picture: %s", nm);
+        snprintf(out, cap, "Imagen: %s", nm);
         return;
     }
     if (k != ROW_G_PS2CFG || a->panel != PANEL_GAME) {
         menu_value_text(k, a->panel_plat, &a->settings, &a->panel_cfg, out, cap);
         return;
     }
-    if (!a->ps2cfg_ok) { sf_strlcpy(out, "Not available", cap); return; }
+    if (!a->ps2cfg_ok) { sf_strlcpy(out, "No disponible", cap); return; }
     if (a->panel_cfg.ps2cfg > 0 && (a->ps2cfg_avail & (1u << a->panel_cfg.ps2cfg)))
         sf_strlcpy(out, ps2cfg_name(a->panel_cfg.ps2cfg), cap);
     else if (a->panel_cfg.ps2cfg > 0)
-        snprintf(out, cap, "%s (missing)", ps2cfg_name(a->panel_cfg.ps2cfg));
+        snprintf(out, cap, "%s (no existe)", ps2cfg_name(a->panel_cfg.ps2cfg));
     else if (a->ps2cfg_auto < 0)
-        sf_strlcpy(out, a->ps2cfg_wm_off ? "Auto (off in webMAN)" : "Auto (none found)", cap);
+        sf_strlcpy(out, a->ps2cfg_wm_off ? "Auto (webMAN apagado)" : "Auto (sin archivos)", cap);
     else
         snprintf(out, cap, "Auto (%s)", ps2cfg_name(a->ps2cfg_auto));
 }
@@ -1279,7 +1279,7 @@ static void apply_fx(App *a, RowKind k, int fx)
             app_request_exit(a, "Power off PS3 row");
         } else {
             log_printf("power off: not available");
-            app_show_toast(a, "Power off needs webMAN MOD running");
+            app_show_toast(a, "Para apagar se necesita webMAN MOD activo");
         }
         break;
     case MENU_FX_COVERS_STUB:          /* 0.9.2: Download Missing Covers (the card shows how it goes) */
@@ -1291,7 +1291,7 @@ static void apply_fx(App *a, RowKind k, int fx)
     case MENU_FX_XMB_TOP:
         log_printf("flow setting: Pin to top of XMB = %s", a->settings.xmb_top ? "On" : "Off");
         app_save(a);
-        if (sync_xmb_priority(a) < 0) app_show_toast(a, "Couldn't update the XMB position (see log)");   /* only failures say anything */
+        if (sync_xmb_priority(a) < 0) app_show_toast(a, "No se pudo actualizar la posición en XMB (ver registro)");   /* only failures say anything */
         break;
     case MENU_FX_PS2CFG:        /* handled in panel_input (needs the direction) */
         break;
@@ -1376,7 +1376,7 @@ static void launch_disc(App *a, int disc)
     char name[TITLE_MAX + 16], cmd[LAUNCH_CMD_MAX];
     const char *path;
     if (!g) return;
-    if (g->flags & GAME_DEMO) { app_show_toast(a, "Demo game: add your games to launch them"); return; }
+    if (g->flags & GAME_DEMO) { app_show_toast(a, "Juego de prueba: agrega tus juegos para iniciarlos"); return; }
     d = lib_game_disc(a->lib, g, disc);
     path = d ? lib_str(a->lib, d->path) : lib_path(a->lib, g);
     if (d) {
@@ -1390,17 +1390,17 @@ static void launch_disc(App *a, int disc)
     if (a->tab == PLAT_PS3 && a->host.launch_ps3 && a->host.diag_ps3_select) {
         if (a->host.diag_ps3_select(path, (g->flags & GAME_DIR) != 0) != 0) {
             log_printf("cobra: pre-mount diagnosis could not be written; refusing launch");
-            app_show_toast(a, "Diagnostic file could not be written - launch canceled");
+            app_show_toast(a, "No se pudo crear el diagnóstico; inicio cancelado");
             return;
         }
     }
     if (a->tab == PLAT_BDISO) {
         int rc;
-        if (!a->host.launch_bdiso) { app_show_toast(a, "BDISO launcher unavailable"); return; }
+        if (!a->host.launch_bdiso) { app_show_toast(a, "No se puede iniciar BDISO"); return; }
         log_printf("bdiso: mount %s", path);
         rc = a->host.launch_bdiso(path);
         if (rc != 0) { log_printf("bdiso: mount failed rc=%d path=%s",rc,path);
-            app_show_toast(a,"BDISO mount failed; check log"); return; }
+            app_show_toast(a,"Falló el montaje BDISO (ver registro)"); return; }
         sound_play(SND_CONFIRM);
         sf_strlcpy(a->last_launch,name,sizeof(a->last_launch));
         a->launched=1;
@@ -1416,7 +1416,7 @@ static void launch_disc(App *a, int disc)
         result = a->host.launch_ps3(path, folder, tid);
         if (result != 0) {
             log_printf("cobra: mount failure %d for %s", result, path);
-            app_show_toast(a, "Cobra mount failed - check spookyflow log");
+            app_show_toast(a, "Falló el montaje Cobra (ver registro)");
             return;
         }
         sound_play(SND_CONFIRM);
@@ -1435,7 +1435,7 @@ static void launch_disc(App *a, int disc)
     if (a->host.read_wm_config) a->host.read_wm_config(&wm);
     if (launch_build(&req, &wm, cmd, sizeof(cmd)) != 0) {
         log_printf("launch: can't build the request for \"%s\"", path);
-        app_show_toast(a, "Can't launch this game (path too long?)");
+        app_show_toast(a, "No se pudo iniciar el juego (¿ruta muy larga?)");
         return;
     }
     log_printf("launch: %s \"%s\" autoplay=%s offline=%d emulator=%d webMAN config=%s",
@@ -1445,7 +1445,7 @@ static void launch_disc(App *a, int disc)
     if (a->tab == PLAT_PS2 && a->host.launch)
         ps2cfg_apply(a, path, lib_str(a->lib, d ? d->id : g->id), c.ps2cfg);
     if (!a->host.launch || a->host.launch(cmd) != 0) {
-        app_show_toast(a, "Launching needs webMAN MOD running");
+        app_show_toast(a, "Para iniciar necesitas webMAN MOD activo");
         return;
     }
     sound_play(SND_CONFIRM);
