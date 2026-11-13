@@ -228,6 +228,37 @@ int main(void)
     CHECK(wait_done()==1);
     CHECK(size_file(USER_BACKUP)==27);
     CHECK(size_file(DIR "/ISO.BIN.ENC.sf-old")==0);
+    CHECK(size_file(DIR "/ISO.BIN.ENC.sf-source-old")==0);
+    /* The V15.19 PS3 log hit RC=-40 at 100% because the old
+     * ISO.BIN.ENC.sf-source was still the destination of a rename().
+     * Make the next conversion replace an existing manifest safely,
+     * then reject a stale recovery copy without touching the current game. */
+    {
+        unsigned char probe[0x90];
+        uint64_t previous_image_bytes=size_file(IMAGE);
+        uint64_t previous_manifest_bytes=size_file(DIR "/ISO.BIN.ENC.sf-source");
+        f=fopen(IMAGE,"rb");CHECK(f!=NULL);
+        CHECK(fread(probe,1,sizeof(probe),f)==sizeof(probe));
+        CHECK(fclose(f)==0);
+        write_file(DIR "/ISO.BIN.ENC.sf-source-old","INTERRUPTED",11);
+        f=fopen(ISO,"r+b");CHECK(f!=NULL);
+        CHECK(fputc(0xF3,f)!=EOF);CHECK(fclose(f)==0);
+        CHECK(sf_ps2_hen_start(ISO,"SLUS_201.74")==0);
+        CHECK(wait_done()==-43);
+        CHECK(size_file(IMAGE)==previous_image_bytes);
+        CHECK(size_file(DIR "/ISO.BIN.ENC.sf-source")==previous_manifest_bytes);
+        {unsigned char check[0x90];f=fopen(IMAGE,"rb");CHECK(f!=NULL);
+         CHECK(fread(check,1,sizeof(check),f)==sizeof(check));
+         CHECK(fclose(f)==0);CHECK(!memcmp(check,probe,sizeof(probe)));}
+        CHECK(size_file(DIR "/ISO.BIN.ENC.sf-source-old")==11);
+        CHECK(size_file(DIR "/ISO.BIN.ENC.sf-part")==0);
+        CHECK(remove(DIR "/ISO.BIN.ENC.sf-source-old")==0);
+        CHECK(sf_ps2_hen_start(ISO,"SLUS_201.74")==0);
+        CHECK(wait_done()==1);
+        CHECK(size_file(DIR "/ISO.BIN.ENC.sf-source-old")==0);
+        CHECK(size_file(DIR "/ISO.BIN.ENC.sf-old")==0);
+        CHECK(size_file(USER_BACKUP)==27);
+    }
     /* CD sector layout: build a CD fixture without the DVD signature. */
     {static unsigned char cd[2352u*112u];unsigned char last_cipher[SEG];
      unsigned char last_data[SEG];const char *cdpath=ROOT "/PS2ISO/Rumble CD.iso";
