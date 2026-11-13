@@ -1547,7 +1547,43 @@ static void launch_disc(App *a, int disc)
             app_show_toast(a,"Error montando PS1: ver diagnostico_ps1.txt");
             return;
         }
-        log_printf("PS1_DIAG STAGE=WEBMAN_FALLBACK REASON=NATIVE_UNSUPPORTED PATH=%s",path);
+        /* Native 0x7027 expects exactly ONE image, but standard Redump
+         * Tekken (USA) has 28 FILE/28 TRACK. Stage a complete copy with
+         * the original CDDA audio tracks and remapped LBA; no webMAN or
+         * modification of the 28 originals is necessary. */
+        if(a->host.ps1_join_start && a->host.ps1_join_poll &&
+           a->host.ps1_join_mount && sf_ends_with_i(path,".cue")){
+            int prep=a->host.ps1_join_start(path);
+            log_printf("PS1_DIAG STAGE=MULTIBIN_PREPARE START_RESULT=%d",prep);
+            if(prep==0){
+                a->ps1_join_busy=1;
+                a->ps1_join_percent=0;
+                sf_strlcpy(a->last_launch,name,sizeof(a->last_launch));
+                app_show_toast(a,"Preparando PS1 de varias pistas: 0%");
+                return;
+            }
+            if(prep==1){
+                int mount_rc=a->host.ps1_join_mount();
+                log_printf("PS1_DIAG STAGE=MULTIBIN_CACHE_MOUNT RC=%d",mount_rc);
+                if(mount_rc==0){
+                    sound_play(SND_CONFIRM);
+                    sf_strlcpy(a->last_launch,name,sizeof(a->last_launch));
+                    a->launched=1;
+                    app_request_exit(a,"ps1 multi-bin Cobra cache mount");
+                }else
+                    app_show_toast(a,"Error montaje PS1: ver diagnostico_ps1.txt");
+                return;
+            }
+            if(prep!=-70){
+                /* A valid multi-BIN needing disk space or with unreadable
+                 * tracks is NOT a webMAN failure. Show the real reason. */
+                log_printf("PS1_DIAG STAGE=MULTIBIN_PREPARE RESULT=ERROR RC=%d",prep);
+                if(prep==-73)app_show_toast(a,"PS1: espacio insuficiente en HDD");
+                else app_show_toast(a,"PS1: error de pistas. Ver diagnostico_ps1.txt");
+                return;
+            }
+        }
+        log_printf("PS1_DIAG STAGE=WEBMAN_FALLBACK REASON=NATIVE_AND_JOIN_UNSUPPORTED PATH=%s",path);
         log_printf("ps1: native format not supported; legacy webMAN fallback for %s",path);
     }
     /* PS3 build: local Cobra mounting; leave all existing UI and settings untouched. */
@@ -1888,6 +1924,36 @@ void app_update(App *a, uint32_t held, float dt)
     music_tick(a);
     sizes_poll(a);
     download_poll(a);
+    if(a->ps1_join_busy && a->host.ps1_join_poll){
+        int progress=0,status=a->host.ps1_join_poll(&progress);
+        a->idle_t=0.0f;
+        if(status==0){
+            char msg[112];
+            a->ps1_join_percent=sf_clampi(progress,0,100);
+            snprintf(msg,sizeof(msg),"Preparando PS1 (BIN/CUE): %d%%",
+                     a->ps1_join_percent);
+            sf_strlcpy(a->toast,msg,sizeof(a->toast));
+            animate(a,dt);
+            a->toast_t=0.30f;
+            return;
+        }
+        a->ps1_join_busy=0;
+        if(status==1){
+            int mount_rc=a->host.ps1_join_mount ?
+                         a->host.ps1_join_mount():-80;
+            log_printf("PS1_DIAG STAGE=MULTIBIN_FINAL_MOUNT RC=%d",mount_rc);
+            if(mount_rc==0){
+                a->launched=1;
+                sound_play(SND_CONFIRM);
+                app_request_exit(a,"ps1 multi-bin Cobra mount");
+            }else
+                app_show_toast(a,"PS1 montaje fallo: ver diagnostico_ps1.txt");
+        }else{
+            log_printf("PS1_DIAG STAGE=MULTIBIN_CONVERT ERROR_RC=%d",status);
+            app_show_toast(a,"Error preparando PS1: ver diagnostico_ps1.txt");
+        }
+        return;
+    }
     if (a->ps2_hen_busy && a->host.ps2_hen_poll) {
         int progress=0, status=a->host.ps2_hen_poll(&progress);
         a->idle_t=0.0f; /* converting a large ISO must not dim or sleep */
