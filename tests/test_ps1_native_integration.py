@@ -18,7 +18,7 @@ chk={
 "PS1 Cobra guard": "ps1_cobra_version(&v)" in p,
 "PS1 no alteration before guard": p.index("rc=prepare(path,emulator);")<p.index("cobra_send_fake_disc_eject_event()"),
 "PS1 undo disc events on error": "if(ejected)(void)cobra_send_fake_disc_insert_event()" in p,
-"PS1 no fake success": "if(rc!=0){log_printf(\"PS1_MOUNT COBRA_RC=" in p,
+"PS1 no fake success": 'PS1_DIAG STAGE=MOUNT_PSX_7027 SYS_RC=%d' in p and "if(rc!=0){rc=-44;goto fail;}" in p,
 "PS1 no extra TXT": 'fopen(' not in p.replace('fopen(path,"rb")',''),
 "PS1 supports PSXISO and PSXGAMES": "/PSXISO/" in p and "/PSXGAMES/" in p,
 "PS1 no 2048 sectors": "st.st_size % 2352" in p,
