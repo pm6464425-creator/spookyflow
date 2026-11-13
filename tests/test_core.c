@@ -414,7 +414,7 @@ static void test_settings(void)
         so.offline = 1;
         CHECK(settings_offline_effective(&so, &go) == 1);
         menu_value_text(ROW_G_OFFLINE, PLAT_PS3, &so, &go, txt, sizeof(txt));
-        CHECK_STR(txt, "Default (On)");
+        CHECK_STR(txt, "Predet. (Sí)");
         go.offline = AP_OFF;
         CHECK(settings_offline_effective(&so, &go) == 0);
         go.offline = AP_ON; so.offline = 0;
@@ -424,7 +424,7 @@ static void test_settings(void)
         settings_parse_line(&so, "ui_color=0");
         CHECK(so.ui_color == UI_COLOR_BLUE);
         menu_value_text(ROW_F_UI_COLOR, 0, &so, &go, txt, sizeof(txt));
-        CHECK_STR(txt, "Blue");
+        CHECK_STR(txt, "Azul");
         CHECK(menu_change(ROW_F_UI_COLOR, 0, -1, &so, &go) == MENU_FX_NONE && so.ui_color == UI_COLOR_BLUE);   /* 0.8.2: the first one: no wrap */
         CHECK(menu_change(ROW_F_UI_COLOR, 0, +1, &so, &go) == MENU_FX_CHANGED && so.ui_color == UI_COLOR_RED);
         so.ui_color = UI_COLOR_WHITE;
@@ -440,7 +440,7 @@ static void test_settings(void)
         settings_parse_line(&so, "sound_effects=0");            /* fix 13 file: Off */
         CHECK(so.sfx_volume == 0);
         menu_value_text(ROW_F_SFX, 0, &so, &go, txt, sizeof(txt));
-        CHECK_STR(txt, "Off");
+        CHECK_STR(txt, "No");
         CHECK(menu_is_slider(ROW_F_SFX));
         settings_parse_line(&so, "offline=1");
         CHECK(so.offline == 1);
@@ -467,11 +467,11 @@ static void test_settings(void)
     sf_strlcpy(g.key, "X", sizeof(g.key));
     CHECK(settings_autoplay_effective(&a, &g) == 0);
     menu_value_text(ROW_G_AUTOPLAY, PLAT_PS2, &a, &g, val, sizeof(val));
-    CHECK_STR(val, "Default (Off)");
+    CHECK_STR(val, "Predet. (No)");
     a.autoplay = 1;
     CHECK(settings_autoplay_effective(&a, &g) == 1);
     menu_value_text(ROW_G_AUTOPLAY, PLAT_PS2, &a, &g, val, sizeof(val));
-    CHECK_STR(val, "Default (On)");
+    CHECK_STR(val, "Predet. (Sí)");
     g.autoplay = AP_OFF;
     CHECK(settings_autoplay_effective(&a, &g) == 0);
     g.autoplay = AP_ON; a.autoplay = 0;
@@ -522,8 +522,8 @@ static void test_menu(void)
     }
     settings_defaults(&s);
     memset(&g, 0, sizeof(g));
-    menu_value_text(ROW_G_EMULATOR, PLAT_PS1, &s, &g, v, sizeof(v)); CHECK_STR(v, "Standard");
-    menu_value_text(ROW_G_EMULATOR, PLAT_PS2, &s, &g, v, sizeof(v)); CHECK_STR(v, "Default");
+    menu_value_text(ROW_G_EMULATOR, PLAT_PS1, &s, &g, v, sizeof(v)); CHECK_STR(v, "Estándar");
+    menu_value_text(ROW_G_EMULATOR, PLAT_PS2, &s, &g, v, sizeof(v)); CHECK_STR(v, "Predet.");
     CHECK(menu_change(ROW_G_AUTOPLAY, PLAT_PS2, -1, &s, &g) == MENU_FX_NONE && g.autoplay == AP_DEFAULT);   /* 0.8.2: no wrap */
     CHECK(menu_change(ROW_G_AUTOPLAY, PLAT_PS2, +1, &s, &g) == MENU_FX_CHANGED && g.autoplay == AP_ON);
     CHECK(menu_change(ROW_G_AUTOPLAY, PLAT_PS2, +1, &s, &g) == MENU_FX_CHANGED && g.autoplay == AP_OFF);
@@ -1090,7 +1090,7 @@ static void test_app(void)
     app_init(&g_app, &g_lib, &host);
     run_frames(0, 0.5f);
     CHECK(g_app.mode == MODE_LOADING && g_app.load_step == LOAD_READY);
-    CHECK_STR(g_app.load_status, "Doing the Heavy Lifting");
+    CHECK_STR(g_app.load_status, "Casi listo");
     CHECK(g_app.load_shown < 0.5f);                        /* bar paced over the minimum time */
     tap(SFB_CROSS); tap(SFB_START); tap(SFB_CIRCLE); tap(SFB_TRIANGLE);
     CHECK(g_app.mode == MODE_LOADING);
