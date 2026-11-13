@@ -28,6 +28,7 @@
 #include "ps3_platform.h"
 #include "sf_cobra_mount.h"
 #include "sf_ps2_mount.h"
+#include "sf_ps1_mount.h"
 #include "sf_ps2_hen.h"
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
@@ -360,6 +361,7 @@ int main(int argc, const char *argv[])
     host.launch = launch_via_webman; /* Legacy PS1 only. PS2 uses Cobra. */
     host.ps2_preflight = sf_ps2_preflight;
     host.launch_ps2 = sf_ps2_mount;
+    host.launch_ps1 = sf_ps1_mount;
     host.ps2_hen_start = sf_ps2_hen_start;
     host.ps2_hen_poll = sf_ps2_hen_poll;
     host.launch_ps3 = sf_cobra_mount_ps3;
