@@ -45,6 +45,14 @@ int main(void)
         "Disney Tarzan [SCUS-94163].BIN");
     M("(PS1) Disney Tarzan [PAL] [SCES-01519].BIN",-2,
         "Disney Tarzan (USA).bin","Disney Tarzan (Japan).bin");
+    /* Region evidence disambiguates without game-specific title tables. */
+    WIN("(PS1) Disney Tarzan [PAL] [SCES-01519].BIN",
+        "Disney Tarzan (Europe).bin",
+        "Disney Tarzan (USA).bin","Disney Tarzan (Europe).bin");
+    WIN("Game [NTSC-U].bin","Game (USA).bin",
+        "Game (Europe).bin","Game (USA).bin");
+    WIN("Game [NTSC-J].bin","Game (Japan).bin",
+        "Game (Japan).bin","Game (Europe).bin");
     /* Never mix tracks, discs, revisions or games in an ambiguous folder. */
     WIN("Example (Europe) (Track 01).bin",
         "Example (Japan) (Track 01).bin",
