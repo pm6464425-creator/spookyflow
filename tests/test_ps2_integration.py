@@ -32,7 +32,7 @@ checks={
  "21 internal HDD PS2ISO allowlist": 'strncmp(path,"/dev_hdd0/PS2ISO/",17)' in plan,
  "22 correct split ISO listing bounded to 64": "i<SF_PS2_MAX_PARTS" in plan,
  "23 Cobra kernel version before changes": mount.index('raw_version(&version)') < mount.index('cobra_send_fake_disc_eject_event()'),
- "24 HEN user-facing conversion path": "result = a->host.ps2_hen_start(path);" in app and "Preparando PS2 Classics: 0%" in app,
+ "24 HEN user-facing conversion path": "result = a->host.ps2_hen_start(path,gid);" in app and "Preparando PS2 Classics: 0%" in app,
  "25 Cobra types available before header": mount.index('#include <stdint.h>') < mount.index('#include <cobra.h>'),
  "26 clear previous PS3 maps before PS2 mount": mount.index('ps2_raw_map("/dev_bdvd",NULL)') < mount.index("cobra_mount_ps2_disc_image(parts,n,tracks,1)"),
  "27 preserve and automatically apply PS2 CONFIG": 'ps2cfg_auto_cobra(a, path' in app and 'PS2CFG_APP, PS2CFG_CUSTOM, PS2CFG_NET, PS2CFG_GX, PS2CFG_SOFT' in app,
