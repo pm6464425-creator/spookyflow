@@ -34,6 +34,8 @@ typedef struct {
 } SfPs1JoinJob;
 static SfPs1JoinJob s_join;
 static unsigned char s_copy_buffer[PS1_STAGE_BUFFER];
+/* Do not place 32 KiB CUE buffer on the PS3 PPU main-thread stack. */
+static char s_join_text[32769];
 
 static uint64_t fnv(const void *data,size_t n,uint64_t h)
 {
@@ -210,7 +212,7 @@ finish:
 }
 int sf_ps1_join_start(const char *cue)
 {
-    char text[32769];FILE *f;size_t n;
+    char *text=s_join_text;FILE *f;size_t n;
     uint32_t block=0;u64 available=0;
     sys_ppu_thread_t tid;
     int rc;
@@ -220,8 +222,8 @@ int sf_ps1_join_start(const char *cue)
        strcasecmp(cue+strlen(cue)-4,".cue"))return -70;
     f=fopen(cue,"rb");
     if(!f){log_printf("PS1_DIAG STAGE=MULTIBIN_CUE_OPEN ERRNO=%d",errno);return -70;}
-    n=fread(text,1,sizeof(text)-1,f);
-    if(ferror(f) || (n==sizeof(text)-1 && !feof(f))){fclose(f);return -70;}
+    n=fread(text,1,sizeof(s_join_text)-1,f);
+    if(ferror(f) || (n==sizeof(s_join_text)-1 && !feof(f))){fclose(f);return -70;}
     fclose(f);text[n]=0;
     if(inspect_sources(cue,text,n)!=0)return -70;
     if(stat(s_join.output,&cached)==0 && S_ISREG(cached.st_mode) &&
