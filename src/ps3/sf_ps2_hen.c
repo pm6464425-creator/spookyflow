@@ -307,8 +307,12 @@ static int verify_cfg(const char *path)
     if(fread(head,1,sizeof(head),f)!=sizeof(head)){fclose(f);return 0;}
     fclose(f);
     vsize=get64(head+0x88);
+    /* Encrypted PS2 Classics CONFIG headers retain the raw byte length
+     * (e.g. Rumble Racing is 114 bytes) but store a complete AES block
+     * segment (16 KiB). Validate the padded physical size, not raw length. */
     return !memcmp(head,"PS2\0",4) && !memcmp(head+0x10,CID,36) &&
-           vsize>0 && vsize<=0x20000 && size==expected_size(vsize);
+           vsize>0 && vsize<=0x20000 &&
+           size==expected_size((vsize+SEG-1u)&~((uint64_t)SEG-1u));
 }
 static int ps2_stage_config(const char *id)
 {
