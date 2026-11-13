@@ -28,6 +28,7 @@
 #include "ps3_platform.h"
 #include "sf_cobra_mount.h"
 #include "sf_ps2_mount.h"
+#include "sf_ps2_hen.h"
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
 #include "sf_usb_diag.h"
@@ -82,6 +83,7 @@ static void sysutil_cb(u64 status, u64 param, void *usrdata)
     (void)param; (void)usrdata;
     switch (status) {
     case SYSUTIL_EXIT_GAME:
+        sf_ps2_hen_cancel(); /* abort any in-progress encrypted temporary file */
         g_sys_exit = 1;
         log_printf("sysutil: exit requested from XMB");
         /* Tiny3D's callback (slot 3) calls exit(0) right after this one */
@@ -344,6 +346,8 @@ int main(int argc, const char *argv[])
     host.launch = launch_via_webman; /* Legacy PS1 only. PS2 uses Cobra. */
     host.ps2_preflight = sf_ps2_preflight;
     host.launch_ps2 = sf_ps2_mount;
+    host.ps2_hen_start = sf_ps2_hen_start;
+    host.ps2_hen_poll = sf_ps2_hen_poll;
     host.launch_ps3 = sf_cobra_mount_ps3;
     host.launch_bdiso = launch_bdiso;
     host.diag_ps3_select = sf_cobra_diag_selection;

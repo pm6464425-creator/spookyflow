@@ -74,6 +74,9 @@ typedef struct {
      * webMAN took it (the app then exits to the XMB, where webMAN mounts and
      * starts the game). NULL = launching not available. */
     int (*launch)(const char *request);
+    /* HEN: asynchronous PS2 Classics converter, no webMAN dependency. */
+    int (*ps2_hen_start)(const char *path);
+    int (*ps2_hen_poll)(int *percent);
     /* PS2: read-only preflight then local Cobra mount; independent of webMAN. */
     int (*ps2_preflight)(const char *path);
     int (*launch_ps2)(const char *path, int emulator);
@@ -233,6 +236,8 @@ typedef struct {
     int nbg_files;
     char bg_loaded[128];    /* the picture in the texture now ("" = none) */
     int flow_top_row;       /* row of that group on the first page (◯ goes back to it) */
+    int ps2_hen_busy;       /* live HEN conversion: input locked until complete */
+    int ps2_hen_percent;
     /* PS2 config picker, worked out when Game Settings opens on a PS2 game */
     int ps2cfg_ok;          /* 1: a PS2 ISO with a known ID and the host can copy files */
     unsigned ps2cfg_avail;  /* bit n: PS2CFG type n exists for this game (bit 0 = Auto, always) */

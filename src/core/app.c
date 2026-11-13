@@ -1447,8 +1447,40 @@ static void launch_disc(App *a, int disc)
         int result = a->host.ps2_preflight ? a->host.ps2_preflight(path) : -1;
         if (result != 0) {
             log_printf("ps2: safe preflight failed rc=%d for %s", result, path);
-            if (result == -41)
-                app_show_toast(a, "PS3 HEN: ISO de PS2 requiere PS2 Classics");
+            if (result == -41) {
+                /* Unlike CFW, PS3HEN uses PS2 Classics. Stage its encrypted
+                 * image from our own worker; keep PS3 and PS1 backends intact. */
+                if (!a->host.ps2_hen_start || !a->host.ps2_hen_poll) {
+                    app_show_toast(a, "Preparación PS2 Classics no disponible");
+                    return;
+                }
+                result = a->host.ps2_hen_start(path);
+                if (result < 0) {
+                    log_printf("ps2 hen: staging refused rc=%d for %s",result,path);
+                    if (result == -64)
+                        app_show_toast(a, "Instala y activa PS2 Classics Placeholder");
+                    else if (result == -61 || result == -62)
+                        app_show_toast(a, "PS2 Classics: requiere ISO interna sin dividir");
+                    else if (result == -65)
+                        app_show_toast(a, "PS2 Classics: cifrado no disponible");
+                    else if (result == -66)
+                        app_show_toast(a, "PS2 Classics: hay un respaldo pendiente");
+                    else
+                        app_show_toast(a, "Error al preparar PS2 Classics (ver registro)");
+                    return;
+                }
+                sf_strlcpy(a->last_launch, name, sizeof(a->last_launch));
+                if (result == 1) {
+                    app_show_toast(a, "PS2 preparado. Abre PS2 Classics desde XMB");
+                    a->launched = 1;
+                    app_request_exit(a, "ps2 classics ready (cached)");
+                    return;
+                }
+                a->ps2_hen_busy = 1;
+                a->ps2_hen_percent = 0;
+                app_show_toast(a, "Preparando PS2 Classics: 0%");
+                return;
+            }
             else if (result == -42)
                 app_show_toast(a, "PS2 ISO: cópiala a /dev_hdd0/PS2ISO");
             else if (result == -45)
@@ -1800,6 +1832,30 @@ void app_update(App *a, uint32_t held, float dt)
     music_tick(a);
     sizes_poll(a);
     download_poll(a);
+    if (a->ps2_hen_busy && a->host.ps2_hen_poll) {
+        int progress=0, status=a->host.ps2_hen_poll(&progress);
+        a->idle_t=0.0f; /* converting a large ISO must not dim or sleep */
+        if (status==0) {
+            char msg[96];
+            a->ps2_hen_percent=sf_clampi(progress,0,100);
+            snprintf(msg,sizeof(msg),"Preparando PS2 Classics: %d%%",a->ps2_hen_percent);
+            sf_strlcpy(a->toast,msg,sizeof(a->toast));
+            animate(a,dt); /* keep moving the original stage/UI at 60 fps */
+            a->toast_t=0.30f; /* fully visible instead of restarting fade */
+            return; /* ignore controller inputs until the file is committed */
+        }
+        a->ps2_hen_busy=0;
+        if (status==1) {
+            log_printf("ps2 hen: encrypted image ready in PS2 Classics Placeholder");
+            app_show_toast(a,"PS2 preparado. Abre PS2 Classics desde XMB");
+            a->launched=1;
+            app_request_exit(a,"ps2 classics prepared");
+        } else {
+            log_printf("ps2 hen: conversion failed rc=%d",status);
+            app_show_toast(a,"Error PS2 Classics (ps2_hen_last.txt)");
+        }
+        return;
+    }
 
     /* Existing size scan also uses the host background-thread launcher.
      * Wait until it completes before scheduling the automatic cover worker.
