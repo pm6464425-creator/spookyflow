@@ -83,6 +83,10 @@ typedef struct {
     /* PS1 HEN/CFW: native Cobra mount for one-file 2352 images/CUE;
        -41 falls back to the existing webMAN path. */
     int (*launch_ps1)(const char *path, int emulator);
+    /* Async PS1 CUE multi-BIN preparation; no source file is modified. */
+    int (*ps1_join_start)(const char *cue);
+    int (*ps1_join_poll)(int *progress);
+    int (*ps1_join_mount)(void);
     /* Optional local PS3 Cobra/HEN mounting callback. */
     int (*launch_ps3)(const char *path, int is_folder, const char *title_id);
     /* Blu-ray movies use Cobra BD opcode 0x7026, not PS3 game opcode 0x7024. */
@@ -241,6 +245,8 @@ typedef struct {
     int flow_top_row;       /* row of that group on the first page (◯ goes back to it) */
     int ps2_hen_busy;       /* live HEN conversion: input locked until complete */
     int ps2_hen_percent;
+    int ps1_join_busy;  /* async concatenation retains UI at 60fps */
+    int ps1_join_percent;
     /* PS2 config picker, worked out when Game Settings opens on a PS2 game */
     int ps2cfg_ok;          /* 1: a PS2 ISO with a known ID and the host can copy files */
     unsigned ps2cfg_avail;  /* bit n: PS2CFG type n exists for this game (bit 0 = Auto, always) */
