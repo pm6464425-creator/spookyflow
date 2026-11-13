@@ -240,7 +240,7 @@ int sf_ps1_mount_staged(const char *path,const SfPs1Track *tracks,unsigned n)
 {
     size_t len;
     static const char prefix[]=SF_DATA_DIR "/ps1_unido_";
-    if(!path || !tracks || n<2 || n>SF_PS1_MAX_TRACKS ||
+    if(!path || !tracks || n<1 || n>SF_PS1_MAX_TRACKS ||
        strncmp(path,prefix,sizeof(prefix)-1)!=0)return -81;
     len=strlen(path);
     if(len>=sizeof(s_plan.image) || !ends(path,".bin"))return -81;
