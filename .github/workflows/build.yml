@@ -44,7 +44,7 @@ jobs:
           assert 'test_bdiso_cache_fourth_tab();' in t
           print("PASS: BDISO index 3 included in cover cache and regression test")
           PY
-      - name: PS2 V15.13 - 19 integration and C unit safety checks
+      - name: PS2 V15.13 - 28 integration and 22 portable safety checks
         run: |
           python3 tests/test_ps2_integration.py
           mkdir -p build-host
@@ -225,8 +225,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Releases are immutable per commit: do not let an older CI run
+          # replace the artifact belonging to a newer PS2 code revision.
+          latest=$(git ls-remote origin refs/heads/experimental/v15-13-ps2-cobra | cut -f1)
+          if [ "$latest" != "$GITHUB_SHA" ]; then
+            echo "Skipping superseded PS2 commit $GITHUB_SHA; branch now $latest"
+            exit 0
+          fi
+          short="${GITHUB_SHA:0:8}"
           cp spookyflow.pkg SPOOKYFLOW_V15_13_PS2_COBRA_CFW_EXPERIMENTAL.pkg
-          gh release create spookyflow-v15-13-ps2-cfw-experimental SPOOKYFLOW_V15_13_PS2_COBRA_CFW_EXPERIMENTAL.pkg \
+          gh release create "spookyflow-v15-13-ps2-cobra-${short}" SPOOKYFLOW_V15_13_PS2_COBRA_CFW_EXPERIMENTAL.pkg \
             --target "$GITHUB_SHA" --prerelease \
             --title "SpookyFlow V15.13 — PS2 Cobra directo (prueba CFW)" \
             --notes "EXPERIMENTAL: PS2 ISO en HDD interno mediante Cobra sin webMAN MOD. No validado en PS3 física. HEN no admite esta ruta de ISO PS2 sin cifrar y la aplicación la bloquea para evitar daños. Requiere CFW con Cobra. PS1, PS3, BDISO y diseño V15.12 preservados. Ver PS2_V15_13_EXPERIMENTAL_ES.md."
