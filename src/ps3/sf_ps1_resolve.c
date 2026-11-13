@@ -67,9 +67,13 @@ int sf_ps1_resolve_existing(const char *expected,char *out,size_t cap)
     rc=sf_ps1_match_finish(&s_name_match,s_candidate,sizeof(s_candidate));
     if(rc!=0){
         log_printf("PS1_DIAG STAGE=CUE_REFERENCE RESULT=%s "
-                   "EXPECTED=%s CANDIDATES=%u TOP_SCORE=%u TOP_TIES=%u",
-                   rc==-2?"AMBIGUOUS":"NOT_FOUND",expected,scanned,
-                   s_name_match.top_score,s_name_match.same_score);
+                   "EXPECTED=%s CANONICAL_TITLE=%s SERIAL=%s REV=%s "
+                   "CANDIDATES=%u TOP_SCORE=%u TOP_TIES=%u",
+                   rc==-2?"AMBIGUOUS":"NOT_FOUND",expected,
+                   s_name_match.expected_key.title,
+                   s_name_match.expected_key.serial,
+                   s_name_match.expected_key.rev,
+                   scanned,s_name_match.top_score,s_name_match.same_score);
         return rc;
     }
     if(snprintf(s_result,sizeof(s_result),"%s%s",s_dirname,s_candidate)
@@ -82,7 +86,8 @@ int sf_ps1_resolve_existing(const char *expected,char *out,size_t cap)
     log_printf("PS1_DIAG STAGE=CUE_REFERENCE RESULT=RECOVERED "
                "EXPECTED=%s FOUND=%s MATCH=%s CANDIDATES=%u",
                expected,s_result,
-               s_name_match.top_score==3?"CASE_INSENSITIVE":"REGION_NORMALIZED",
+               s_name_match.top_score==10?"CASE_INSENSITIVE":
+               s_name_match.top_score==1?"SERIAL_ONLY":"METADATA_NORMALIZED",
                scanned);
     return copy_file_path(s_result,out,cap);
 }
