@@ -24,7 +24,7 @@ checks = {
     "Early boot probe and fallback": "cobra_startup_probe.txt" in mount and "cobra_startup_probe_fallback.txt" in mount,
     "Selection probe and fallback": "cobra_selection_probe.txt" in mount and "cobra_selection_probe_fallback.txt" in mount,
     "Selection probe before settings": app[app.rfind("static void launch_disc(App *a, int disc)"):].index("a->host.diag_ps3_select(path") < app[app.rfind("static void launch_disc(App *a, int disc)"):].index("settings_game_get(&a->settings, lib_key(a->lib, g))"),
-    "Selection failure prevents mounting": "Diagnostic file could not be written - launch canceled" in app,
+    "Selection failure prevents mounting": "No se pudo crear el diagnóstico; inicio cancelado" in app,
     "Optional selection callback declared": "int (*diag_ps3_select)(const char *path, int is_folder);" in apph,
     "Host selection callback installed": "host.diag_ps3_select = sf_cobra_diag_selection;" in main,
     "Diagnostic snapshot file": 'cobra_last_mount.txt' in mount,
