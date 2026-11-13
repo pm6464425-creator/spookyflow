@@ -341,10 +341,25 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          cp spookyflow.pkg SPOOKYFLOW_V15_12_ESPANOL_LATINOAMERICANO.pkg
-          gh release create spookyflow-v15-12-espanol-latinoamericano SPOOKYFLOW_V15_12_ESPANOL_LATINOAMERICANO.pkg --target "$GITHUB_SHA" \
-            --title "SpookyFlow V15.12 - Interfaz en español latinoamericano" \
-            --notes "Edicion exclusiva de los textos de SpookyFlow V15.11: menus, opciones, ayuda, avisos, mensajes de carga y tarjetas en espanol latinoamericano. MISMAS tipografias DejaVu originales, tamanos, colores, posiciones, controles, iconos, fondos, animaciones, PS1 CUE BIN, caratulas, PS2, PS3 y BDISO. Los ajustes guardados siguen compatibles, el nombre en XMB se mantiene MIS JUEGOS PS3 PS2 PS1. Diez auditorias de inmutabilidad comparan los blobs exactos de los modulos protegidos con la V15.11; tests del nucleo y paquete real de PS3 verificados. No se ha efectuado validacion visual en una consola fisica."
+          TAG="spookyflow-v15-12-espanol-latinoamericano"
+          PKG="SPOOKYFLOW_V15_12_ESPANOL_LATINOAMERICANO.pkg"
+          cp spookyflow.pkg "$PKG"
+          echo "Confirming that this build is still the newest source revision"
+          HEAD_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/feat%2Fes-419-ui-only-v15-12" --jq '.commit.sha')"
+          if [ "$GITHUB_SHA" != "$HEAD_SHA" ]; then
+            echo "Old workflow revision ($GITHUB_SHA vs $HEAD_SHA); not publishing stale PKG"
+            exit 0
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            echo "Existing release: replace stale asset with current verified PKG"
+            gh release upload "$TAG" "$PKG" --clobber
+            gh release edit "$TAG" --target "$GITHUB_SHA"
+            gh api -X PATCH "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" -f sha="$GITHUB_SHA" -F force=true
+          else
+            gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
+              --title "SpookyFlow V15.12 - Interfaz en español latinoamericano" \
+              --notes "Edicion exclusiva de los textos de SpookyFlow V15.11: menus, opciones, ayuda, avisos, mensajes de carga y tarjetas en espanol latinoamericano. MISMAS tipografias DejaVu originales, tamanos, colores, posiciones, controles, iconos, fondos, animaciones, PS1 CUE BIN, caratulas, PS2, PS3 y BDISO. Los ajustes guardados siguen compatibles, el nombre en XMB se mantiene MIS JUEGOS PS3 PS2 PS1. Diez auditorias de inmutabilidad comparan los blobs exactos de los modulos protegidos con la V15.11; tests del nucleo y paquete real de PS3 verificados. No se ha efectuado validacion visual en una consola fisica."
+          fi
 
   ps3-pkg-docker:
     needs: host-tests
