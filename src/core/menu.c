@@ -69,39 +69,39 @@ int menu_group_of(RowKind k)
 const char *menu_label(RowKind k)
 {
     switch (k) {
-    case ROW_FG_LOOK: return "Appearance";
-    case ROW_FG_SOUND: return "Music & Sound";
-    case ROW_FG_GAMES: return "Games & Library";
-    case ROW_FG_SYSTEM: return "System";
-    case ROW_G_AUTOPLAY: return "Auto-Play";
-    case ROW_G_EMULATOR: return "Emulator";
-    case ROW_G_OFFLINE: return "Offline Mode";
-    case ROW_G_PS2CFG: return "PS2 Config";
-    case ROW_G_HIDE: return "Hide Game";
-    case ROW_F_SHOW_HIDDEN: return "Show Hidden Games";
-    case ROW_F_PS3_ONLY: return "PS3 Games Only";
-    case ROW_F_AUTOPLAY: return "Auto-Play";
-    case ROW_F_OFFLINE: return "Offline Mode";
-    case ROW_F_SFX: return "Sound Effects";
-    case ROW_F_VOLUME: return "Music Volume";
-    case ROW_F_SHUFFLE: return "Shuffle Music";
-    case ROW_F_BACKGROUND: return "Background";
-    case ROW_F_UI_COLOR: return "UI Color";
-    case ROW_D_DISC: return "Disc";
-    case ROW_F_INFO: return "Show Game Info";
-    case ROW_F_CASES: return "Game Cases";        /* 0.8.7: was Custom Cases */
-    case ROW_F_REFLECT: return "Reflections";
-    case ROW_F_CASE_LIGHT: return "Case Lighting";
-    case ROW_F_SLEEP: return "Sleep Mode";
-    case ROW_F_COVERS: return "Download Missing Covers";
-    case ROW_F_IGNORE_THE: return "Ignore \"The\" When Sorting";
-    case ROW_F_XMB_TOP: return "Pin to Top of XMB";
-    case ROW_F_RESCAN: return "Rescan Library";
-    case ROW_F_ABOUT: return "About";
-    case ROW_F_HIDE_UI: return "Hide Cover Flow UI";
-    case ROW_F_STORAGE: return "Storage";
-    case ROW_F_QUIT: return "Quit to XMB";
-    case ROW_F_POWEROFF: return "Power Off PS3";
+    case ROW_FG_LOOK: return "Apariencia";
+    case ROW_FG_SOUND: return "Música y sonido";
+    case ROW_FG_GAMES: return "Juegos y biblioteca";
+    case ROW_FG_SYSTEM: return "Sistema";
+    case ROW_G_AUTOPLAY: return "Inicio automático";
+    case ROW_G_EMULATOR: return "Emulador";
+    case ROW_G_OFFLINE: return "Modo sin conexión";
+    case ROW_G_PS2CFG: return "Config. de PS2";
+    case ROW_G_HIDE: return "Ocultar juego";
+    case ROW_F_SHOW_HIDDEN: return "Mostrar juegos ocultos";
+    case ROW_F_PS3_ONLY: return "Solo juegos de PS3";
+    case ROW_F_AUTOPLAY: return "Inicio automático";
+    case ROW_F_OFFLINE: return "Modo sin conexión";
+    case ROW_F_SFX: return "Efectos de sonido";
+    case ROW_F_VOLUME: return "Volumen de música";
+    case ROW_F_SHUFFLE: return "Música aleatoria";
+    case ROW_F_BACKGROUND: return "Fondo";
+    case ROW_F_UI_COLOR: return "Color de interfaz";
+    case ROW_D_DISC: return "Disco";
+    case ROW_F_INFO: return "Mostrar info. del juego";
+    case ROW_F_CASES: return "Estuches de juegos";        /* 0.8.7: was Custom Cases */
+    case ROW_F_REFLECT: return "Reflejos";
+    case ROW_F_CASE_LIGHT: return "Luz de estuches";
+    case ROW_F_SLEEP: return "Modo de reposo";
+    case ROW_F_COVERS: return "Descargar carátulas faltantes";
+    case ROW_F_IGNORE_THE: return "Ignorar \"The\" al ordenar";
+    case ROW_F_XMB_TOP: return "Fijar arriba en XMB";
+    case ROW_F_RESCAN: return "Volver a escanear";
+    case ROW_F_ABOUT: return "Acerca de";
+    case ROW_F_HIDE_UI: return "Ocultar interfaz";
+    case ROW_F_STORAGE: return "Almacenamiento";
+    case ROW_F_QUIT: return "Salir al XMB";
+    case ROW_F_POWEROFF: return "Apagar PS3";
     }
     return "";
 }
@@ -133,18 +133,18 @@ int menu_toggle(RowKind k, const Settings *s)
 
 int menu_segments(RowKind k, int plat, const GameCfg *g, const char *const **names, int *cur)
 {
-    static const char *const tri[3] = { "Default", "On", "Off" };        /* AP_DEFAULT, AP_ON, AP_OFF */
-    static const char *const emu1[2] = { "Standard", "Netemu" }, *const emu2[2] = { "Default", "Netemu" };
+    static const char *const tri[3] = { "Predet.", "Sí", "No" };        /* AP_DEFAULT, AP_ON, AP_OFF */
+    static const char *const emu1[2] = { "Estándar", "Netemu" }, *const emu2[2] = { "Predet.", "Netemu" };
     switch (k) {
     case ROW_G_AUTOPLAY: *names = tri; *cur = sf_clampi(g->autoplay, 0, 2); return 3;
     case ROW_G_OFFLINE: *names = tri; *cur = sf_clampi(g->offline, 0, 2); return 3;
     case ROW_G_EMULATOR: *names = plat == PLAT_PS1 ? emu1 : emu2; *cur = g->emulator ? 1 : 0; return 2;
-    case ROW_G_HIDE: { static const char *const oo[2] = { "Off", "On" }; *names = oo; *cur = g->hidden ? 1 : 0; return 2; }
+    case ROW_G_HIDE: { static const char *const oo[2] = { "No", "Sí" }; *names = oo; *cur = g->hidden ? 1 : 0; return 2; }
     default: return 0;
     }
 }
 
-static const char *onoff(int v) { return v ? "On" : "Off"; }
+static const char *onoff(int v) { return v ? "Sí" : "No"; }
 
 void menu_value_text(RowKind k, int plat, const Settings *s, const GameCfg *g, char *out, size_t cap)
 {
@@ -152,21 +152,21 @@ void menu_value_text(RowKind k, int plat, const Settings *s, const GameCfg *g, c
     switch (k) {
     case ROW_D_DISC: break;          /* drawn by ui.c from the disc list */
     case ROW_G_AUTOPLAY:
-        if (g->autoplay == AP_ON) sf_strlcpy(out, "On", cap);
-        else if (g->autoplay == AP_OFF) sf_strlcpy(out, "Off", cap);
-        else snprintf(out, cap, "Default (%s)", onoff(s->autoplay));
+        if (g->autoplay == AP_ON) sf_strlcpy(out, "Sí", cap);
+        else if (g->autoplay == AP_OFF) sf_strlcpy(out, "No", cap);
+        else snprintf(out, cap, "Predet. (%s)", onoff(s->autoplay));
         break;
     case ROW_G_EMULATOR:
-        if (plat == PLAT_PS1) sf_strlcpy(out, g->emulator ? "Netemu" : "Standard", cap);
-        else sf_strlcpy(out, g->emulator ? "Netemu" : "Default", cap);
+        if (plat == PLAT_PS1) sf_strlcpy(out, g->emulator ? "Netemu" : "Estándar", cap);
+        else sf_strlcpy(out, g->emulator ? "Netemu" : "Predet.", cap);
         break;
     case ROW_G_OFFLINE:
-        if (g->offline == AP_ON) sf_strlcpy(out, "On", cap);
-        else if (g->offline == AP_OFF) sf_strlcpy(out, "Off", cap);
-        else snprintf(out, cap, "Default (%s)", onoff(s->offline));
+        if (g->offline == AP_ON) sf_strlcpy(out, "Sí", cap);
+        else if (g->offline == AP_OFF) sf_strlcpy(out, "No", cap);
+        else snprintf(out, cap, "Predet. (%s)", onoff(s->offline));
         break;
     case ROW_G_PS2CFG: {   /* the app shows more (what Auto picks, what exists): app_row_value */
-        static const char *const n[SET_PS2CFG_MAX + 1] = { "Auto", "CUSTOM", "NET", "GX", "SOFT", "PS2 Config app" };
+        static const char *const n[SET_PS2CFG_MAX + 1] = { "Auto", "CUSTOM", "NET", "GX", "SOFT", "App config. PS2" };
         sf_strlcpy(out, n[sf_clampi(g->ps2cfg, 0, SET_PS2CFG_MAX)], cap);
         break;
     }
@@ -175,11 +175,11 @@ void menu_value_text(RowKind k, int plat, const Settings *s, const GameCfg *g, c
     case ROW_F_AUTOPLAY: sf_strlcpy(out, onoff(s->autoplay), cap); break;
     case ROW_F_OFFLINE: sf_strlcpy(out, onoff(s->offline), cap); break;
     case ROW_F_SFX:
-        if (s->sfx_volume == 0) sf_strlcpy(out, "Off", cap);
+        if (s->sfx_volume == 0) sf_strlcpy(out, "No", cap);
         else snprintf(out, cap, "%d%%", s->sfx_volume);
         break;
     case ROW_F_VOLUME:      /* 0.8.5: 0% reads Off */
-        if (s->music_volume == 0) sf_strlcpy(out, "Off", cap);
+        if (s->music_volume == 0) sf_strlcpy(out, "No", cap);
         else snprintf(out, cap, "%d%%", s->music_volume);
         break;
     case ROW_F_SHUFFLE: sf_strlcpy(out, onoff(s->shuffle), cap); break;
@@ -189,18 +189,18 @@ void menu_value_text(RowKind k, int plat, const Settings *s, const GameCfg *g, c
     case ROW_F_CASES: sf_strlcpy(out, onoff(s->cases), cap); break;
     case ROW_F_REFLECT: sf_strlcpy(out, onoff(s->reflections), cap); break;
     case ROW_F_CASE_LIGHT: {
-        static const char *const n[CASE_LIGHT_COUNT] = { "Off", "Soft", "Full" };
+        static const char *const n[CASE_LIGHT_COUNT] = { "No", "Suave", "Total" };
         sf_strlcpy(out, n[sf_clampi(s->case_light, 0, CASE_LIGHT_COUNT - 1)], cap);
         break;
     }
     case ROW_F_SLEEP:
-        if (s->sleep_min <= 0) sf_strlcpy(out, "Off", cap);
-        else snprintf(out, cap, "After %d min", s->sleep_min);
+        if (s->sleep_min <= 0) sf_strlcpy(out, "No", cap);
+        else snprintf(out, cap, "Tras %d min", s->sleep_min);
         break;
-    case ROW_F_COVERS: sf_strlcpy(out, "Start", cap); break;
+    case ROW_F_COVERS: sf_strlcpy(out, "Iniciar", cap); break;
     case ROW_F_IGNORE_THE: sf_strlcpy(out, onoff(s->ignore_the), cap); break;
     case ROW_F_XMB_TOP: sf_strlcpy(out, onoff(s->xmb_top), cap); break;
-    case ROW_F_RESCAN: sf_strlcpy(out, "Start", cap); break;
+    case ROW_F_RESCAN: sf_strlcpy(out, "Iniciar", cap); break;
     case ROW_F_ABOUT: out[0] = '\0'; break;
     case ROW_F_HIDE_UI: sf_strlcpy(out, onoff(s->hide_ui), cap); break;
     case ROW_G_HIDE: sf_strlcpy(out, onoff(g->hidden), cap); break;
