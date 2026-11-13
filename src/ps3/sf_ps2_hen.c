@@ -177,15 +177,33 @@ static int launcher_installed(void)
     {FILE *f=fopen(SF_LAUNCHER_PROBE,"wb");
      if(f){
         (void)fprintf(f,
-            "BACKEND=PS2_CLASSICS_HEN\nAPP_ID=PS2U10000\n"
-            "USRDIR_READABLE=%d\nUSRDIR_ERRNO=%d\n"
-            "PARAM_SFO_READABLE=%d\nPARAM_SFO_ERRNO=%d\n"
-            "TITLE_ID=%s\nTITLE_ID_MATCH=%d\n"
-            "USRDIR_EBOOT_READABLE=%d\nEBOOT_ERRNO=%d\n"
-            "ROOT_EBOOT_READABLE=%d\nROOT_EBOOT_ERRNO=%d\n"
-            "CLASSICS_IMAGE_READABLE=%d\nIMAGE_ERRNO=%d\n"
-            "LAUNCHER_ACCEPTED=%d\nOTHER_PS2_GAME_IDS=%s\n"
-            "APP_PATH=%s\nGAME_PATH=%s\n",
+            "BACKEND=PS2_CLASSICS_HEN
+APP_ID=PS2U10000
+"
+            "USRDIR_READABLE=%d
+USRDIR_ERRNO=%d
+"
+            "PARAM_SFO_READABLE=%d
+PARAM_SFO_ERRNO=%d
+"
+            "TITLE_ID=%s
+TITLE_ID_MATCH=%d
+"
+            "USRDIR_EBOOT_READABLE=%d
+EBOOT_ERRNO=%d
+"
+            "ROOT_EBOOT_READABLE=%d
+ROOT_EBOOT_ERRNO=%d
+"
+            "CLASSICS_IMAGE_READABLE=%d
+IMAGE_ERRNO=%d
+"
+            "LAUNCHER_ACCEPTED=%d
+OTHER_PS2_GAME_IDS=%s
+"
+            "APP_PATH=%s
+GAME_PATH=%s
+",
             usrdir,de,param,pe,id[0]?id:"(missing_or_invalid)",correct_id,
             eboot,ee,alternate,ae,image,ie,accepted,
             candidates[0]?candidates:"(none)",SF_CLASSICS_APP,SF_CLASSICS_DIR);
@@ -248,7 +266,12 @@ static void record(const char *stage,const char *path,int code,int progress)
 #else
     FILE *f=fopen(SF_HEN_DIAG,"wb");
     if (!f) return;
-    fprintf(f,"BACKEND=PS2_CLASSICS_HEN\nSTAGE=%s\nRC=%d\nPROGRESS=%d\nPATH=%s\n",
+    fprintf(f,"BACKEND=PS2_CLASSICS_HEN
+STAGE=%s
+RC=%d
+PROGRESS=%d
+PATH=%s
+",
             stage,code,progress,path?path:"(null)");
     (void)fflush(f);(void)fclose(f);
 #endif
@@ -417,7 +440,8 @@ static int ready_manifest(const char *source,uint64_t isosize)
     if(!fgets(line,sizeof(line),f)){fclose(f);return 0;}
     fclose(f);
     if(source_fingerprint(source,isosize,fingerprint)!=0)return 0;
-    if(snprintf(wanted,sizeof(wanted),"SF-PS2-CLASSICS3 %llu %s %s\n",
+    if(snprintf(wanted,sizeof(wanted),"SF-PS2-CLASSICS3 %llu %s %s
+",
        (unsigned long long)isosize,fingerprint,source)>=(int)sizeof(wanted))return 0;
     if(strcmp(line,wanted))return 0;
     f=fopen(SF_CLASSICS_IMAGE,"rb");if(!f)return 0;
@@ -500,7 +524,8 @@ static int ps2_stage_config(const char *id)
         return 0;
     }
     if(!verify_cfg(src))return -84; /* Never install an invalid .ENC */
-    if(snprintf(marker,sizeof(marker),"SF-PS2-CONFIG %s %s\n",id,src)>=(int)sizeof(marker))
+    if(snprintf(marker,sizeof(marker),"SF-PS2-CONFIG %s %s
+",id,src)>=(int)sizeof(marker))
         return -85;
     f=fopen(SF_CFG_OWNER,"rb");
     if(f) {
@@ -550,7 +575,8 @@ static int write_manifest(const char *source,uint64_t isosize)
     if(!f)return -1;
     {char fingerprint[41];
      if(source_fingerprint(source,isosize,fingerprint)!=0 ||
-        fprintf(f,"SF-PS2-CLASSICS3 %llu %s %s\n",
+        fprintf(f,"SF-PS2-CLASSICS3 %llu %s %s
+",
                 (unsigned long long)isosize,fingerprint,source)<0)rc=-1;}
     if(fflush(f)!=0)rc=-1;
     if(fclose(f)!=0)rc=-1;
@@ -878,7 +904,8 @@ config_check:
     {char line[512];FILE *m=fopen(SF_CFG_OWNER,"rb");
      if(m){
          if(fgets(line,sizeof(line),m)) {
-             line[strcspn(line,"\r\n")]=0;
+             line[strcspn(line,"\r
+")]=0;
              log_printf("PS2_DIAG CONFIG_ORIGIN=%.300s",line);
          }
          (void)fclose(m);
@@ -887,12 +914,15 @@ config_check:
     {char line[1200];FILE *m=fopen(SF_CLASSICS_META,"rb");
      if(m){
          if(fgets(line,sizeof(line),m)){
-             line[strcspn(line,"\r\n")]=0;
+             line[strcspn(line,"\r
+")]=0;
              log_printf("PS2_DIAG SOURCE_MANIFEST=%.500s",line);
          }
          (void)fclose(m);
      }else log_printf("PS2_DIAG SOURCE_MANIFEST_MISSING=1");
     }
+    log_printf("PS2_DIAG MANIFEST_BACKUP_PENDING=%d MANIFEST_PARTIAL_PENDING=%d",
+               exists_file(SF_CLASSICS_META_OLD),exists_file(SF_CLASSICS_META_TMP));
     log_printf("PS2_DIAG PENDING_PARTIAL=%d OLD_BACKUP_PENDING=%d "
                "ORIGINAL_BACKUP=%d",
                exists_file(SF_CLASSICS_TMP),
