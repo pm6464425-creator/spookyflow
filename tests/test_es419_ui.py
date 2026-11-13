@@ -62,7 +62,7 @@ menu_targets={
  "Efectos de sonido","Volumen de música","Música aleatoria",
  "Fondo","Color de interfaz","Disco","Mostrar info. del juego",
  "Estuches de juegos","Reflejos","Luz de estuches","Modo de reposo",
- "Descargar carátulas faltantes","Ignorar \\"The\\" al ordenar",
+ "Descargar carátulas faltantes",'Ignorar \\"The\\" al ordenar',
  "Fijar arriba en XMB","Volver a escanear","Acerca de",
  "Ocultar interfaz","Almacenamiento","Salir al XMB","Apagar PS3"
 }
