@@ -45,6 +45,22 @@ int main(void)
     CHECK(sf_ps1_resolve_existing(expected,result,sizeof(result))==-1);
     CHECK(unlink(a)==0);
     CHECK(sf_ps1_resolve_existing(expected,result,sizeof(result))==-1);
+    /* Generalized real directory smoke test. Different title metadata,
+       same physical PS1 game image; no per-title game dictionaries. */
+    snprintf(a,sizeof(a),"%s/Disney Tarzan (Europe) (En,Fr,De,Es,It).bin",dir);
+    snprintf(expected,sizeof(expected),
+             "%s/(PS1) Disney Tarzan [PAL] [SCES-01519].BIN",dir);
+    file(a);
+    CHECK(sf_ps1_resolve_existing(expected,result,sizeof(result))==0);
+    CHECK(!strcmp(result,a));
+    CHECK(unlink(a)==0);
+    snprintf(a,sizeof(a),"%s/Grand Theft Auto 2.bin",dir);
+    snprintf(expected,sizeof(expected),
+             "%s/Grand Theft Auto 2 (Europe) (En,Fr,De,Es,It) (Rev 1).bin",dir);
+    file(a);
+    CHECK(sf_ps1_resolve_existing(expected,result,sizeof(result))==0);
+    CHECK(!strcmp(result,a));
+    CHECK(unlink(a)==0);
     log_close();
     CHECK(remove("build-host/ps1_resolver_fixture_report.txt")==0);
     CHECK(rmdir(dir)==0);
