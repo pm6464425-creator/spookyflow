@@ -20,6 +20,9 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <errno.h>
+#include <dirent.h>
+#include "sfo.h"
 #ifdef SF_PS2_HEN_HOST_TEST
 #include <pthread.h>
 typedef pthread_t sys_ppu_thread_t;
@@ -100,34 +103,89 @@ static int file_size(const char *name,uint64_t *out)
     if (out)*out=(uint64_t)st.st_size;
     return 0;
 }
-/* The official PS2 Classics Launcher is identified as PS2U10000, but
- * some installed launchers do not expose EBOOT.BIN as a regular file to
- * homebrew. webMAN checks the installed placeholder directory instead.
- * Accept its installed PARAM.SFO and USRDIR, or a known executable variant.
- * Never create a missing launcher directory or overwrite an unrecognized ID.
+/* V15.16: recognize the real installed PS2U10000 application using the
+ * same filesystem APIs that browse PS3 games; stat/S_ISREG alone is not a
+ * reliable indicator on all HEN configurations. Never create a placeholder
+ * directory or inject an encrypted image into an unverified location.
+ *
+ * This mirrors the PS2 portion of the XaviiGam video: PS2 Classics Manager
+ * encrypts the ISO and stages ISO.BIN.ENC for PS2U10000 Placeholder R3.
+ * SpookyFlow already encrypts and stages it itself, without webMAN MOD.
  */
+static int readable_file(const char *p,int *err)
+{
+    FILE *f=fopen(p,"rb");
+    if(!f){if(err)*err=errno;return 0;}
+    if(err)*err=0;
+    (void)fclose(f);return 1;
+}
+static int readable_dir(const char *p,int *err)
+{
+    DIR *d=opendir(p);
+    if(!d){if(err)*err=errno;return 0;}
+    if(err)*err=0;
+    (void)closedir(d);return 1;
+}
+static int launcher_sfo_id(char out[32])
+{
+    uint8_t b[8192];FILE *f=fopen(SF_CLASSICS_PARAM,"rb");size_t n;
+    out[0]=0;
+    if(!f)return 0;
+    n=fread(b,1,sizeof(b),f);
+    (void)fclose(f);
+    if(n<36 || sfo_get_str(b,n,"TITLE_ID",out,32)!=0)return 0;
+    return strcmp(out,"PS2U10000")==0;
+}
 static int launcher_installed(void)
 {
-    struct stat st;
-    int usrdir=(stat(SF_CLASSICS_DIR,&st)==0 && S_ISDIR(st.st_mode));
-    int param=exists_file(SF_CLASSICS_PARAM);
-    int eboot=exists_file(SF_CLASSICS_EBOOT);
-    int alt=exists_file(SF_CLASSICS_EBOOT_ALT);
-    int image=exists_file(SF_CLASSICS_IMAGE);
-    int accepted=usrdir && (param || eboot || alt);
-    FILE *f=fopen(SF_LAUNCHER_PROBE,"wb");
-    if(f){
+    char id[32]="", candidates[512]={0};
+    int de=0,pe=0,ee=0,ae=0,ie=0;
+    int usrdir=readable_dir(SF_CLASSICS_DIR,&de);
+    int param=readable_file(SF_CLASSICS_PARAM,&pe);
+    int eboot=readable_file(SF_CLASSICS_EBOOT,&ee);
+    int alternate=readable_file(SF_CLASSICS_EBOOT_ALT,&ae);
+    int image=readable_file(SF_CLASSICS_IMAGE,&ie);
+    int correct_id=param && launcher_sfo_id(id);
+    int accepted=usrdir && (eboot || alternate || correct_id);
+    /* Diagnostic-only discovery: some users install a different PS2 launcher.
+     * Report its directory; do not silently write into a different title ID.
+     * CFW, PS1 and BDISO mount paths are not changed. */
+    if(!accepted){
+        DIR *games=opendir("/dev_hdd0/game");
+        if(games) {
+            struct dirent *e; int seen=0;
+            while((e=readdir(games))!=NULL && seen<1024){
+                size_t used=strlen(candidates);
+                if(strncmp(e->d_name,"PS2",3)!=0 ||
+                   !strcmp(e->d_name,"PS2U10000"))continue;
+                if(strlen(e->d_name)>15)continue;
+                seen++;
+                if(used+strlen(e->d_name)+3>=sizeof(candidates))break;
+                if(used)strcat(candidates,",");
+                strcat(candidates,e->d_name);
+            }
+            (void)closedir(games);
+        }
+    }
+    {FILE *f=fopen(SF_LAUNCHER_PROBE,"wb");
+     if(f){
         (void)fprintf(f,
             "BACKEND=PS2_CLASSICS_HEN\nAPP_ID=PS2U10000\n"
-            "USRDIR_EXISTS=%d\nPARAM_SFO_EXISTS=%d\n"
-            "USRDIR_EBOOT_EXISTS=%d\nROOT_EBOOT_EXISTS=%d\n"
-            "CLASSICS_IMAGE_EXISTS=%d\nLAUNCHER_ACCEPTED=%d\n"
+            "USRDIR_READABLE=%d\nUSRDIR_ERRNO=%d\n"
+            "PARAM_SFO_READABLE=%d\nPARAM_SFO_ERRNO=%d\n"
+            "TITLE_ID=%s\nTITLE_ID_MATCH=%d\n"
+            "USRDIR_EBOOT_READABLE=%d\nEBOOT_ERRNO=%d\n"
+            "ROOT_EBOOT_READABLE=%d\nROOT_EBOOT_ERRNO=%d\n"
+            "CLASSICS_IMAGE_READABLE=%d\nIMAGE_ERRNO=%d\n"
+            "LAUNCHER_ACCEPTED=%d\nOTHER_PS2_GAME_IDS=%s\n"
             "APP_PATH=%s\nGAME_PATH=%s\n",
-            usrdir,param,eboot,alt,image,accepted,SF_CLASSICS_APP,SF_CLASSICS_DIR);
+            usrdir,de,param,pe,id[0]?id:"(missing_or_invalid)",correct_id,
+            eboot,ee,alternate,ae,image,ie,accepted,
+            candidates[0]?candidates:"(none)",SF_CLASSICS_APP,SF_CLASSICS_DIR);
         (void)fflush(f);(void)fclose(f);
-    }
-    log_printf("ps2 hen: launcher %s usrdir=%d param=%d eboot=%d alternate=%d image=%d",
-        accepted?"FOUND":"NOT_FOUND",usrdir,param,eboot,alt,image);
+     }}
+    log_printf("ps2 hen: launcher %s usrdir=%d param=%d title_id=%s eboot=%d alt=%d image=%d",
+        accepted?"FOUND":"NOT_FOUND",usrdir,param,id[0]?id:"?",eboot,alternate,image);
     return accepted;
 }
 static int ends(const char *a,const char *b)

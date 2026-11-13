@@ -85,7 +85,15 @@ static void make_fixture(void)
     CHECK(fclose(f)==0);
     /* Real package evidence: launcher may exist even if EBOOT is not
      * visible as a regular file. PARAM.SFO + USRDIR is a valid install. */
-    write_file(ROOT "/placeholder/PARAM.SFO","PS2U10000",9);
+    {unsigned char sfo[64]={0};
+     /* Proper little-endian PARAM.SFO with TITLE_ID string record. */
+     sfo[0]=0;sfo[1]='P';sfo[2]='S';sfo[3]='F';sfo[4]=1;sfo[5]=1;
+     sfo[8]=36; sfo[12]=48; sfo[16]=1;
+     sfo[22]=4; sfo[23]=2; sfo[24]=10; sfo[28]=12;
+     memcpy(sfo+36,"TITLE_ID",9);
+     memcpy(sfo+48,"PS2U10000",10);
+     write_file(ROOT "/placeholder/PARAM.SFO",sfo,sizeof(sfo));
+    }
     write_file(IMAGE,"EXISTING USER CLASSICS GAME",27);
     write_file(DIR "/CONFIG","PREVIOUS USER CONFIG",20);
 }
@@ -107,6 +115,16 @@ int main(void)
     CHECK(rename(ROOT "/placeholder/PARAM.SFO",ROOT "/placeholder/PARAM.SFO.hide")==0);
     CHECK(sf_ps2_hen_start(ISO,"SLUS_201.74")==-64);
     CHECK(rename(ROOT "/placeholder/PARAM.SFO.hide",ROOT "/placeholder/PARAM.SFO")==0);
+    /* A different title ID cannot authorize modifications to this launcher. */
+    {FILE *sfo=fopen(ROOT "/placeholder/PARAM.SFO","r+b");
+     CHECK(sfo!=NULL);CHECK(fseeko(sfo,48,SEEK_SET)==0);
+     CHECK(fwrite("WRONG10000",1,10,sfo)==10);CHECK(fclose(sfo)==0);}
+    CHECK(sf_ps2_hen_start(ISO,"SLUS_201.74")==-64);
+    {FILE *sfo=fopen(ROOT "/placeholder/PARAM.SFO","r+b");
+     CHECK(sfo!=NULL);CHECK(fseeko(sfo,48,SEEK_SET)==0);
+     CHECK(fwrite("PS2U10000",1,10,sfo)==10);CHECK(fclose(sfo)==0);}
+    /* Diagnostic is readable and records the matched title ID. */
+    CHECK(sf_ps2_hen_start(ROOT "/PS2ISO/not_present.iso",NULL)<0);
     SHA1(base_data,sizeof(base_data),original_sha);
     CHECK(sf_ps2_hen_start("build-host/ps2hen/PS2ISO/no.iso",NULL)<0);
     rc=sf_ps2_hen_start(ISO,"SLUS_201.74");

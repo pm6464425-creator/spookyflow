@@ -50,7 +50,7 @@ jobs:
           mkdir -p build-host
           cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -Isrc/core src/core/ps2_mount_plan.c tests/test_ps2_mount_plan.c -o build-host/test_ps2_mount_plan
           ./build-host/test_ps2_mount_plan
-      - name: PS2 HEN Classics conversion - 46 safety and integration checks
+      - name: PS2 HEN Classics conversion - 54 safety and integration checks
         run: python3 tests/test_ps2_hen_integration.py
       - name: PS2 HEN actual encrypted ISO AES SHA1 end-to-end round-trip
         run: |
@@ -285,6 +285,23 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title "SpookyFlow V15.15 - Detección PS2 Classics PS3 HEN (experimental)" \
             --notes "Corrección de falso aviso: PS2 Classics Launcher PS2U10000 se detecta por su instalación PARAM.SFO y USRDIR, aunque USRDIR/EBOOT.BIN no aparezca como archivo normal. Diagnóstico PS2 en /dev_hdd0/tmp/spookyflow/ps2_launcher_probe.txt. Protege juego cifrado anterior, mantiene la conversión V15.14 y PS1/PS3/BDISO V15.12. Compilación/verificaciones automáticas; pendiente validar en PS3 real."
+      - name: Publish PS2 HEN manager native probe V15.16
+        if: github.ref == 'refs/heads/fix/v15-16-ps2-manager-native-probe'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-16-ps2-manager-native-probe" --jq '.commit.sha')
+          if [ "$current" != "$GITHUB_SHA" ]; then
+            echo "Skipping old revision"
+            exit 0
+          fi
+          short="${GITHUB_SHA:0:8}"
+          cp spookyflow.pkg SPOOKYFLOW_V15_16_PS2_CLASSICS_SIN_WEBMAN_TEST.pkg
+          gh release create "spookyflow-v15-16-ps2-manager-${short}" \
+            SPOOKYFLOW_V15_16_PS2_CLASSICS_SIN_WEBMAN_TEST.pkg \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "SpookyFlow V15.16 - PS2 Classics HEN sin webMAN (prueba)" \
+            --notes "EXPERIMENTAL. Basado en PS2 Classics Manager + PS2 Classics Placeholder R3 del tutorial XaviiGam. La conversión y colocación de ISO.BIN.ENC son internas a SpookyFlow, sin red ni webMAN; detecta título PS2U10000 mediante PARAM.SFO real o ejecutable y comprueba USRDIR con opendir. Traza errores de acceso y otros PS2 IDs en /dev_hdd0/tmp/spookyflow/ps2_launcher_probe.txt. No instala el Placeholder ni cambia el firmware. Conserva V15.12 y PS3/BDISO/PS1. NO probado físicamente."
       # GitHub release assets can be downloaded directly (without Actions
       # artifact ZIP/login) unlike some sandbox links in the chat client.
       - name: Publish direct-download PS3 PKG release
