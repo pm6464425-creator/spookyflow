@@ -12,6 +12,8 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+/* Host-only logger supplied by the full PS3 application at runtime. */
+void log_printf(const char *fmt,...) {(void)fmt;}
 #define SEG 16384u
 static int checks;
 #define CHECK(x) do {if(!(x)){fprintf(stderr,"PS2 HEN FAIL line %d: %s\n",__LINE__,#x);exit(1);}checks++;}while(0)
