@@ -20,7 +20,7 @@ checks={
  "06 other errors not mistaken for missing file": "errno!=ENOENT" in resolver,
  "07 matching uses same folder only": "opendir(s_dirname)" in resolver,
  "08 no recursive directory walk": "readdir(dir)" in resolver and "scandir(" not in resolver,
- "09 same-title normalized match": "region_marker" in match and "normalized" in match,
+ "09 same-title normalized match": "region_tag" in match and "normalize" in match,
  "10 exact case-insensitive filename first": "strcasecmp(m->expected,candidate)" in match,
  "11 refuse ambiguous matches": "m->same_score!=1" in match and "AMBIGUOUS" in resolver,
  "12 no unrelated filename auto-selection": "if(!score || score<m->top_score)return;" in match,
