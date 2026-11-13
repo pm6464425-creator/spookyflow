@@ -48,6 +48,17 @@ static int region_tag(const char *word)
     };
     return one_of(word,names,sizeof(names)/sizeof(names[0]));
 }
+static unsigned region_group(const char *word)
+{
+    static const char *const pal[]={"pal","europe","eu","uk","france",
+        "germany","spain","italy","australia","unitedkingdom"};
+    static const char *const usa[]={"usa","us","ntscu","unitedstates"};
+    static const char *const jap[]={"japan","jp","ntscj"};
+    if(one_of(word,pal,sizeof(pal)/sizeof(pal[0])))return 1;
+    if(one_of(word,usa,sizeof(usa)/sizeof(usa[0])))return 2;
+    if(one_of(word,jap,sizeof(jap)/sizeof(jap[0])))return 3;
+    return 0;
+}
 static int language_code(const char *code)
 {
     static const char *const names[]={
@@ -126,7 +137,13 @@ static int known_tag(const char *text,size_t n,SfPs1MatchKey *key)
     unsigned num;
     compact(text,n,word,sizeof(word));
     if(!word[0])return 0;
-    if(region_tag(word) || language_tag(text,n))return 1;
+    if(region_tag(word)){
+        unsigned region=region_group(word);
+        if(region && (!key->region || key->region==region))
+            key->region=region;
+        return 1;
+    }
+    if(language_tag(text,n))return 1;
     if(serial_tag(word,serial,sizeof(serial))){
         strcpy(key->serial,serial);
         return 1;
@@ -220,6 +237,10 @@ void sf_ps1_match_consider(SfPs1FileMatch *m,const char *candidate)
         score=2;
         if(m->expected_key.serial[0] && key.serial[0])score++;
         if(m->expected_key.rev[0] && key.rev[0])score++;
+        /* PAL/Europe, USA or Japan metadata can break an otherwise
+           ambiguous same-title tie without overriding exact filenames. */
+        if(m->expected_key.region && key.region &&
+           m->expected_key.region==key.region)score++;
     }else if(m->expected_key.serial[0] && key.serial[0] &&
              !strcmp(m->expected_key.serial,key.serial) &&
              (!m->expected_key.title[0] || !key.title[0])){
