@@ -1399,6 +1399,26 @@ static void panel_input(App *a)
 
 /* disc < 0: a single-disc game. Sends the webMAN request (launch.h) and
  * exits to the XMB, where webMAN mounts the game and starts it. */
+/* V15.21: Optional auto-start of installed PS2 Classics from XMB.
+ * Keep HEN conversion and all installed files unchanged. webMAN processes
+ * this command only after SpookyFlow exits and XMB becomes ready. When its
+ * local HTTP service is unavailable, retain V15.20's manual launcher path. */
+static void ps2_hen_return_to_xmb(App *a, const char *reason)
+{
+    static const char request[] =
+        "/wait.ps3?xmb;/wait.ps3?3;/play.ps3?PS2U10000";
+    int rc = a->host.launch ? a->host.launch(request) : -1;
+    if (rc == 0) {
+        log_printf("PS2_DIAG AUTOPLAY=QUEUED LAUNCHER=PS2U10000");
+        app_show_toast(a, "PS2 listo. Inicio automatico desde XMB");
+    } else {
+        log_printf("PS2_DIAG AUTOPLAY=MANUAL_FALLBACK RC=%d LAUNCHER=PS2U10000", rc);
+        app_show_toast(a, "PS2 listo. Abre PS2 Classics desde XMB");
+    }
+    a->launched = 1;
+    app_request_exit(a, reason);
+}
+
 static void launch_disc(App *a, int disc)
 {
     const Game *g = app_selected_game(a, a->tab);
@@ -1474,9 +1494,7 @@ static void launch_disc(App *a, int disc)
                 }
                 sf_strlcpy(a->last_launch, name, sizeof(a->last_launch));
                 if (result == 1) {
-                    app_show_toast(a, "PS2 preparado. Abre PS2 Classics desde XMB");
-                    a->launched = 1;
-                    app_request_exit(a, "ps2 classics ready (cached)");
+                    ps2_hen_return_to_xmb(a, "ps2 classics ready (cached)");
                     return;
                 }
                 a->ps2_hen_busy = 1;
@@ -1850,9 +1868,7 @@ void app_update(App *a, uint32_t held, float dt)
         a->ps2_hen_busy=0;
         if (status==1) {
             log_printf("ps2 hen: encrypted image ready in PS2 Classics Placeholder");
-            app_show_toast(a,"PS2 preparado. Abre PS2 Classics desde XMB");
-            a->launched=1;
-            app_request_exit(a,"ps2 classics prepared");
+            ps2_hen_return_to_xmb(a,"ps2 classics prepared");
         } else {
             log_printf("ps2 hen: conversion failed rc=%d",status);
             {char msg[112];

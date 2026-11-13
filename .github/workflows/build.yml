@@ -52,6 +52,8 @@ jobs:
           ./build-host/test_ps2_mount_plan
       - name: PS2 HEN Classics conversion - 53 safety and integration checks
         run: python3 tests/test_ps2_hen_integration.py
+      - name: V15.21 PS2 HEN XMB autoplay - 24 safety checks
+        run: python3 tests/test_ps2_hen_autoplay.py
       - name: V15.19 region resolution and CD Mode2/2352 sector reconstruction
         run: |
           cc -std=c99 -O2 -Wall -Wextra -Werror -Isrc/core -Isrc/ps3 \
@@ -391,6 +393,23 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title "SpookyFlow V15.20 — corrige fallo PS2 100% RC -40 (experimental)" \
             --notes "Corrige fallo RC -40 observado en PS3 al renombrar ISO.BIN.ENC.sf-source existente; protege respaldos y restaura el juego anterior si falla el guardado. Registra COMMIT_FAIL/ERRNO y COMMIT_RESULT en el mismo diagnostico.txt. Conserva V15.19 (multirregion, CD 2352 y CONFIG), PS1, PS3, BDISO y V15.12 intactos. Compilacion/tests automaticos; arranque real en HEN pendiente."
+      - name: Publish V15.21 PS2 HEN autoplay (experimental)
+        if: github.ref == 'refs/heads/feat/v15-21-ps2-hen-autoplay'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/feat%2Fv15-21-ps2-hen-autoplay" --jq '.commit.sha')
+          if [ "$GITHUB_SHA" != "$current" ]; then
+            echo "Skipping superseded build"
+            exit 0
+          fi
+          short="${GITHUB_SHA:0:8}"
+          cp spookyflow.pkg SPOOKYFLOW_V15_21_PS2_HEN_AUTO_INICIO_XMB.pkg
+          gh release create "spookyflow-v15-21-ps2-autoplay-${short}" \
+            SPOOKYFLOW_V15_21_PS2_HEN_AUTO_INICIO_XMB.pkg \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "SpookyFlow V15.21 - Inicio PS2 Classics automatico desde XMB (experimental)" \
+            --notes "Envía orden local a webMAN tras preparar el PS2 Classics Launcher (PS2U10000); espera al XMB, luego inicia automáticamente. Sin webMAN conserva inicio manual. Mantiene la V15.20, CONFIG, PS1, PS3, BDISO y único diagnóstico. Pruebas automáticas, no validado en PS3 HEN física."
       # GitHub release assets can be downloaded directly (without Actions
       # artifact ZIP/login) unlike some sandbox links in the chat client.
       - name: Publish direct-download PS3 PKG release

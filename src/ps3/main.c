@@ -308,7 +308,7 @@ int main(int argc, const char *argv[])
     {int removed=ps3_fs_cleanup_legacy_diagnostics();
      int diag_rc=log_open(SF_DIAG_SINGLE_PATH);
      if(diag_rc==0) {
-         log_printf("==== SPOOKYFLOW V15.20 - diagnostic report started ====");
+         log_printf("==== SPOOKYFLOW V15.21 - diagnostic report started ====");
          log_printf("PS2_DIAG CLEANUP_LEGACY_REPORTS_REMOVED=%d",removed);
      }
     }
