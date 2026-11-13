@@ -21,7 +21,7 @@ chk={
 "PS1 no fake success": 'PS1_DIAG STAGE=MOUNT_PSX_7027 SYS_RC=%d' in p and "if(rc!=0){rc=-44;goto fail;}" in p,
 "PS1 no extra TXT": 'fopen(' not in p.replace('fopen(path,"rb")',''),
 "PS1 supports PSXISO and PSXGAMES": "/PSXISO/" in p and "/PSXGAMES/" in p,
-"PS1 no 2048 sectors": "st.st_size % 2352" in p,
+"PS1 no 2048 sectors": "st.st_size%2352" in p and "RESULT=UNSUPPORTED_SECTOR_OR_TRACK_LAYOUT" in p,
 "PS1 rejects multi-BIN": "++files!=1" in c,
 "PS1 rejects unsafe cue paths": 'strstr(base,"..")' in c,
 "PS1 rejects explicit pregap": 'word(cur,"PREGAP")' in c,
