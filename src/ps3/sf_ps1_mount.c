@@ -6,6 +6,7 @@
  */
 #include "sf_ps1_mount.h"
 #include "sf_ps1_native_plan.h"
+#include "sf_ps1_resolve.h"
 #include "ps3_platform.h"
 #include "log.h"
 #include <cobra.h>
@@ -20,6 +21,7 @@
 static SfPs1NativePlan s_plan; /* no 6k stack allocations on main PPU thread */
 static TrackDef s_cobra_tracks[SF_PS1_MAX_TRACKS];
 static char s_cue[SF_PS1_IMAGE_MAX],s_text[32769];
+static char s_cue_image_resolved[SF_PS1_IMAGE_MAX];
 
 static int ends(const char *path,const char *ext)
 {
@@ -99,6 +101,16 @@ static int read_cue(const char *path)
         log_printf("PS1_DIAG STAGE=CUE_REFERENCED_IMAGE RESULT=UNSUPPORTED_PATH");
         return -41;
     }
+    /* The CUE's FILE may use a regional name ("Metal Slug X (Europe)")
+       while the actual BIN was renamed to "Metal Slug X.bin". Resolve only
+       a UNIQUE same-title match in the original directory; never rewrite
+       the user's .CUE or silently mount some unrelated .BIN. */
+    if(sf_ps1_resolve_existing(s_plan.image,s_cue_image_resolved,
+                              sizeof(s_cue_image_resolved))!=0){
+        log_printf("PS1_DIAG STAGE=CUE_REFERENCED_IMAGE RESULT=NO_SAFE_MATCH");
+        return -41;
+    }
+    strcpy(s_plan.image,s_cue_image_resolved);
     if(!valid_image(s_plan.image,s_plan.tracks[s_plan.num_tracks-1].lba))
         return -41;
     return 0;
