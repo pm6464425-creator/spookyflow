@@ -113,7 +113,7 @@ int main(void)
     {FILE *cfg=fopen(DIR "/CONFIG","rb");unsigned char head[0x90];
      CHECK(cfg!=NULL);
      CHECK(fread(head,1,sizeof(head),cfg)==sizeof(head));
-     CHECK(!memcmp(head,"PS2\\0",4));
+     CHECK(head[0]=='P'&&head[1]=='S'&&head[2]=='2'&&head[3]==0);
      CHECK(!memcmp(head+0x10,"2P0001-PS2U10000_00-0000111122223333",36));
      CHECK(fclose(cfg)==0);}
     f=fopen(USER_BACKUP,"rb");CHECK(f!=NULL);
