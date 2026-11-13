@@ -3,6 +3,7 @@
  * the cross compiler. No real game data; this is a generated ISO9660 fixture.
  */
 #include "sf_ps2_hen.h"
+#include "sf_ps2_cdrom.h"
 #include <openssl/evp.h>
 #include <openssl/sha.h>
 #include <openssl/cmac.h>
@@ -183,7 +184,7 @@ int main(void)
     }
     CHECK(be32(header+0x84)==SEG);
     virtual_size=be64(header+0x88);
-    CHECK(virtual_size==sizeof(base_data)+SEG);
+    CHECK(virtual_size==((sizeof(base_data)/2048u*2352u+SEG-1u)/SEG)*SEG+SEG);
     blocks=virtual_size/SEG;
     expected=SEG+SEG+virtual_size;
     CHECK(size_file(IMAGE)==expected);
@@ -191,18 +192,30 @@ int main(void)
     CHECK(aes(km,0,klic,16,meta_key)==0);
     CHECK(fread(meta_cipher,1,SEG,f)==SEG);
     CHECK(aes(meta_key,1,meta_cipher,SEG,meta)==0);
-    for(block=0;block<blocks;block++){
-        CHECK(fread(ciphertext,1,SEG,f)==SEG);
-        SHA1(ciphertext,SEG,digest);
-        CHECK(!memcmp(meta+block*32,digest,20));
-        CHECK(be32(meta+block*32+20)==block);
-        CHECK(aes(data_key,1,ciphertext,SEG,plain)==0);
-        if(block*sizeof(plain)<sizeof(base_data)){
-            CHECK(!memcmp(plain,base_data+block*SEG,SEG));
-        }else{
-            CHECK(!memcmp(plain,"LIMG",4));
-            CHECK(plain[7]==1);/* DVD fixture */
-        }
+    {static unsigned char raw_cd[2352u*(sizeof(base_data)/2048u)];
+     uint64_t rawbytes=sizeof(raw_cd);
+     size_t z;
+     for(z=0;z<sizeof(base_data)/2048u;z++)
+         sf_cdrom_mode2_form1(raw_cd+z*2352u,base_data+z*2048u,(uint32_t)z);
+     for(block=0;block<blocks;block++){
+         size_t n;
+         CHECK(fread(ciphertext,1,SEG,f)==SEG);
+         SHA1(ciphertext,SEG,digest);
+         CHECK(!memcmp(meta+block*32,digest,20));
+         CHECK(be32(meta+block*32+20)==block);
+         CHECK(aes(data_key,1,ciphertext,SEG,plain)==0);
+         if(block*SEG<rawbytes) {
+             n=(size_t)((rawbytes-block*SEG)<SEG?(rawbytes-block*SEG):SEG);
+             CHECK(!memcmp(plain,raw_cd+block*SEG,n));
+             for(z=n;z<SEG;z++)CHECK(plain[z]==0);
+         }else if(block==blocks-1) {
+             CHECK(!memcmp(plain,"LIMG",4));
+             CHECK(plain[7]==2);/* Rumble US CD-mode 2352 */
+             CHECK(be32(plain+12)==2352);
+         }else{
+             for(z=0;z<SEG;z++)CHECK(plain[z]==0);
+         }
+     }
     }
     CHECK(fclose(f)==0);
     CHECK(sf_ps2_hen_start(ISO,"SLUS_201.74")==1); /* cache skip */
@@ -216,7 +229,7 @@ int main(void)
     CHECK(size_file(USER_BACKUP)==27);
     CHECK(size_file(DIR "/ISO.BIN.ENC.sf-old")==0);
     /* CD sector layout: build a CD fixture without the DVD signature. */
-    {static unsigned char cd[0x40000];unsigned char last_cipher[SEG];
+    {static unsigned char cd[2352u*112u];unsigned char last_cipher[SEG];
      unsigned char last_data[SEG];const char *cdpath=ROOT "/PS2ISO/Rumble CD.iso";
      size_t j;for(j=0;j<sizeof(cd);j++)cd[j]=(unsigned char)(j*7u+11u);
      cd[0x9318]=1;memcpy(cd+0x9319,"CD001",5);
@@ -227,6 +240,8 @@ int main(void)
      CHECK(diag_good_images>=2);
      CHECK(diag_good_limg>=2);
      f=fopen(IMAGE,"rb");CHECK(f!=NULL);
+     CHECK(fread(header,1,SEG,f)==SEG);
+     blocks=be64(header+0x88)/SEG;
      CHECK(fseeko(f,(off_t)((2u+blocks-1u)*SEG),SEEK_SET)==0);
      CHECK(fread(last_cipher,1,SEG,f)==SEG);
      CHECK(fclose(f)==0);
@@ -234,6 +249,61 @@ int main(void)
      CHECK(!memcmp(last_data,"LIMG",4));
      CHECK(last_data[7]==2);
      CHECK(size_file(USER_BACKUP)==27);
+    }
+    /* PAL region, cooked CD (2048/sector): reconstruct real 2352 data
+     * track without modifying source; LIMG must say CD, not DVD. Check the
+     * entire decrypted data track, not just first/last blocks. */
+    {static unsigned char cooked[0x40000];
+     static unsigned char raw[2352u*(sizeof(cooked)/2048u)];
+     unsigned char meta_encrypted[SEG],tmp_data[SEG];
+     const char *pal=ROOT "/PS2ISO/Rumble Racing PAL.iso";
+     uint64_t rawbytes=sizeof(raw),p=0,k,total_blocks,virtual_bytes;
+     size_t j,actual;
+     for(j=0;j<sizeof(cooked);j++)cooked[j]=(unsigned char)(j*19u+13u);
+     cooked[0x8000]=1;memcpy(cooked+0x8001,"CD001",5);
+     cooked[0x8054]=0; cooked[0x8055]=0; cooked[0x8056]=0; cooked[0x8057]=128;
+     write_file(pal,cooked,sizeof(cooked));
+     CHECK(sf_ps2_hen_start(pal,"SLES_501.20")==0);
+     CHECK(wait_done()==1);
+     CHECK(size_file(pal)==sizeof(cooked));
+     CHECK(size_file(DIR "/CONFIG")==49152);
+     CHECK(diag_good_config>=2);
+     f=fopen(DIR "/CONFIG.sf-source","rb");CHECK(f!=NULL);
+     {char line[200];CHECK(fgets(line,sizeof(line),f)!=NULL);
+      CHECK(strstr(line,"SLES_501.20")!=NULL);}
+     CHECK(fclose(f)==0);
+     f=fopen(IMAGE,"rb");CHECK(f!=NULL);
+     CHECK(fread(header,1,SEG,f)==SEG);
+     virtual_bytes=be64(header+0x88);
+     total_blocks=virtual_bytes/SEG;
+     CHECK(virtual_bytes==((rawbytes+SEG-1u)/SEG)*SEG+SEG);
+     CHECK(fread(meta_encrypted,1,SEG,f)==SEG);
+     for(k=0;k<total_blocks;k++){
+         CHECK(fread(ciphertext,1,SEG,f)==SEG);
+         CHECK(aes(data_key,1,ciphertext,SEG,tmp_data)==0);
+         if(k*SEG<rawbytes){
+             actual=(size_t)(rawbytes-k*SEG<SEG?rawbytes-k*SEG:SEG);
+             memcpy(raw+k*SEG,tmp_data,actual);
+             p+=actual;
+         }else if(k==total_blocks-1){
+             CHECK(!memcmp(tmp_data,"LIMG",4));
+             CHECK(tmp_data[7]==2);
+             CHECK(be32(tmp_data+8)==sizeof(cooked)/2048u);
+             CHECK(be32(tmp_data+12)==2352);
+         }
+     }
+     CHECK(p==rawbytes);
+     for(j=0;j<sizeof(cooked)/2048u;j++){
+         const unsigned char *sector=raw+j*2352u;
+         CHECK(sector[0]==0 && sector[1]==255 && sector[11]==0);
+         CHECK(sector[15]==2 && sector[18]==8 && sector[22]==8);
+         CHECK(!memcmp(sector+24,cooked+j*2048u,2048));
+     }
+     CHECK(fclose(f)==0);
+     CHECK(diag_good_limg>=3);
+     CHECK(sf_ps2_hen_start(pal,"SLES_501.20")==1);
+     CHECK(size_file(DIR "/CONFIG")==49152);
+     expected=size_file(IMAGE);
     }
     /* A corrupt ISO must not replace the valid previously prepared image. */
     {static unsigned char bad[0x20000];write_file(ROOT "/PS2ISO/bad.iso",bad,sizeof(bad));}

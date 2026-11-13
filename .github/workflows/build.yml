@@ -52,6 +52,18 @@ jobs:
           ./build-host/test_ps2_mount_plan
       - name: PS2 HEN Classics conversion - 53 safety and integration checks
         run: python3 tests/test_ps2_hen_integration.py
+      - name: V15.19 region resolution and CD Mode2/2352 sector reconstruction
+        run: |
+          cc -std=c99 -O2 -Wall -Wextra -Werror -Isrc/core -Isrc/ps3 \
+             src/core/sf_ps2_media.c tests/test_ps2_media.c \
+             -o build-host/test_ps2_media
+          ./build-host/test_ps2_media
+          cc -std=c99 -O2 -Wall -Wextra -Werror -Isrc/ps3 \
+             src/ps3/sf_ps2_cdrom.c tests/test_ps2_cdrom.c \
+             -o build-host/test_ps2_cdrom
+          ./build-host/test_ps2_cdrom
+          test "$(git hash-object pkgfiles/USRDIR/ps2configs/SLES_501.20.ENC)" = bfcb941393185fb4e4682aba6a33e900dc20a182
+          python3 tests/test_ps2_regions_cd.py
       - name: PS2 HEN actual encrypted ISO AES SHA1 end-to-end round-trip
         run: |
           cc -std=gnu99 -O2 -Wall -Wextra -Werror=implicit-function-declaration \
@@ -59,7 +71,8 @@ jobs:
              -DSF_HAVE_TLS=1 -DSF_PS2_HEN_HOST_TEST=1 \
              -fsanitize=address,undefined -fno-omit-frame-pointer \
              -Isrc/ps3 -Isrc/core -Itests/ps2_hen_host \
-             src/ps3/sf_ps2_hen.c src/core/sfo.c tests/ps2_hen_host/mbedtls_shim.c \
+             src/ps3/sf_ps2_hen.c src/ps3/sf_ps2_cdrom.c \
+             src/core/sf_ps2_media.c src/core/sfo.c tests/ps2_hen_host/mbedtls_shim.c \
              tests/ps2_hen_host/test_ps2_hen_roundtrip.c \
              -pthread -lcrypto -o build-host/test_ps2_hen_roundtrip
           ./build-host/test_ps2_hen_roundtrip
@@ -344,6 +357,23 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title "SpookyFlow V15.18 — PS2 Classics y diagnóstico único (experimental)" \
             --notes "Genera y sobrescribe /dev_hdd0/tmp/spookyflow/diagnostico.txt en cada inicio; elimina SOLO 12 nombres conocidos de diagnósticos antiguos, manteniendo settings.ini, sf_blank.iso, covers y juegos. Inspecciona ISO.BIN.ENC, CONFIG, LIMG CD/DVD, tamaño de archivo, cifrado SHA1 de bloques y estado del launcher. Sin webMAN MOD para preparar PS2. Mantiene V15.17 AES/SHA1 obligatorio. Pruebas automatizadas aprobadas y PKG compilado, pero el arranque PS2 Classics externo todavía requiere validación real en la consola. Más detalles: PS2_V15_18_DIAGNOSTICO_ES.md."
+      - name: Publish V15.19 PS2 region and CD data fixes (experimental)
+        if: github.ref == 'refs/heads/experimental/v15-19-ps2-regions-cd'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/experimental%2Fv15-19-ps2-regions-cd" --jq '.commit.sha')
+          if [ "$GITHUB_SHA" != "$current" ]; then
+            echo "Skipping superseded build"
+            exit 0
+          fi
+          short="${GITHUB_SHA:0:8}"
+          cp spookyflow.pkg SPOOKYFLOW_V15_19_PS2_MULTIRREGION_CD_HEN.pkg
+          gh release create "spookyflow-v15-19-ps2-cd-${short}" \
+            SPOOKYFLOW_V15_19_PS2_MULTIRREGION_CD_HEN.pkg \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "SpookyFlow V15.19 — PS2 multi-region and CD PS2 Classics (experimental)" \
+            --notes "Identifica regiones PAL, NTSC-U, NTSC-J y Asia a través del serial SYSTEM.CNF. CONFIG cifrado específico por ID: busca PS2CONFIG instalado y usa bases empaquetadas (incluye SLUS_201.74 y SLES_501.20 Rumble Racing). Convierte automáticamente ISO cocida 2048 de Rumble Racing a CD MODE2/2352 con EDC/ECC real antes del cifrado, sin alterar ISO; reconoce otras CD raw 2352. Revisa LIMG, invalidación de caché SF-PS2-CLASSICS3 y sigue un único diagnostico.txt reescrito por inicio. No corrige discos CD multisector con audio/FORM2 perdido. NO hay garantía de que todo juego arranque en el emulador; requiere validación física en PS3 HEN."
       # GitHub release assets can be downloaded directly (without Actions
       # artifact ZIP/login) unlike some sandbox links in the chat client.
       - name: Publish direct-download PS3 PKG release

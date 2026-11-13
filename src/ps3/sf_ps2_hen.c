@@ -23,6 +23,8 @@
 #include <errno.h>
 #include <dirent.h>
 #include "sfo.h"
+#include "sf_ps2_media.h"
+#include "sf_ps2_cdrom.h"
 #ifdef SF_PS2_HEN_HOST_TEST
 #include <pthread.h>
 typedef pthread_t sys_ppu_thread_t;
@@ -74,10 +76,10 @@ typedef pthread_t sys_ppu_thread_t;
 #define SF_CFG_OLD SF_CLASSICS_DIR "/CONFIG.sf-old"
 #define SF_CFG_ORIGINAL SF_CLASSICS_DIR "/CONFIG.sf-original"
 #ifdef SF_PS2_HEN_HOST_TEST
-#define SF_CFG_PACKAGED "pkgfiles/USRDIR/ps2configs/SLUS_201.74.ENC"
+#define SF_CFG_PACKAGED_DIR "pkgfiles/USRDIR/ps2configs"
 #define SF_CFG_INSTALLED "build-host/ps2hen/PS2CONFIG/CONFIG/ENC/"
 #else
-#define SF_CFG_PACKAGED "/dev_hdd0/game/SPKF00001/USRDIR/ps2configs/SLUS_201.74.ENC"
+#define SF_CFG_PACKAGED_DIR "/dev_hdd0/game/SPKF00001/USRDIR/ps2configs"
 #define SF_CFG_INSTALLED "/dev_hdd0/game/PS2CONFIG/USRDIR/CONFIG/ENC/"
 #endif
 
@@ -321,33 +323,64 @@ static int write_bytes(FILE *f,const void *buf,size_t len)
 {
     return fwrite(buf,1,len,f)==len?0:-1;
 }
-static int validate_iso(FILE *in,uint64_t size,uint8_t limg[SEG],uint64_t *virtual_size)
+/* Return 1 when LIMG already belongs to the source, 0 on new LIMG.
+ * mode describes physical sector layout. The conversion of cooked 2048 CD
+ * userdata into raw 2352 Mode2/Form1 is carried out during AES streaming. */
+static int validate_iso(FILE *in,uint64_t size,const char *id,
+                        uint8_t limg[SEG],uint64_t *virtual_size,
+                        int *mode,uint64_t *media_size)
 {
-    uint8_t probe[8],sectors[4];int dvd;
+    uint8_t probe[8],sectors[4];
+    int has2048,has2352,disc,existing=0;
     uint64_t padded;
     if(size<0x20000u || size>MAX_INPUT)return -20;
-    if(!read_bytes(in,0x8000,probe,6) && probe[0]==1 && !memcmp(probe+1,"CD001",5)) dvd=1;
-    else if(!read_bytes(in,0x9318,probe,6) && probe[0]==1 && !memcmp(probe+1,"CD001",5)) dvd=0;
-    else return -21;
-    if(size>=SEG && !read_bytes(in,size-SEG,probe,4) && !memcmp(probe,"LIMG",4)){
-        *virtual_size=size;
+    has2048=!read_bytes(in,0x8000,probe,6) &&
+            probe[0]==1 && !memcmp(probe+1,"CD001",5);
+    has2352=!read_bytes(in,0x9318,probe,6) &&
+            probe[0]==1 && !memcmp(probe+1,"CD001",5);
+    disc=sf_ps2_select_image_mode(id,has2048,has2352);
+    if(!disc)return -21;
+    if(size>=SEG && !read_bytes(in,size-SEG,probe,4) &&
+       !memcmp(probe,"LIMG",4))existing=1;
+    if(existing){
+        *virtual_size=size;*media_size=size;*mode=disc;
         memset(limg,0,SEG);
-        return 1; /* already has LIMG */
+        log_printf("PS2_DIAG INPUT_HAS_LIMG=1 GAME_ID=%s",id?id:"(unknown)");
+        return 1;
     }
-    padded=(size+(SEG-1))&~((uint64_t)SEG-1u);
+    if(disc==SF_PS2_IMAGE_CD_COOKED_2048) {
+        if(size%2048u) return -24;
+        if(size/2048u>0xffffffffu) return -24;
+        *media_size=(size/2048u)*2352u;
+    }else{
+        *media_size=size;
+        if(disc==SF_PS2_IMAGE_CD_RAW_2352 && size%2352u) return -24;
+    }
+    padded=(*media_size+(SEG-1u))&~((uint64_t)SEG-1u);
     if(padded>MAX_INPUT-SEG)return -22;
     memset(limg,0,SEG);
-    log_printf("PS2_DIAG ISO9660_LAYOUT=%s INPUT_BYTES=%llu "
-               "LIMG_DISC_TYPE=%d LIMG_SECTOR_SIZE=%d",
-               dvd?"DVD_2048":"CD_RAW_2352",(unsigned long long)size,
-               dvd?1:2,dvd?2048:2352);
-    if(read_bytes(in,(dvd?0x8000u:0x9318u)+0x54u,sectors,4))return -23;
+    if(read_bytes(in,((disc==SF_PS2_IMAGE_CD_RAW_2352)?
+                      0x9318u:0x8000u)+0x54u,sectors,4))return -23;
     memcpy(limg,"LIMG",4);
-    limg[7]=dvd?1:2;
-    memcpy(limg+8,sectors,4);
-    limg[14]=dvd?0x08:0x09;
-    limg[15]=dvd?0x00:0x30;
+    if(disc==SF_PS2_IMAGE_DVD_2048){
+        limg[7]=1;memcpy(limg+8,sectors,4);
+        limg[14]=0x08;limg[15]=0x00;
+    }else{
+        limg[7]=2;
+        put32(limg+8,(uint32_t)(*media_size/2352u));
+        limg[14]=0x09;limg[15]=0x30;
+    }
+    *mode=disc;
     *virtual_size=padded+SEG;
+    log_printf("PS2_DIAG REGION=%s GAME_ID=%s INPUT_LAYOUT=%s "
+               "SOURCE_BYTES=%llu MEDIA_BYTES=%llu LIMG_TYPE=%d "
+               "LIMG_SECTOR_SIZE=%d",
+        sf_ps2_region(id),id?id:"(unknown)",
+        disc==SF_PS2_IMAGE_DVD_2048?"DVD_2048":
+        disc==SF_PS2_IMAGE_CD_RAW_2352?"RAW_CD_2352":"COOKED_CD_2048_TO_RAW_2352",
+        (unsigned long long)size,(unsigned long long)*media_size,
+        disc==SF_PS2_IMAGE_DVD_2048?1:2,
+        disc==SF_PS2_IMAGE_DVD_2048?2048:2352);
     return 0;
 }
 static uint64_t expected_size(uint64_t data_size)
@@ -383,7 +416,7 @@ static int ready_manifest(const char *source,uint64_t isosize)
     if(!fgets(line,sizeof(line),f)){fclose(f);return 0;}
     fclose(f);
     if(source_fingerprint(source,isosize,fingerprint)!=0)return 0;
-    if(snprintf(wanted,sizeof(wanted),"SF-PS2-CLASSICS2 %llu %s %s\n",
+    if(snprintf(wanted,sizeof(wanted),"SF-PS2-CLASSICS3 %llu %s %s\n",
        (unsigned long long)isosize,fingerprint,source)>=(int)sizeof(wanted))return 0;
     if(strcmp(line,wanted))return 0;
     f=fopen(SF_CLASSICS_IMAGE,"rb");if(!f)return 0;
@@ -407,12 +440,26 @@ static int ps2_valid_gameid(const char *id)
 static int ps2_config_source(const char *id,char out[SF_PS2_MAX_PATH])
 {
     if(!ps2_valid_gameid(id))return 0;
+    /* Region-neutral exact serial lookup in user's installed PS2CONFIG.
+     * Never substitute a US CONFIG for PAL/Japan or another disc edition. */
     if(snprintf(out,SF_PS2_MAX_PATH,"%s%s.ENC",SF_CFG_INSTALLED,id)>=SF_PS2_MAX_PATH)return 0;
-    if(exists_file(out))return 1;
-    if(!strcmp(id,"SLUS_201.74") && exists_file(SF_CFG_PACKAGED)){
-        strcpy(out,SF_CFG_PACKAGED);
+    if(exists_file(out)){
+        log_printf("PS2_DIAG CONFIG_LOOKUP=PS2CONFIG ID=%s REGION=%s",
+                   id,sf_ps2_region(id));
         return 1;
     }
+    /* Small offline fallback: configurations bundled for known game IDs,
+     * currently both Rumble Racing editions (SLUS/SLES). This works with
+     * any valid serial and any region when an exact file is packaged. */
+    if(snprintf(out,SF_PS2_MAX_PATH,"%s/%s.ENC",
+                SF_CFG_PACKAGED_DIR,id)>=SF_PS2_MAX_PATH)return 0;
+    if(exists_file(out)){
+        log_printf("PS2_DIAG CONFIG_LOOKUP=BUNDLED ID=%s REGION=%s",
+                   id,sf_ps2_region(id));
+        return 1;
+    }
+    log_printf("PS2_DIAG CONFIG_LOOKUP=NONE ID=%s REGION=%s",
+               id,sf_ps2_region(id));
     out[0]=0;
     return 0;
 }
@@ -502,7 +549,7 @@ static int write_manifest(const char *source,uint64_t isosize)
     if(!f)return -1;
     {char fingerprint[41];
      if(source_fingerprint(source,isosize,fingerprint)!=0 ||
-        fprintf(f,"SF-PS2-CLASSICS2 %llu %s %s\n",
+        fprintf(f,"SF-PS2-CLASSICS3 %llu %s %s\n",
                 (unsigned long long)isosize,fingerprint,source)<0)rc=-1;}
     if(fflush(f)!=0)rc=-1;
     if(fclose(f)!=0)rc=-1;
@@ -540,21 +587,52 @@ static int finish_atomic(const char *source,uint64_t isosize)
         (void)remove(SF_CLASSICS_OLD);
     return 0; /* leave external user's original encrypted file backed up */
 }
+/* Streaming state converts a single cooked 2048-byte CD data track
+ * to genuine 2352 Mode2/Form1 sectors; it does not reencode files in RAM,
+ * alter the original image, or claim to reconstruct discarded audio tracks.
+ * The 16KiB AES input block can straddle multiple raw-sector boundaries. */
+typedef struct {
+    uint8_t sector[2352];
+    uint8_t userdata[2048];
+    size_t cursor;
+    uint32_t lba;
+} SfCookedCDStream;
+static int cooked_cd_fill(FILE *in,SfCookedCDStream *stream,
+                          uint8_t blk[SEG],size_t length)
+{
+    size_t n=0;
+    while(n<length) {
+        size_t take;
+        if(stream->cursor>=2352u) {
+            if(fread(stream->userdata,1,2048,in)!=2048)return -1;
+            sf_cdrom_mode2_form1(stream->sector,stream->userdata,stream->lba++);
+            stream->cursor=0;
+        }
+        take=2352u-stream->cursor;
+        if(take>length-n)take=length-n;
+        memcpy(blk+n,stream->sector+stream->cursor,take);
+        stream->cursor+=take;n+=take;
+    }
+    return 0;
+}
 static int perform_conversion(const char *path)
 {
     FILE *in=NULL,*out=NULL;
     mbedtls_aes_context aes_data,aes_meta;
     uint8_t *blk=NULL,*meta=NULL,*header=NULL,*limg=NULL;
     uint8_t iv[16],derived_data[16],derived_meta[16];
-    uint64_t size=0,vsize=0,blocks,i,j,pos=0;
-    int rc=-30,had_limg=0;
+    uint64_t size=0,vsize=0,blocks,i,j,pos=0,media_size=0;
+    int rc=-30,had_limg=0,mode=SF_PS2_IMAGE_DVD_2048;
+    SfCookedCDStream cdstream;
+    memset(&cdstream,0,sizeof(cdstream));
+    cdstream.cursor=2352;
     mbedtls_aes_init(&aes_data);mbedtls_aes_init(&aes_meta);
     if(file_size(path,&size)!=0){rc=-20;goto cleanup;}
     if(ready_manifest(path,size)){rc=ps2_stage_config(s_job.gameid);goto cleanup;}
     in=fopen(path,"rb");if(!in){rc=-20;goto cleanup;}
     blk=malloc(SEG);meta=malloc(SEG);header=malloc(SEG);limg=malloc(SEG);
     if(!blk || !meta || !header || !limg){rc=-31;goto cleanup;}
-    had_limg=validate_iso(in,size,limg,&vsize);
+    had_limg=validate_iso(in,size,s_job.gameid,limg,&vsize,&mode,&media_size);
     if(had_limg<0){rc=had_limg;goto cleanup;}
     if(vsize%SEG){rc=-22;goto cleanup;}
     if(build_header(header,vsize)){rc=-32;goto cleanup;}
@@ -580,10 +658,16 @@ static int perform_conversion(const char *path)
             size_t readn=0;
             if(s_job.cancel){rc=-70;goto cleanup;}
             memset(blk,0,SEG);
-            if(pos<size){
-                uint64_t remaining=size-pos;
+            if(pos<media_size){
+                uint64_t remaining=media_size-pos;
                 readn=(size_t)(remaining<SEG?remaining:SEG);
-                if(fread(blk,1,readn,in)!=readn){rc=-20;goto cleanup;}
+                if(mode==SF_PS2_IMAGE_CD_COOKED_2048 && !had_limg) {
+                    if(cooked_cd_fill(in,&cdstream,blk,readn)){
+                        rc=-25;goto cleanup;
+                    }
+                }else if(fread(blk,1,readn,in)!=readn){
+                    rc=-20;goto cleanup;
+                }
             }else if(!had_limg && pos==vsize-SEG){
                 memcpy(blk,limg,SEG);
             }
@@ -806,8 +890,9 @@ int sf_ps2_hen_start(const char *path,const char *gameid)
      * decryption is verified; do not silently encrypt only disc segment 0. */
     if(ends(path,".iso.0"))return -62;
     if(file_size(path,&s)!=0 || s<0x20000 || s>MAX_INPUT)return -63;
-    log_printf("PS2_DIAG SELECTED_ISO=%s ISO_BYTES=%llu GAME_ID=%s",
-               path,(unsigned long long)s,gameid&&gameid[0]?gameid:"(unknown)");
+    log_printf("PS2_DIAG SELECTED_ISO=%s ISO_BYTES=%llu GAME_ID=%s REGION=%s",
+               path,(unsigned long long)s,gameid&&gameid[0]?gameid:"(unknown)",
+               sf_ps2_region(gameid));
     if(!launcher_installed()){record("LAUNCHER_NOT_FOUND",path,-64,0);return -64;}
 #ifndef SF_HAVE_TLS
     (void)n;return -65;
