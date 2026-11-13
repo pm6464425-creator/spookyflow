@@ -2597,7 +2597,15 @@ static void draw_download(const App *a)
     title_line(lx, iw, yy, hot, al);
     yy += 0.066f * H() * sc;
     if (busy) snprintf(line, sizeof(line), "Buscando carátulas\\xE2\\x80\\xA6 %d de %d juegos", pos, n);
-    else if (a->dl_note[0]) sf_strlcpy(line, a->dl_note, sizeof(line));
+    else if (a->dl_note[0]) {
+        /* Display-only es-419 translations for notes produced by the
+         * unchanged download backend. Do not alter BDISO/network logic. */
+        if(strcmp(a->dl_note,"Not enough memory to download")==0)
+            sf_strlcpy(line,"Memoria insuficiente para descargar",sizeof(line));
+        else if(strcmp(a->dl_note,"Couldn't reach the cover sites. Is the PS3 online?")==0)
+            sf_strlcpy(line,"No hay conexión con las fuentes. ¿PS3 en línea?",sizeof(line));
+        else sf_strlcpy(line,a->dl_note,sizeof(line));
+    }
     else snprintf(line, sizeof(line), "Listo: %d carátula%s agregada%s", got, got == 1 ? "" : "s", got == 1 ? "" : "s");
     d_text_fit(&g_font_main, cx, yy, em, sf_col_alpha(TH_TEXT, al), line, ALIGN_CENTER, iw);
     yy += 0.050f * H() * sc;
