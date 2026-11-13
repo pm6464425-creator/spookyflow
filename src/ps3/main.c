@@ -29,6 +29,7 @@
 #include "sf_cobra_mount.h"
 #include "sf_ps2_mount.h"
 #include "sf_ps1_mount.h"
+#include "sf_ps1_join.h"
 #include "sf_ps2_hen.h"
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
@@ -85,6 +86,7 @@ static void sysutil_cb(u64 status, u64 param, void *usrdata)
     switch (status) {
     case SYSUTIL_EXIT_GAME:
         sf_ps2_hen_cancel(); /* abort any in-progress encrypted temporary file */
+        sf_ps1_join_cancel(); /* abort only our PS1 .sfpart on XMB exit */
         g_sys_exit = 1;
         log_printf("sysutil: exit requested from XMB");
         /* Tiny3D's callback (slot 3) calls exit(0) right after this one */
@@ -364,6 +366,9 @@ int main(int argc, const char *argv[])
     host.ps2_preflight = sf_ps2_preflight;
     host.launch_ps2 = sf_ps2_mount;
     host.launch_ps1 = sf_ps1_mount;
+    host.ps1_join_start = sf_ps1_join_start;
+    host.ps1_join_poll = sf_ps1_join_poll;
+    host.ps1_join_mount = sf_ps1_join_mount;
     host.ps2_hen_start = sf_ps2_hen_start;
     host.ps2_hen_poll = sf_ps2_hen_poll;
     host.launch_ps3 = sf_cobra_mount_ps3;
