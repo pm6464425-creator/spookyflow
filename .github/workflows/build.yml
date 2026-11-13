@@ -54,6 +54,14 @@ jobs:
         run: python3 tests/test_ps2_hen_integration.py
       - name: V15.21 PS2 HEN XMB autoplay - 24 safety checks
         run: python3 tests/test_ps2_hen_autoplay.py
+      - name: V15.28 PS1 generic CUE metadata and serial filename recognition
+        run: |
+          mkdir -p build-host
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined \
+             -fno-omit-frame-pointer -Isrc/core \
+             src/core/sf_ps1_file_match.c tests/test_ps1_generic_metadata.c \
+             -o build-host/test_ps1_generic_metadata
+          ./build-host/test_ps1_generic_metadata
       - name: V15.27 PS1 general CUE engine file-track layouts and gaps
         run: |
           mkdir -p build-host
@@ -466,6 +474,23 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title "SpookyFlow V15.21 - Inicio PS2 Classics automatico desde XMB (experimental)" \
             --notes "Envía orden local a webMAN tras preparar el PS2 Classics Launcher (PS2U10000); espera al XMB, luego inicia automáticamente. Sin webMAN conserva inicio manual. Mantiene la V15.20, CONFIG, PS1, PS3, BDISO y único diagnóstico. Pruebas automáticas, no validado en PS3 HEN física."
+      - name: Publish V15.28 PS1 general metadata CUE resolver (experimental)
+        if: github.ref == 'refs/heads/fix/v15-28-ps1-cue-generic-metadata-resolver'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-28-ps1-cue-generic-metadata-resolver" --jq '.commit.sha')
+          if [ "$GITHUB_SHA" != "$current" ]; then
+            echo "Skipping superseded build"
+            exit 0
+          fi
+          short="${GITHUB_SHA:0:8}"
+          cp spookyflow.pkg SPOOKYFLOW_V15_28_PS1_RECONOCIMIENTO_GENERAL.pkg
+          gh release create "spookyflow-v15-28-ps1-generic-${short}" \
+            SPOOKYFLOW_V15_28_PS1_RECONOCIMIENTO_GENERAL.pkg \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "SpookyFlow V15.28 - Reconocimiento general PS1 BIN CUE" \
+            --notes "Corrige la clase general de fallo verificada en diagnostico PS1: Cobra monta Jackie Chan (0x7027 SYS_RC=0), pero los CUE de Disney Tarzan y GTA 2 apuntan a BIN cuyo nombre no coincide con el archivo visible (CUE_REFERENCE NOT_FOUND). El resolvedor antiguo solo ignoraba etiquetas Europe/USA/Japan. Ahora normaliza de forma generica etiquetas PS1/PlayStation/PAL/NTSC, idiomas (En,Fr,De,Es,It), revisiones, identificadores de disco PS1 como SCES-01519, mas nombres de archivo por serial cuando hay correspondencia. Conserva y verifica numeros de disco/pista, rechaza seriales/revisiones contradictorios y coincidencias ambiguas. No hay lista blanca de juegos. Solo busca archivos existentes en la carpeta CUE; nunca inventa, renombra ni sobrescribe juegos. Diagnostico_ps1.txt unico incluye titulo canonico/serial y resultado; PS2, PS3, BDISO y montaje multiBIN/mixto de V15.27 intactos. Las pruebas CI + PKG PS3 estan verificadas; se requiere prueba con PS3 HEN real. Archivos realmente ausentes y formatos no soportados CHD/PBP/2048 no pueden montarse mediante este resolvedor."
       - name: Publish V15.27 general PS1 CUE file/track engine (experimental)
         if: github.ref == 'refs/heads/feat/v15-27-general-ps1-cue-engine'
         env:
