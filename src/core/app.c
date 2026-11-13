@@ -1530,7 +1530,11 @@ static void launch_disc(App *a, int disc)
      * layout is validated. Fall back to webMAN for multi-BIN/NTFS/other
      * layouts without changing the user's file or dropping audio tracks. */
     if(a->tab==PLAT_PS1 && a->host.launch_ps1){
-        int result=a->host.launch_ps1(path,c.emulator);
+        int result;
+        log_printf("PS1_DIAG STAGE=SELECTION GAME=%s PATH=%s EMULATOR_PREF=%d",
+                   name,path,c.emulator);
+        result=a->host.launch_ps1(path,c.emulator);
+        log_printf("PS1_DIAG STAGE=NATIVE_MOUNT RESULT=%d",result);
         if(result==0){
             sound_play(SND_CONFIRM);
             sf_strlcpy(a->last_launch,name,sizeof(a->last_launch));
@@ -1540,10 +1544,11 @@ static void launch_disc(App *a, int disc)
         }
         if(result!=-41){
             log_printf("ps1: native mount failed rc=%d for %s",result,path);
-            app_show_toast(a,"No se pudo montar PS1 con Cobra");
+            app_show_toast(a,"Error montando PS1: ver diagnostico_ps1.txt");
             return;
         }
-        log_printf("ps1: fallback to original webMAN mount for %s",path);
+        log_printf("PS1_DIAG STAGE=WEBMAN_FALLBACK REASON=NATIVE_UNSUPPORTED PATH=%s",path);
+        log_printf("ps1: native format not supported; legacy webMAN fallback for %s",path);
     }
     /* PS3 build: local Cobra mounting; leave all existing UI and settings untouched. */
     if (a->tab == PLAT_PS3 && a->host.launch_ps3) {
@@ -1581,9 +1586,20 @@ static void launch_disc(App *a, int disc)
     log_printf("launch: request %s", cmd);
     if (a->tab == PLAT_PS2 && a->host.launch)
         ps2cfg_apply(a, path, lib_str(a->lib, d ? d->id : g->id), c.ps2cfg);
-    if (!a->host.launch || a->host.launch(cmd) != 0) {
-        app_show_toast(a, "Para iniciar necesitas webMAN MOD activo");
-        return;
+    {
+        int launch_rc=a->host.launch ? a->host.launch(cmd) : -1;
+        if(a->tab==PLAT_PS1)
+            log_printf("PS1_DIAG STAGE=WEBMAN_TRANSPORT RESULT_RC=%d "
+                       "PATH=%s",launch_rc,path);
+        if(launch_rc!=0){
+            if(a->tab==PLAT_PS1) {
+                log_printf("PS1_DIAG STAGE=FINAL RESULT=NOT_MOUNTED "
+                           "CAUSE=NATIVE_UNSUPPORTED_AND_WEBMAN_UNAVAILABLE");
+                app_show_toast(a,"PS1: no montado. Ver diagnostico_ps1.txt");
+            }else
+                app_show_toast(a,"Para iniciar necesitas webMAN MOD activo");
+            return;
+        }
     }
     sound_play(SND_CONFIRM);
     sf_strlcpy(a->last_launch, name, sizeof(a->last_launch));   /* no pop-up on launch */
