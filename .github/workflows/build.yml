@@ -59,7 +59,7 @@ jobs:
              -DSF_HAVE_TLS=1 -DSF_PS2_HEN_HOST_TEST=1 \
              -fsanitize=address,undefined -fno-omit-frame-pointer \
              -Isrc/ps3 -Isrc/core -Itests/ps2_hen_host \
-             src/ps3/sf_ps2_hen.c tests/ps2_hen_host/mbedtls_shim.c \
+             src/ps3/sf_ps2_hen.c src/core/sfo.c tests/ps2_hen_host/mbedtls_shim.c \
              tests/ps2_hen_host/test_ps2_hen_roundtrip.c \
              -pthread -lcrypto -o build-host/test_ps2_hen_roundtrip
           ./build-host/test_ps2_hen_roundtrip
