@@ -40,7 +40,8 @@ static int stopword(const char *s)
         "version","versiones","patched","patch","original",
         "psx","ps1","playstation","rom","redump","bin","cue",
         "usa","us","europe","eu","spain","espana","japan",
-        "jap","ntsc","pal","eng","en","es","fr","ger",
+        "jap","ntsc","pal","eng","en","es","fr","de","it","nl","pt","sv","da",
+        "no","ru","ger","asia","australia",
         "france","germany","italy","uk","brasil","brazil",
         "region","world","rev","revision","rerelease",
         "mod","hack","russian","russia","rus",
@@ -156,7 +157,10 @@ static int score(const NameParts *game,const NameParts *cover)
     if(game->region) {
         if(game->region==cover->region)result+=50;
         else if(game->region==3 && cover->region==2)result+=30;
-        else if(game->region==3 && cover->region==1)result+=20;
+        /* Europe multilingual releases commonly include Spanish; prioritize
+         * them for localized Latino PS1 filenames when no Spain-specific
+         * artwork exists. A real Spain cover still wins (+50). */
+        else if(game->region==3 && cover->region==1)result+=35;
         else if(game->region==2 && cover->region==1)result+=20;
     }else {
         if(cover->region==2)result+=40;
