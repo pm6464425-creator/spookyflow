@@ -23,7 +23,7 @@ checks={
  "10 no webMAN network in HEN converter": all(x not in hen for x in ("webman_get","127.0.0.1", "ps3_webman")),
  "11 existing PS2 Classics Placeholder required": '"/EBOOT.BIN"' in hen and "if(!exists_file(SF_CLASSICS_EBOOT))return -64;" in hen,
  "12 universal PS2U10000 target": '"/dev_hdd0/game/PS2U10000/USRDIR"' in hen,
- "13 input restricted to internal PS2ISO": "sf_ps2_valid_iso_path(path)" in hen,
+ "13 source restricted to HDD PS2ISO or FAT32 USB": "sf_hen_safe_iso_path(path)" in hen and '"/dev_usb00"' in hen,
  "14 split ISO safely rejected": 'if(ends(path,".iso.0"))return -62;' in hen,
  "15 original ISO opened read-only": 'in=fopen(path,"rb");' in hen,
  "16 never truncate input ISO": "truncate(path" not in hen and 'fopen(path,"wb")' not in hen and 'fopen(path,"rb+")' not in hen,

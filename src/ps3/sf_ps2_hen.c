@@ -79,6 +79,26 @@ static int ends(const char *a,const char *b)
     size_t n=strlen(a),m=strlen(b);
     return n>=m && strcasecmp(a+n-m,b)==0;
 }
+/* HEN may stream an ISO from a FAT32 USB drive directly to the encrypted
+ * placeholder on the HDD. Unlike the CFW Cobra path, it does not mount from
+ * USB, and never modifies the source file. Reject traversal and NTFS proxies. */
+static int sf_hen_safe_iso_path(const char *path)
+{
+    const char *tail;
+    size_t n;
+    if(!path || !(n=strlen(path)) || n<21 || n>960)return 0;
+    if(!strncmp(path,"/dev_hdd0/",10)) tail=path+10;
+    else if(!strncmp(path,"/dev_usb00",10) &&
+            path[10]>='0' && path[10]<='7' && path[11]=='/') tail=path+12;
+    else return 0;
+    if(strncmp(tail,"PS2ISO/",7)!=0 || !tail[7])return 0;
+    if(!(ends(path,".iso") || ends(path,".iso.0")))return 0;
+    if(strstr(path,"/../")||strstr(path,"/./")||strstr(path,"//")||
+       strstr(path,"\\")||ends(path,"/..")||ends(path,"/."))return 0;
+    for(;*path;path++)
+        if((unsigned char)*path<32 || (unsigned char)*path==127)return 0;
+    return 1;
+}
 static void put32(uint8_t *p,uint32_t v)
 {
     p[0]=(uint8_t)(v>>24);p[1]=(uint8_t)(v>>16);
@@ -369,7 +389,7 @@ int sf_ps2_hen_start(const char *path)
     if(!path || strncmp(path,"build-host/ps2hen/PS2ISO/",
                         sizeof("build-host/ps2hen/PS2ISO/")-1)!=0)return -61;
 #else
-    if(!path || !sf_ps2_valid_iso_path(path))return -61;
+    if(!sf_hen_safe_iso_path(path))return -61;
 #endif
     /* Split files are deliberately rejected until streaming multi-part
      * decryption is verified; do not silently encrypt only disc segment 0. */

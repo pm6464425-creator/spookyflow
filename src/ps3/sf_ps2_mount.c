@@ -77,11 +77,13 @@ int sf_ps2_preflight(const char *path)
 {
     uint32_t ver=0xffffffffu;
     int nparts;
-    if (!path || !sf_ps2_valid_iso_path(path)) return -42;
+    if (!path) return -42;
+    /* Classify HEN before CFW-only ISO path checks. The dedicated HEN
+     * converter independently validates HDD and USB input paths. */
+    if (raw_hen()==0x1337) return -41;
+    if (!sf_ps2_valid_iso_path(path)) return -42;
     nparts=sf_ps2_collect_parts(path,ps2_file,NULL,s_paths);
     if (nparts<1) return nparts==-2?-43:-44;
-    /* Safety: read-only environment check before changing virtual disc state. */
-    if (raw_hen()==0x1337) return -41;
     if (raw_version(&ver)!=0 || ver==0xffffffffu || ver==0) return -45;
     return 0;
 }

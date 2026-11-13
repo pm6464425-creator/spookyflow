@@ -1460,7 +1460,7 @@ static void launch_disc(App *a, int disc)
                     if (result == -64)
                         app_show_toast(a, "Instala y activa PS2 Classics Placeholder");
                     else if (result == -61 || result == -62)
-                        app_show_toast(a, "PS2 Classics: requiere ISO interna sin dividir");
+                        app_show_toast(a, "PS2 Classics: requiere ISO sin dividir");
                     else if (result == -65)
                         app_show_toast(a, "PS2 Classics: cifrado no disponible");
                     else if (result == -66)

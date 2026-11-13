@@ -15,7 +15,7 @@ mismo icono de disco de PS2 que en CFW.
 
 ## Qué sí hace
 
-- Lee ISO del HDD `/dev_hdd0/PS2ISO/*.iso` exclusivamente en modo de lectura.
+- Lee ISO desde el HDD `/dev_hdd0/PS2ISO/*.iso` o USB FAT32 `/dev_usb00N/PS2ISO/*.iso` exclusivamente en modo de lectura.
 - Reconoce CD/DVD ISO9660; agrega el sector LIMG **solo al flujo cifrado**, nunca a la ISO fuente.
 - Cifra con AES-CBC/PS2 Classics, NPD/CMAC y SHA1 de sectores, siguiendo el
   código público de Apollo Save Tool (GPLv3).
@@ -37,7 +37,7 @@ mismo icono de disco de PS2 que en CFW.
 - Suficiente espacio interno: la imagen cifrada es aproximadamente del tamaño de
   la ISO original, y por seguridad se conserva el juego cifrado anterior.
 - Para esta primera versión, únicamente ISO **sin dividir en un solo archivo**
-  ubicado en HDD interno. Los archivos `.iso.0`, unidades NTFS y USB no están habilitados.
+  desde HDD interno o USB FAT32. Los archivos `.iso.0` y unidades NTFS no están habilitados.
 
 ## Límites de la validación
 

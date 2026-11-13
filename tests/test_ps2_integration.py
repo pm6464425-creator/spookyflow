@@ -22,7 +22,7 @@ checks={
  "11 PS2 mount returns to XMB on success": 'app_request_exit(a, "ps2 cobra mount")' in app,
  "12 no webMAN network in direct mount": "ps3_webman" not in mount and "127.0.0.1" not in mount,
  "13 HEN guard uses official opcode": "lv2syscall1(8,0x1337)" in mount,
- "14 HEN is rejected before virtual disc mutations": mount.index('if (raw_hen()==0x1337) return -41;') < mount.index("cobra_send_fake_disc_eject_event()"),
+ "14 HEN is rejected before virtual disc mutations": mount.index('if (raw_hen()==0x1337) return -41;') < mount.index("cobra_send_fake_disc_eject_event()") and mount.index('if (raw_hen()==0x1337) return -41;') < mount.index('sf_ps2_valid_iso_path(path)', mount.index("int sf_ps2_preflight(")),
  "15 correct PS2 native opcode through libCobra": "cobra_mount_ps2_disc_image(parts,n,tracks,1)" in mount,
  "16 PS2 has only data track for ISO": "tracks[0].lba=0;tracks[0].is_audio=0;" in mount,
  "17 no flash or occupied plugin manipulation": all(x not in mount for x in ("/dev_flash", "/dev_blind", "cobra_unload_vsh_plugin","boot_plugins")),
