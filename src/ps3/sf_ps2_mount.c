@@ -10,9 +10,9 @@
 #include "sf_ps2_mount.h"
 #include "ps2_mount_plan.h"
 #include "log.h"
+#include <stdint.h>
 #include <cobra.h>
 #include <ppu-lv2.h>
-#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>

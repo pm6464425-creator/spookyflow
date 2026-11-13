@@ -220,6 +220,16 @@ jobs:
             spookyflow.gnpdrm.pkg
           if-no-files-found: error
 
+      - name: Publish independent PS2 Cobra CFW build for controlled testing
+        if: github.ref == 'refs/heads/experimental/v15-13-ps2-cobra'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp spookyflow.pkg SPOOKYFLOW_V15_13_PS2_COBRA_CFW_EXPERIMENTAL.pkg
+          gh release create spookyflow-v15-13-ps2-cfw-experimental SPOOKYFLOW_V15_13_PS2_COBRA_CFW_EXPERIMENTAL.pkg \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "SpookyFlow V15.13 — PS2 Cobra directo (prueba CFW)" \
+            --notes "EXPERIMENTAL: PS2 ISO en HDD interno mediante Cobra sin webMAN MOD. No validado en PS3 física. HEN no admite esta ruta de ISO PS2 sin cifrar y la aplicación la bloquea para evitar daños. Requiere CFW con Cobra. PS1, PS3, BDISO y diseño V15.12 preservados. Ver PS2_V15_13_EXPERIMENTAL_ES.md."
       # GitHub release assets can be downloaded directly (without Actions
       # artifact ZIP/login) unlike some sandbox links in the chat client.
       - name: Publish direct-download PS3 PKG release

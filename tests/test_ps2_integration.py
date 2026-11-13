@@ -33,6 +33,7 @@ checks={
  "22 correct split ISO listing bounded to 64": "i<SF_PS2_MAX_PARTS" in plan,
  "23 Cobra kernel version before changes": mount.index('raw_version(&version)') < mount.index('cobra_send_fake_disc_eject_event()'),
  "24 HEN user-facing diagnosis": "PS3 HEN: ISO de PS2 requiere PS2 Classics" in app,
+ "25 Cobra types available before header": mount.index('#include <stdint.h>') < mount.index('#include <cobra.h>'),
 }
 for name,ok in checks.items():print(("PASS " if ok else "FAIL ")+name)
 print("PS2 static checks %d/%d"%(sum(map(bool,checks.values())),len(checks)))
