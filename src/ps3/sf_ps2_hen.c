@@ -20,7 +20,13 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#ifdef SF_PS2_HEN_HOST_TEST
+#include <pthread.h>
+typedef pthread_t sys_ppu_thread_t;
+#define sysThreadExit(x) pthread_exit(NULL)
+#else
 #include <sys/thread.h>
+#endif
 #include "sf_ps2_hen.h"
 #include "ps2_mount_plan.h"
 #include "log.h"
@@ -29,7 +35,13 @@
 #include <mbedtls/sha1.h>
 #endif
 
+#ifdef SF_PS2_HEN_HOST_TEST
+#define SF_CLASSICS_DIR "build-host/ps2hen/placeholder/USRDIR"
+#define SF_HEN_DIAG "build-host/ps2hen/ps2_hen_last.txt"
+#else
 #define SF_CLASSICS_DIR "/dev_hdd0/game/PS2U10000/USRDIR"
+#define SF_HEN_DIAG "/dev_hdd0/tmp/spookyflow/ps2_hen_last.txt"
+#endif
 #define SF_CLASSICS_EBOOT SF_CLASSICS_DIR "/EBOOT.BIN"
 #define SF_CLASSICS_IMAGE SF_CLASSICS_DIR "/ISO.BIN.ENC"
 #define SF_CLASSICS_TMP SF_CLASSICS_DIR "/ISO.BIN.ENC.sf-part"
@@ -37,7 +49,7 @@
 #define SF_CLASSICS_OLD SF_CLASSICS_DIR "/ISO.BIN.ENC.sf-old"
 #define SF_CLASSICS_META SF_CLASSICS_DIR "/ISO.BIN.ENC.sf-source"
 #define SF_CLASSICS_META_TMP SF_CLASSICS_DIR "/ISO.BIN.ENC.sf-source-part"
-#define SF_HEN_DIAG "/dev_hdd0/tmp/spookyflow/ps2_hen_last.txt"
+
 #define SEG 0x4000u
 #define BLOCKS_PER_META 512u
 #define CID "2P0001-PS2U10000_00-0000111122223333"
@@ -337,6 +349,13 @@ static void ps2_thread(void *arg)
     s_job.state=rc?rc:1;
     sysThreadExit(0);
 }
+#ifdef SF_PS2_HEN_HOST_TEST
+static void *ps2_host_entry(void *arg)
+{
+    ps2_thread(arg);
+    return NULL;
+}
+#endif
 #endif /* SF_HAVE_TLS */
 int sf_ps2_hen_start(const char *path)
 {
@@ -346,7 +365,12 @@ int sf_ps2_hen_start(const char *path)
     sys_ppu_thread_t tid;
 #endif
     if(s_job.state==2)return -60;
+#ifdef SF_PS2_HEN_HOST_TEST
+    if(!path || strncmp(path,"build-host/ps2hen/PS2ISO/",
+                        sizeof("build-host/ps2hen/PS2ISO/")-1)!=0)return -61;
+#else
     if(!path || !sf_ps2_valid_iso_path(path))return -61;
+#endif
     /* Split files are deliberately rejected until streaming multi-part
      * decryption is verified; do not silently encrypt only disc segment 0. */
     if(ends(path,".iso.0"))return -62;
@@ -361,7 +385,12 @@ int sf_ps2_hen_start(const char *path)
     strcpy(s_job.path,path);
     s_job.progress=0;s_job.cancel=0;s_job.state=2;
     __sync_synchronize();
+#ifdef SF_PS2_HEN_HOST_TEST
+    n=pthread_create(&tid,NULL,ps2_host_entry,NULL);
+    if(n==0)pthread_detach(tid);
+#else
     n=sysThreadCreate(&tid,ps2_thread,NULL,1600,128u*1024u,0,(char*)"sf_ps2_hen");
+#endif
     if(n!=0){s_job.state=-67;return -67;}
     return 0;
 #endif

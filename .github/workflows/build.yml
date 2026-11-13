@@ -50,8 +50,19 @@ jobs:
           mkdir -p build-host
           cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -Isrc/core src/core/ps2_mount_plan.c tests/test_ps2_mount_plan.c -o build-host/test_ps2_mount_plan
           ./build-host/test_ps2_mount_plan
-      - name: PS2 HEN Classics conversion - 35 independent safety and integration checks
+      - name: PS2 HEN Classics conversion - 35 safety and integration checks
         run: python3 tests/test_ps2_hen_integration.py
+      - name: PS2 HEN actual encrypted ISO AES SHA1 end-to-end round-trip
+        run: |
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror=implicit-function-declaration \
+             -D_POSIX_C_SOURCE=200809L -D_DEFAULT_SOURCE \
+             -DSF_HAVE_TLS=1 -DSF_PS2_HEN_HOST_TEST=1 \
+             -fsanitize=address,undefined -fno-omit-frame-pointer \
+             -Isrc/ps3 -Isrc/core -Itests/ps2_hen_host \
+             src/ps3/sf_ps2_hen.c tests/ps2_hen_host/mbedtls_shim.c \
+             tests/ps2_hen_host/test_ps2_hen_roundtrip.c \
+             -pthread -lcrypto -o build-host/test_ps2_hen_roundtrip
+          ./build-host/test_ps2_hen_roundtrip
       - name: Cobra launch integration static checks
         run: python3 tests/test_cobra_integration.py
       - name: Real 3D release website and JPEG smoke checks

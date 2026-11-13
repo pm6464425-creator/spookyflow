@@ -1,0 +1,19 @@
+SpookyFlow PS2 Classics HEN backend — GPL-3.0-or-later
+
+Source adapted from Apollo Save Tool:
+  https://github.com/bucanero/apollo-ps3
+  source/ps2classic.c
+  include/ps2_data.h
+Original PS2 Classics cryptographic algorithms attributed to flatz (2013).
+
+The adapted work in src/ps3/sf_ps2_hen.c and the accompanying reference
+documentation are distributed under the terms of the GNU General Public
+License, version 3 or (where allowed) any later version. The original
+Apollo license notices and author attribution must be preserved.
+
+The original PS2 Classics tool is not embedded or redistributed as a
+separate binary. No game data or copyrighted game artwork is included.
+
+See LICENSE and COPYING-IRISMAN where applicable; if the repository has no
+global GPL text, the GPLv3 license can be read at:
+  https://www.gnu.org/licenses/gpl-3.0.txt
