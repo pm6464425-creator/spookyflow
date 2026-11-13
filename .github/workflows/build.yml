@@ -30,6 +30,8 @@ jobs:
         run: python3 tests/probe_sensacine.py
       - name: Unit tests (portable core, ASan + UBSan)
         run: make -f Makefile.host test
+      - name: V15.12 Spanish Latin America - ten independent visual and compatibility reviews
+        run: python3 tests/test_es419_ui.py
       - name: Ensure fourth BDISO cover tab cannot be excluded again
         run: |
           python3 - <<'PY'
@@ -333,6 +335,16 @@ jobs:
           gh release create spookyflow-v15-11-ps1-ace-golden-leon SPOOKYFLOW_V15_11_PS1_ACE_COMBAT3_GOLDEN_LEON.pkg --target "$GITHUB_SHA" \
             --title "SpookyFlow V15.11 - Ace Combat 3 y Tekken Golden Leon" \
             --notes "Correccion PS1 exclusiva: Ace Combat 3 reconoce su titulo oficial Ace Combat 3 - Electrosphere en la coleccion Libretro (USA y Europa multilenguaje). Tekken 3 OT Golden Leon es una modificacion rusa con portada propia verificada en LaunchBox; no utiliza la portada ni el ID visual de Tekken 3 original. La imagen descargada se guarda con el nombre del CUE. Mantiene los 9301 nombres reales del catalogo PS1 y conserva las caratulas existentes; BDISO, PS2, PS3 y el montaje NTFS permanecen intactos. Pruebas automatizadas y paquete PS3 verificados; falta probar las dos imagenes en la PS3 real."
+
+      - name: Publish final SpookyFlow V15.12 es-419 PKG preserving V15.11
+        if: github.ref == 'refs/heads/feat/es-419-ui-only-v15-12'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp spookyflow.pkg SPOOKYFLOW_V15_12_ESPANOL_LATINOAMERICANO.pkg
+          gh release create spookyflow-v15-12-espanol-latinoamericano SPOOKYFLOW_V15_12_ESPANOL_LATINOAMERICANO.pkg --target "$GITHUB_SHA" \
+            --title "SpookyFlow V15.12 - Interfaz en español latinoamericano" \
+            --notes "Edicion exclusiva de los textos de SpookyFlow V15.11: menus, opciones, ayuda, avisos, mensajes de carga y tarjetas en espanol latinoamericano. MISMAS tipografias DejaVu originales, tamanos, colores, posiciones, controles, iconos, fondos, animaciones, PS1 CUE BIN, caratulas, PS2, PS3 y BDISO. Los ajustes guardados siguen compatibles, el nombre en XMB se mantiene MIS JUEGOS PS3 PS2 PS1. Diez auditorias de inmutabilidad comparan los blobs exactos de los modulos protegidos con la V15.11; tests del nucleo y paquete real de PS3 verificados. No se ha efectuado validacion visual en una consola fisica."
 
   ps3-pkg-docker:
     needs: host-tests
