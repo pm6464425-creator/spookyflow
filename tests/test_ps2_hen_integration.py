@@ -51,7 +51,7 @@ checks={
  "26 encrypted temp staged separately": '"/ISO.BIN.ENC.sf-part"' in hen,
  "27 output verifies expected encrypted size": "size!=expected_size(get64(header+0x88))" in hen,
  "28 external user's file safely backed up": "SF_CLASSICS_USER_BACKUP" in hen and "if(exists_file(backup))return -37;" in hen,
- "29 failed image rename restores previous": "if(had_old)(void)rename(backup,SF_CLASSICS_IMAGE);" in hen,
+ "29 failed image rename restores previous": "if(had_old && rename(backup,SF_CLASSICS_IMAGE)!=0)" in hen and "ROLLBACK_FAIL=IMAGE_RESTORE" in hen,
  "30 manifest binds source size, path and SHA1 sample": 'SF-PS2-CLASSICS3 %llu %s %s' in hen and "source_fingerprint(source,isosize,fingerprint)" in hen,
  "31 cancellation never promotes partial": "if(s_job.cancel){rc=-70;goto cleanup;}" in hen,
  "32 conversion executes in background PS3 thread": 'sysThreadCreate(&tid,ps2_thread,NULL,1600' in hen,
