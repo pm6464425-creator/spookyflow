@@ -80,6 +80,9 @@ typedef struct {
     /* PS2: read-only preflight then local Cobra mount; independent of webMAN. */
     int (*ps2_preflight)(const char *path);
     int (*launch_ps2)(const char *path, int emulator);
+    /* PS1 HEN/CFW: native Cobra mount for one-file 2352 images/CUE;
+       -41 falls back to the existing webMAN path. */
+    int (*launch_ps1)(const char *path, int emulator);
     /* Optional local PS3 Cobra/HEN mounting callback. */
     int (*launch_ps3)(const char *path, int is_folder, const char *title_id);
     /* Blu-ray movies use Cobra BD opcode 0x7026, not PS3 game opcode 0x7024. */
