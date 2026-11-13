@@ -234,9 +234,9 @@ static void disc_label(const char *path, char *out, size_t cap)
 
 void lib_disc_name(const Library *lib, const Disc *d, int i, char *out, size_t cap)
 {
-    if (d && d->num > 0) snprintf(out, cap, "Disco %d", d->num);
+    if (d && d->num > 0) snprintf(out, cap, "Disc %d", d->num);
     else if (d && d->label) sf_strlcpy(out, lib_str(lib, d->label), cap);
-    else snprintf(out, cap, "Disco %d", i + 1);
+    else snprintf(out, cap, "Disc %d", i + 1);
 }
 
 static int disc_after(const Library *lib, const Disc *x, const Disc *y)
