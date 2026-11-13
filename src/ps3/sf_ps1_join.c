@@ -6,6 +6,7 @@
  */
 #include "sf_ps1_join.h"
 #include "sf_ps1_multibin.h"
+#include "sf_ps1_cue_general.h"
 #include "sf_ps1_mount.h"
 #include "sf_ps1_resolve.h"
 #include "sf_ps2_largefile.h"
@@ -38,6 +39,15 @@ static unsigned char s_copy_buffer[PS1_STAGE_BUFFER];
 /* Do not place 32 KiB CUE buffer on the PS3 PPU main-thread stack. */
 static char s_join_text[32769];
 static char s_join_resolved[SF_PS1_IMAGE_MAX];
+/* V15.27 general CUE: files and tracks are not the same thing.
+ * Keep large structures in BSS: PS3 main thread stack is limited. */
+static SfPs1CuePlan s_general_plan;
+static SfPs1CueChunk s_general_chunks[SF_PS1_CUE_MAX_CHUNKS];
+static uint64_t s_general_file_sizes[SF_PS1_CUE_MAX_FILES];
+static unsigned s_general_chunk_count;
+static int s_general_mode;
+static int inspect_general_sources(const char *cue,const char *text,size_t n);
+
 
 static uint64_t fnv(const void *data,size_t n,uint64_t h)
 {
@@ -58,10 +68,15 @@ static int inspect_sources(const char *cue,const char *contents,size_t n)
 {
     uint64_t hash=14695981039346656037ULL;
     int rc;
+    s_general_mode=0;
     rc=sf_ps1_multibin_parse(cue,contents,n,&s_join.plan);
     if(rc!=0){
-        log_printf("PS1_DIAG STAGE=MULTIBIN_CUE_PARSE RESULT=UNSUPPORTED RC=%d",rc);
-        return -70;
+        log_printf("PS1_DIAG STAGE=MULTIBIN_LEGACY_PARSE RC=%d "
+                   "ACTION=GENERAL_CUE_ENGINE",rc);
+        /* Older Tekken layout still uses the field-tested joiner.
+         * Mixed FILE/TRACK groupings and embedded PREGAP now use
+         * the general file/track planner rather than webMAN. */
+        return inspect_general_sources(cue,contents,n);
     }
     hash=fnv(contents,n,hash);
     hash=fnv("PS1_JOIN_V15_25",14,hash);
@@ -132,6 +147,104 @@ static int inspect_sources(const char *cue,const char *contents,size_t n)
                    (unsigned long long)s_join.sizes[i]);
     return 0;
 }
+/* General PS1 CUE preflight. The CUE is authoritative for both data
+ * and audio: names are resolved only if a unique filename exists.
+ * One FILE may have several TRACKs; this is the case V15.25 refused. */
+static int inspect_general_sources(const char *cue,const char *contents,size_t n)
+{
+    uint64_t hash=14695981039346656037ULL;
+    int rc=sf_ps1_cue_general_parse(cue,contents,n,&s_general_plan);
+    if(rc!=0){
+        log_printf("PS1_DIAG STAGE=GENERAL_CUE_PARSE RESULT=UNSUPPORTED RC=%d",rc);
+        return -70;
+    }
+    hash=fnv(contents,n,hash);
+    hash=fnv("PS1_GENERAL_CUE_V1",17,hash);
+    log_printf("PS1_DIAG STAGE=GENERAL_CUE_PARSE RESULT=OK "
+               "FILES=%u TRACKS=%u",s_general_plan.file_count,
+               s_general_plan.track_count);
+    for(unsigned i=0;i<s_general_plan.file_count;i++){
+        struct stat st;
+        char *p=s_general_plan.file[i].path;
+        if(!allowed(p)){
+            log_printf("PS1_DIAG STAGE=GENERAL_FILE RESULT=UNSAFE_ROOT "
+                       "FILE=%u PATH=%s",i+1,p);
+            return -71;
+        }
+        rc=sf_ps1_resolve_existing(p,s_join_resolved,
+                                   sizeof(s_join_resolved));
+        if(rc!=0){
+            log_printf("PS1_DIAG STAGE=GENERAL_FILE RESULT=%s "
+                       "FILE=%u EXPECTED=%s RC=%d",
+                       rc==-2?"AMBIGUOUS":"MISSING",i+1,p,rc);
+            return -71;
+        }
+        for(unsigned j=0;j<i;j++)if(!strcasecmp(
+           s_general_plan.file[j].path,s_join_resolved)){
+            log_printf("PS1_DIAG STAGE=GENERAL_FILE RESULT=DUPLICATE "
+                       "FILE=%u",i+1);
+            return -71;
+        }
+        strcpy(p,s_join_resolved);
+        if(stat(p,&st)!=0 || !S_ISREG(st.st_mode) || st.st_size<=0){
+            log_printf("PS1_DIAG STAGE=GENERAL_FILE RESULT=STAT_FAILURE "
+                       "FILE=%u ERRNO=%d",i+1,errno);
+            return -71;
+        }
+        s_general_file_sizes[i]=(uint64_t)st.st_size;
+        if(s_general_file_sizes[i]%2352u!=0){
+            log_printf("PS1_DIAG STAGE=GENERAL_FILE RESULT=UNSUPPORTED_SECTOR "
+                       "FILE=%u BYTES=%llu MOD2352=%llu",
+                       i+1,(unsigned long long)s_general_file_sizes[i],
+                       (unsigned long long)(s_general_file_sizes[i]%2352u));
+            return -72;
+        }
+        hash=fnv(p,strlen(p),hash);
+        hash=fnv(&s_general_file_sizes[i],
+                 sizeof(s_general_file_sizes[i]),hash);
+        {
+            uint64_t mtime=(uint64_t)st.st_mtime;
+            hash=fnv(&mtime,sizeof(mtime),hash);
+        }
+    }
+    rc=sf_ps1_cue_general_layout(&s_general_plan,s_general_file_sizes,
+                                  s_join.tracks,s_general_chunks,
+                                  &s_general_chunk_count,
+                                  &s_join.expected);
+    if(rc!=0 || s_join.expected<2352*100 ||
+       s_join.expected>PS1_STAGE_MAX){
+        log_printf("PS1_DIAG STAGE=GENERAL_LAYOUT RESULT=REJECTED "
+                   "RC=%d BYTES=%llu",rc,
+                   (unsigned long long)s_join.expected);
+        return -72;
+    }
+    /* The mount routine needs logical TRACK count, not FILE count. */
+    s_join.plan.count=s_general_plan.track_count;
+    s_general_mode=1;
+    if(snprintf(s_join.output,sizeof(s_join.output),
+                SF_DATA_DIR "/ps1_unido_%016llx.bin",
+                (unsigned long long)hash)>=(int)sizeof(s_join.output))
+        return -72;
+    if(snprintf(s_join.part,sizeof(s_join.part),
+                "%s.sfpart",s_join.output)>=(int)sizeof(s_join.part))
+        return -72;
+    log_printf("PS1_DIAG STAGE=GENERAL_LAYOUT RESULT=OK FILES=%u TRACKS=%u "
+               "CHUNKS=%u SIZE=%llu CACHE=%s",
+               s_general_plan.file_count,s_general_plan.track_count,
+               s_general_chunk_count,
+               (unsigned long long)s_join.expected,s_join.output);
+    for(unsigned i=0;i<s_general_plan.track_count;i++){
+        const SfPs1CueTrack *t=&s_general_plan.track[i];
+        log_printf("PS1_DIAG TRACK=%u FILE=%u TYPE=%s LBA=%u "
+                   "INDEX00=%s INDEX01=%u PREGAP=%u POSTGAP=%u",
+                   i+1,t->file_index+1,
+                   t->is_audio?"AUDIO":"DATA",
+                   s_join.tracks[i].lba,
+                   t->has_index00?"YES":"NO",
+                   t->index01,t->pregap,t->postgap);
+    }
+    return 0;
+}
 static void ps1_join_worker(void *unused)
 {
     SfPS2LargeFile out;
@@ -146,6 +259,59 @@ static void ps1_join_worker(void *unused)
         rc=-74;goto finish;
     }
     output_active=1;
+    if(s_general_mode){
+        for(unsigned i=0;i<s_general_chunk_count;i++){
+            const SfPs1CueChunk *chunk=&s_general_chunks[i];
+            uint64_t left=chunk->bytes;
+            SfPS2LargeFile in;
+            int source_open=0;
+            sf_ps2_large_init(&in);
+            if(!chunk->is_silence){
+                const char *path=s_general_plan.file[chunk->file_index].path;
+                if(sf_ps2_large_open(&in,path,0)!=0){
+                    rc=-75;
+                    log_printf("PS1_DIAG STAGE=GENERAL_OPEN_SOURCE "
+                               "CHUNK=%u SYS_RC=%d PATH=%s",
+                               i+1,in.error,path);
+                    goto close_out;
+                }
+                source_open=1;
+                if(sf_ps2_large_seek(&in,chunk->at)!=0){
+                    rc=-75;
+                    log_printf("PS1_DIAG STAGE=GENERAL_SEEK_SOURCE "
+                               "CHUNK=%u SYS_RC=%d",i+1,in.error);
+                }
+            }
+            while(rc==0 && left){
+                size_t amount=left>sizeof(s_copy_buffer)?
+                              sizeof(s_copy_buffer):(size_t)left;
+                if(s_join.cancel){rc=-79;break;}
+                if(chunk->is_silence)memset(s_copy_buffer,0,amount);
+                else if(sf_ps2_large_read(&in,s_copy_buffer,amount)!=0){
+                    rc=-75;
+                    log_printf("PS1_DIAG STAGE=GENERAL_READ "
+                               "CHUNK=%u SYS_RC=%d OFFSET=%llu",
+                               i+1,in.error,
+                               (unsigned long long)sf_ps2_large_tell(&in));
+                    break;
+                }
+                if(sf_ps2_large_write(&out,s_copy_buffer,amount)!=0){
+                    rc=-76;
+                    log_printf("PS1_DIAG STAGE=GENERAL_WRITE "
+                               "CHUNK=%u SYS_RC=%d OFFSET=%llu",
+                               i+1,out.error,
+                               (unsigned long long)sf_ps2_large_tell(&out));
+                    break;
+                }
+                left-=amount;
+                done+=amount;
+                s_join.percent=(int)(done*100u/s_join.expected);
+            }
+            if(source_open && sf_ps2_large_close(&in)!=0 && rc==0)
+                rc=-75;
+            if(rc!=0)goto close_out;
+        }
+    }else{
     for(unsigned i=0;i<s_join.plan.count;i++){
         SfPS2LargeFile in;
         uint64_t left=s_join.sizes[i];
@@ -194,6 +360,7 @@ static void ps1_join_worker(void *unused)
         }
         if(rc!=0)goto close_out;
     }
+    } /* end original one-file-per-track copier */
     if(done!=s_join.expected){
         log_printf("PS1_DIAG STAGE=MULTIBIN_SIZE RESULT=MISMATCH "
                    "COPIED=%llu EXPECTED=%llu",
