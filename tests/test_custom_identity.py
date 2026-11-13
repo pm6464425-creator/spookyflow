@@ -26,7 +26,7 @@ checks={
  "11 filename-matched manual art": 'COVER_DL_DIR, "/", name' in art,
  "12 official ID fallback": 'COVER_DL_DIR, "/", id' in art,
  "13 mods avoid stale official ID": '!cover_name_is_custom(game_path)' in art,
- "14 download skips existing": 'cover_has_art(io,it->plat,it->path,it->is_dir,it->size,it->id)' in art,
+ "14 download skips existing": 'cover_has_art(io,it->plat,it->path,it->is_dir,it->size,' in art and 'ps1_special?"":it->id' in art,
  "15 no processed cache considered as source": 'if (io->is_file(io->ctx, f)) return 1;' not in art,
  "16 versioned cache invalidates sidecars": '#define CVR_VERSION 6' in art,
  "17 manual rescan clears old CVR": 'sf_ends_with_i(ent[i].name, ".cvr")' in art,
