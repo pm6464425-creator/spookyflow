@@ -1674,7 +1674,7 @@ static void test_multi_disc_names(void)
         char n0[TITLE_MAX];
         lib_disc_name(&g_lib, lib_game_disc(&g_lib, g, 0), 0, n0, sizeof(n0));
         CHECK(g->ndisc == 2);
-        CHECK_STR(n0, "Disco 1");
+        CHECK_STR(n0, "Disc 1");
         CHECK_STR(lib_path(&g_lib, g), "/p/Grandia CD1.iso");
     }
 }
