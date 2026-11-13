@@ -2376,6 +2376,13 @@ static void draw_panel(App *a)
             const Disc *dd = lib_game_disc(a->lib, game, i);
             char lab[TITLE_MAX];
             lib_disc_name(a->lib, dd, i, lab, sizeof(lab));
+            /* Translation at draw time ONLY: the original "Disc N"
+             * naming stays untouched for launch paths, settings and logs. */
+            if(strncmp(lab,"Disc ",5)==0) {
+                char num[TITLE_MAX];
+                sf_strlcpy(num,lab+5,sizeof(num));
+                snprintf(lab,sizeof(lab),"Disco %s",num);
+            }
             val[0] = '\0';
             if (dd && dd->size) sf_format_size(dd->size, val, sizeof(val));
             {   /* 0.8.2: name and size centered together */
