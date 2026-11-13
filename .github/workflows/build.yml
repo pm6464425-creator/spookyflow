@@ -60,6 +60,9 @@ jobs:
           ./build-host/test_movie_edition
       # Includes the V13 regular-poster migration, Spanish-first policy,
       # manually supplied cover priority and the watermark-only visual gate.
+      - name: V15.11 live Ace Combat 3 Libretro and Tekken Golden Leon LaunchBox PNG probes
+        continue-on-error: true
+        run: python3 tests/probe_ps1_extra_covers_live.py
       - name: V15.10 PS1 real title catalog and localized Spanish game matching
         run: |
           python3 tests/test_ps1_catalog_builder.py
@@ -320,6 +323,16 @@ jobs:
           gh release create spookyflow-v15-10-ps1-nombres-caratulas SPOOKYFLOW_V15_10_PS1_NOMBRES_CARATULAS.pkg --target "$GITHUB_SHA" \
             --title "SpookyFlow V15.10 - PS1 identifica caratulas por nombres de juegos" \
             --notes "PS1: el PKG contiene un indice verificado de mas de 7.000 nombres reales de portadas Libretro PlayStation; normaliza nombres de CUE como 'Disney Tarzan Latino.cue' y los asocia con 'Disney Tarzan (Spain).png', descargando la portada con su nombre original. Prioriza la region apropiada, tolera etiquetas latino/espanol/track/disc sin emparejamientos imprecisos. Conserva descarga por serial, caratulas manuales, soporte CUE/BIN, PS2/PS3 y BDISO intacto, y registra MATCH/SOURCE/ERROR. El indice se genera durante el build desde la fuente publica; si no se puede obtener, la compilacion falla en lugar de publicar un paquete roto. Pruebas de host y PKG verificadas; prueba de PS3 real pendiente."
+
+      - name: Publish direct V15.11 Ace Combat 3 and Tekken Golden Leon PS1 cover fix
+        if: github.ref == 'refs/heads/fix/ps1-ace-combat3-golden-leon-v15-11'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp spookyflow.pkg SPOOKYFLOW_V15_11_PS1_ACE_COMBAT3_GOLDEN_LEON.pkg
+          gh release create spookyflow-v15-11-ps1-ace-golden-leon SPOOKYFLOW_V15_11_PS1_ACE_COMBAT3_GOLDEN_LEON.pkg --target "$GITHUB_SHA" \
+            --title "SpookyFlow V15.11 - Ace Combat 3 y Tekken Golden Leon" \
+            --notes "Correccion PS1 exclusiva: Ace Combat 3 reconoce su titulo oficial Ace Combat 3 - Electrosphere en la coleccion Libretro (USA y Europa multilenguaje). Tekken 3 OT Golden Leon es una modificacion rusa con portada propia verificada en LaunchBox; no utiliza la portada ni el ID visual de Tekken 3 original. La imagen descargada se guarda con el nombre del CUE. Mantiene los 9301 nombres reales del catalogo PS1 y conserva las caratulas existentes; BDISO, PS2, PS3 y el montaje NTFS permanecen intactos. Pruebas automatizadas y paquete PS3 verificados; falta probar las dos imagenes en la PS3 real."
 
   ps3-pkg-docker:
     needs: host-tests
