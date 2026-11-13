@@ -25,7 +25,7 @@ mismo icono de disco de PS2 que en CFW.
 - Conserva un archivo cifrado previo **que no haya sido generado por SpookyFlow**
   como `ISO.BIN.ENC.sf-original`, sin sobrescribir un respaldo existente.
 - Registra errores en `/dev_hdd0/tmp/spookyflow/ps2_hen_last.txt`.
-- Reutiliza una conversión validada cuando seleccionas otra vez la misma ISO.
+- Reutiliza una conversión validada cuando coinciden ruta, tamaño y SHA1 de los sectores inicial y final; invalida la caché si cambian.
 - La ruta CFW Cobra de PS2 sigue funcionando como V15.13; PS1, PS3, BDISO, controles,
   carátulas y gráficos permanecen intactos.
 

@@ -224,17 +224,36 @@ static uint64_t expected_size(uint64_t data_size)
     uint64_t groups=(data_size+(uint64_t)SEG*BLOCKS_PER_META-1)/((uint64_t)SEG*BLOCKS_PER_META);
     return SEG+data_size+groups*SEG;
 }
+/* A file can be replaced without changing its name and size (modded PS2
+ * games). Reject a stale cached conversion using SHA1 of both ends. */
+static int source_fingerprint(const char *source,uint64_t size,char hex[41])
+{
+    unsigned char raw[2*SEG],digest[20];
+    static const char alphabet[]="0123456789abcdef";
+    FILE *f;int i,rc=0;
+    if(size<SEG)return -1;
+    f=fopen(source,"rb");if(!f)return -1;
+    if(read_bytes(f,0,raw,SEG)!=0 ||
+       read_bytes(f,size-SEG,raw+SEG,SEG)!=0 ||
+       mbedtls_sha1(raw,sizeof(raw),digest)!=0)rc=-1;
+    if(fclose(f)!=0)rc=-1;
+    if(rc!=0)return -1;
+    for(i=0;i<20;i++){hex[2*i]=alphabet[digest[i]>>4];
+                        hex[2*i+1]=alphabet[digest[i]&15];}
+    hex[40]=0;return 0;
+}
 static int ready_manifest(const char *source,uint64_t isosize)
 {
     uint64_t installed=0,expected=0;
-    FILE *f;char line[1200],wanted[1200]; uint8_t h[0x90];
+    FILE *f;char line[1200],wanted[1200],fingerprint[41]; uint8_t h[0x90];
     if(!exists_file(SF_CLASSICS_IMAGE) || !exists_file(SF_CLASSICS_META))return 0;
     if(file_size(SF_CLASSICS_IMAGE,&installed)!=0 || installed<3*SEG)return 0;
     f=fopen(SF_CLASSICS_META,"rb");if(!f)return 0;
     if(!fgets(line,sizeof(line),f)){fclose(f);return 0;}
     fclose(f);
-    if(snprintf(wanted,sizeof(wanted),"SF-PS2-CLASSICS %llu %s\n",
-       (unsigned long long)isosize,source)>=(int)sizeof(wanted))return 0;
+    if(source_fingerprint(source,isosize,fingerprint)!=0)return 0;
+    if(snprintf(wanted,sizeof(wanted),"SF-PS2-CLASSICS2 %llu %s %s\n",
+       (unsigned long long)isosize,fingerprint,source)>=(int)sizeof(wanted))return 0;
     if(strcmp(line,wanted))return 0;
     f=fopen(SF_CLASSICS_IMAGE,"rb");if(!f)return 0;
     if(fread(h,1,sizeof(h),f)!=sizeof(h)){fclose(f);return 0;}
@@ -246,7 +265,10 @@ static int write_manifest(const char *source,uint64_t isosize)
 {
     FILE *f=fopen(SF_CLASSICS_META_TMP,"wb");int rc=0;
     if(!f)return -1;
-    if(fprintf(f,"SF-PS2-CLASSICS %llu %s\n",(unsigned long long)isosize,source)<0)rc=-1;
+    {char fingerprint[41];
+     if(source_fingerprint(source,isosize,fingerprint)!=0 ||
+        fprintf(f,"SF-PS2-CLASSICS2 %llu %s %s\n",
+                (unsigned long long)isosize,fingerprint,source)<0)rc=-1;}
     if(fflush(f)!=0)rc=-1;
     if(fclose(f)!=0)rc=-1;
     return rc;

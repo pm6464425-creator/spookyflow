@@ -5,6 +5,7 @@
 #include "sf_ps2_hen.h"
 #include <openssl/evp.h>
 #include <openssl/sha.h>
+#include <openssl/cmac.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdint.h>
@@ -56,6 +57,19 @@ static int wait_done(void)
 }
 static void write_file(const char *path,const void *buf,size_t n)
 {FILE *f=fopen(path,"wb");CHECK(f!=NULL);CHECK(fwrite(buf,1,n,f)==n);CHECK(fclose(f)==0);}
+static int independent_cmac(const unsigned char key[16],
+                            const unsigned char *data,size_t n,unsigned char out[16])
+{
+    CMAC_CTX *ctx=CMAC_CTX_new();
+    size_t out_len=0;
+    int ok=0;
+    if(!ctx)return -1;
+    ok=CMAC_Init(ctx,key,16,EVP_aes_128_cbc(),NULL)==1 &&
+       CMAC_Update(ctx,data,n)==1 &&
+       CMAC_Final(ctx,out,&out_len)==1 && out_len==16;
+    CMAC_CTX_free(ctx);
+    return ok?0:-1;
+}
 static void make_fixture(void)
 {
     FILE *f;size_t i;
@@ -98,6 +112,20 @@ int main(void)
     CHECK(fread(header,1,SEG,f)==SEG);
     CHECK(!memcmp(header,"PS2\0",4));
     CHECK(!memcmp(header+0x10,"2P0001-PS2U10000_00-0000111122223333",36));
+    /* Independently compute both NPDRM AES-CMAC header tags. */
+    {static const unsigned char k2[16]={0x6b,0xa5,0x29,0x76,0xef,0xda,0x16,0xef,0x3c,0x33,0x9f,0xb2,0x97,0x1e,0x25,0x6b};
+     static const unsigned char k3[16]={0x9b,0x51,0x5f,0xea,0xcf,0x75,0x06,0x49,0x81,0xaa,0x60,0x4d,0x91,0xa5,0x4e,0x97};
+     static const unsigned char kek[16]={0x72,0xf9,0x90,0x78,0x8f,0x9c,0xff,0x74,0x57,0x25,0xf0,0x8e,0x4c,0x12,0x83,0x87};
+     unsigned char tmp[0x30+11],tag[16],key[16];
+     size_t j;
+     memcpy(tmp,header+0x10,0x30);
+     memcpy(tmp+0x30,"ISO.BIN.ENC",11);
+     CHECK(independent_cmac(k3,tmp,sizeof(tmp),tag)==0);
+     CHECK(!memcmp(tag,header+0x50,16));
+     for(j=0;j<16;j++)key[j]=kek[j]^k2[j];
+     CHECK(independent_cmac(key,header,0x60,tag)==0);
+     CHECK(!memcmp(tag,header+0x60,16));
+    }
     CHECK(be32(header+0x84)==SEG);
     virtual_size=be64(header+0x88);
     CHECK(virtual_size==sizeof(base_data)+SEG);
@@ -125,6 +153,31 @@ int main(void)
     CHECK(sf_ps2_hen_start(ISO)==1); /* cache skip */
     CHECK(size_file(DIR "/ISO.BIN.ENC.sf-part")==0); /* no leftover partial */
     CHECK(size_file(DIR "/ISO.BIN.ENC.sf-source")>0);
+    /* Same name and size, modified contents: must invalidate the cache. */
+    f=fopen(ISO,"rb+");CHECK(f!=NULL);
+    CHECK(fputc(0xF2,f)!=EOF);CHECK(fclose(f)==0);
+    CHECK(sf_ps2_hen_start(ISO)==0);
+    CHECK(wait_done()==1);
+    CHECK(size_file(USER_BACKUP)==27);
+    CHECK(size_file(DIR "/ISO.BIN.ENC.sf-old")==0);
+    /* CD sector layout: build a CD fixture without the DVD signature. */
+    {static unsigned char cd[0x40000];unsigned char last_cipher[SEG];
+     unsigned char last_data[SEG];const char *cdpath=ROOT "/PS2ISO/Rumble CD.iso";
+     size_t j;for(j=0;j<sizeof(cd);j++)cd[j]=(unsigned char)(j*7u+11u);
+     cd[0x9318]=1;memcpy(cd+0x9319,"CD001",5);
+     cd[0x936c]=0x32;cd[0x936d]=0x01;
+     write_file(cdpath,cd,sizeof(cd));
+     CHECK(sf_ps2_hen_start(cdpath)==0);
+     CHECK(wait_done()==1);
+     f=fopen(IMAGE,"rb");CHECK(f!=NULL);
+     CHECK(fseeko(f,(off_t)((2u+blocks-1u)*SEG),SEEK_SET)==0);
+     CHECK(fread(last_cipher,1,SEG,f)==SEG);
+     CHECK(fclose(f)==0);
+     CHECK(aes(data_key,1,last_cipher,SEG,last_data)==0);
+     CHECK(!memcmp(last_data,"LIMG",4));
+     CHECK(last_data[7]==2);
+     CHECK(size_file(USER_BACKUP)==27);
+    }
     /* A corrupt ISO must not replace the valid previously prepared image. */
     {static unsigned char bad[0x20000];write_file(ROOT "/PS2ISO/bad.iso",bad,sizeof(bad));}
     CHECK(sf_ps2_hen_start(ROOT "/PS2ISO/bad.iso")==0);
