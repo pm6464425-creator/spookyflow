@@ -14,9 +14,9 @@
 #define SF_BG_DIR        SF_DATA_DIR "/backgrounds"   /* the user's background pictures */
 #define SF_CASES_DIR     SF_DATA_DIR "/cases"    /* optional case images */
 #define SF_COVERS_DIR    SF_DATA_DIR "/covers"   /* processed cover cache (safe to delete) */
-/* One diagnostic report, rewritten from zero on every SpookyFlow start.
- * No auto-numbered files, no duplicate logs. */
-#define SF_DIAG_SINGLE_PATH SF_DATA_DIR "/diagnostico.txt"
+/* V15.24: ONE PS1-focused report, overwritten at each SpookyFlow start.
+ * The old PS2 diagnostic is deleted from this directory on boot. */
+#define SF_DIAG_SINGLE_PATH SF_DATA_DIR "/diagnostico_ps1.txt"
 #define SF_LOG_PATH SF_DIAG_SINGLE_PATH
 #define SF_USB_DIAG_PATH SF_DATA_DIR "/diagnostico_usb_ntfs.txt"
 #define SF_SETTINGS_PATH SF_DATA_DIR "/settings.ini"
