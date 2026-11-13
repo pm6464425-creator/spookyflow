@@ -27,8 +27,8 @@ static int ends(const char *path,const char *ext)
 static int is_ps1_path(const char *path)
 {
     if(!path || path[0]!='/')return 0;
-    if(!strncmp(path,"/dev_hdd0/PSXISO/",16) ||
-       !strncmp(path,"/dev_hdd0/PSXGAMES/",18))return 1;
+    if(!strncmp(path,"/dev_hdd0/PSXISO/",17) ||
+       !strncmp(path,"/dev_hdd0/PSXGAMES/",19))return 1;
     if(!strncmp(path,"/dev_usb00",10) && path[10]>='0' && path[10]<='7' &&
        (strstr(path+11,"/PSXISO/") || strstr(path+11,"/PSXGAMES/")))return 1;
     return 0;
@@ -56,6 +56,11 @@ static int read_cue(const char *path)
        !valid_image(s_plan.image,s_plan.tracks[s_plan.num_tracks-1].lba))
         return -41;
     return 0;
+}
+static int ps1_cobra_version(uint32_t *v)
+{
+    lv2syscall2(8,0x7000,(uint64_t)v);
+    return_to_user_prog(int);
 }
 static int prepare(const char *path,int emulator)
 {
@@ -96,9 +101,7 @@ int sf_ps1_mount(const char *path,int emulator)
         return -41;
     }
     /* Cobra must be present. Failed preflight has no disc-side effects. */
-    lv2syscall2(8,0x7000,(uint64_t)&v);
-    __asm__ volatile(""); /* syscall result irrelevant: verify version value */
-    if(v==0xffffffffu || v==0){
+    if(ps1_cobra_version(&v)!=0 || v==0xffffffffu || v==0){
         log_printf("PS1_MOUNT ROUTE=WEBMAN_FALLBACK REASON=COBRA_UNAVAILABLE");
         return -41;
     }
