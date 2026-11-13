@@ -18,7 +18,7 @@ checks={
  "08 all raw CD images preferred over cooked": 'if(has_2352_pvd) return SF_PS2_IMAGE_CD_RAW_2352' in m,
  "09 unrelated cooked ISO not relabeled CD": 'SF_PS2_IMAGE_DVD_2048' in m,
  "10 region-neutral packaged CONFIG lookup": '"%s/%s.ENC"' in hen,
- "11 installed CONFIG database checked first": hen.index('"CONFIG_LOOKUP=PS2CONFIG') < hen.index('"CONFIG_LOOKUP=BUNDLED'),
+ "11 installed CONFIG database checked first": hen.index('CONFIG_LOOKUP=PS2CONFIG') < hen.index('CONFIG_LOOKUP=BUNDLED'),
  "12 absent exact CONFIG never cross-region fallback": 'CONFIG_LOOKUP=NONE' in hen and 'strcmp(id,"SLUS_201.74")' not in hen,
  "13 PAL encrypted CONFIG file included": (root/"pkgfiles/USRDIR/ps2configs/SLES_501.20.ENC").exists(),
  "14 US encrypted CONFIG retained": (root/"pkgfiles/USRDIR/ps2configs/SLUS_201.74.ENC").exists(),
