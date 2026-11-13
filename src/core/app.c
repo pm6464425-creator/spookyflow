@@ -1526,6 +1526,25 @@ static void launch_disc(App *a, int disc)
         app_request_exit(a, "ps2 cobra mount");
         return;
     }
+    /* V15.23 PS1: native Cobra/HEN mount when a complete single-image
+     * layout is validated. Fall back to webMAN for multi-BIN/NTFS/other
+     * layouts without changing the user's file or dropping audio tracks. */
+    if(a->tab==PLAT_PS1 && a->host.launch_ps1){
+        int result=a->host.launch_ps1(path,c.emulator);
+        if(result==0){
+            sound_play(SND_CONFIRM);
+            sf_strlcpy(a->last_launch,name,sizeof(a->last_launch));
+            a->launched=1;
+            app_request_exit(a,"ps1 cobra mount");
+            return;
+        }
+        if(result!=-41){
+            log_printf("ps1: native mount failed rc=%d for %s",result,path);
+            app_show_toast(a,"No se pudo montar PS1 con Cobra");
+            return;
+        }
+        log_printf("ps1: fallback to original webMAN mount for %s",path);
+    }
     /* PS3 build: local Cobra mounting; leave all existing UI and settings untouched. */
     if (a->tab == PLAT_PS3 && a->host.launch_ps3) {
         int result, folder = (g->flags & GAME_DIR) != 0;
