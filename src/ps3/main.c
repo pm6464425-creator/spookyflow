@@ -309,8 +309,9 @@ int main(int argc, const char *argv[])
     {int removed=ps3_fs_cleanup_legacy_diagnostics();
      int diag_rc=log_open(SF_DIAG_SINGLE_PATH);
      if(diag_rc==0) {
-         log_printf("==== SPOOKYFLOW V15.22 - diagnostic report started ====");
-         log_printf("PS2_DIAG CLEANUP_LEGACY_REPORTS_REMOVED=%d",removed);
+         log_printf("==== SPOOKYFLOW V15.24 - PS1 diagnostic started ====");
+         log_printf("PS1_DIAG CLEANUP_LEGACY_REPORTS_REMOVED=%d",removed);
+         log_printf("PS1_DIAG FILE=" SF_DIAG_SINGLE_PATH " MODE=OVERWRITE_ON_START");
      }
     }
 #endif
@@ -328,7 +329,8 @@ int main(int argc, const char *argv[])
 #ifndef SF_SINGLE_DIAG_FILE
     }
 #endif
-    sf_ps2_hen_report_state(); /* Read-only inspection of last PS2 Classics stage. */
+    /* V15.24 PS1 report: do not dump PS2 Classics forensic state at startup.
+     * PS2 encryption and its staging/validation behavior are unchanged. */
     sf_cobra_diag_report_previous();
     sf_usb_diag_snapshot("PRE_NATIVE_NTFS",NULL,NULL,usb_media_mask());
 
