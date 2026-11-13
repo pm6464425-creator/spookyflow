@@ -20,6 +20,9 @@ static unsigned s_snaps;
 
 int sf_usb_diag_begin(void)
 {
+#ifdef SF_DISABLE_DIAG_TXT
+    return 0;
+#else
     FILE *f=fopen(SF_USB_DIAG_PATH,"w");
     s_snaps=0;
     if(!f)return -1;
@@ -33,6 +36,7 @@ int sf_usb_diag_begin(void)
     fflush(f);
     fclose(f);
     return 0;
+#endif
 }
 
 static int probe_lv2(const char *path)
@@ -84,6 +88,10 @@ static void dump_webman(FILE *f, uint32_t physical_mask)
 void sf_usb_diag_snapshot(const char *phase, const Library *lib,
                           const Scanner *scan, uint32_t app_mask)
 {
+#ifdef SF_DISABLE_DIAG_TXT
+    (void)phase; (void)lib; (void)scan; (void)app_mask;
+    return;
+#else
     FILE *f;
     uint32_t present=sf_bdntfs_usb_present_mask();
     int port;
@@ -168,4 +176,5 @@ void sf_usb_diag_snapshot(const char *phase, const Library *lib,
     fclose(f);
     log_printf("usb_diag: %s saved at %s (native mask=%02x)",
                phase?phase:"?",SF_USB_DIAG_PATH,(unsigned)present);
+#endif
 }

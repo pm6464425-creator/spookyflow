@@ -34,11 +34,11 @@ SCETOOL_FLAGS +=
 # sysFsOpendir/Readdir/Stat (Apollo Save Tool links it the same way).
 LIBS := -L$(CURDIR)/../third_party/lib -lcobra -lfatfs -lntfs_ext -lstdc++ -ltiny3d -lrsx -lsimdmath -lgcm_sys -lio -lsysutil -laudio -lnet -lrt -lsysfs -llv2 -lpngdec -ljpgdec -lsysmodule -lm
 
-CFLAGS   = -O2 -Wall -std=gnu99 -mcpu=cell $(MACHDEP) $(INCLUDE)
+CFLAGS   = -O2 -Wall -std=gnu99 -mcpu=cell $(MACHDEP) $(INCLUDE) -DSF_DISABLE_DIAG_TXT
 
 # 0.9.3: HTTPS (Download Missing Covers) with mbedTLS, built by ci/build_ps3.sh
-# into portlibs as libsfmbedtls.a. make SF_TLS=1 to use it.
-SF_TLS ?= 0
+# into portlibs as libsfmbedtls.a. Mandatory for PS2 Classics.
+SF_TLS ?= 1
 ifeq ($(SF_TLS),1)
 LIBS     := -lsfmbedtls $(LIBS)
 CFLAGS   += -DSF_HAVE_TLS -DMBEDTLS_CONFIG_FILE='"sf_mbedtls_config.h"'

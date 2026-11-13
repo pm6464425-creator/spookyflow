@@ -36,6 +36,10 @@ static char s_iso_part_paths[SF_PARTS][SF_PATH];
 static int sf_probe_write(const char *where, const char *stage,
                           const char *path, int folder)
 {
+#ifdef SF_DISABLE_DIAG_TXT
+    (void)where; (void)stage; (void)path; (void)folder;
+    return 0;
+#else
     FILE *fp=fopen(where,"wb");
     int ok=1;
     if (!fp) return -1;
@@ -45,6 +49,7 @@ static int sf_probe_write(const char *where, const char *stage,
     if (fflush(fp)!=0) ok=0;
     if (fclose(fp)!=0) ok=0;
     return ok ? 0 : -1;
+#endif
 }
 int sf_cobra_diag_startup(const char *stage)
 {
@@ -77,6 +82,10 @@ static int sf_diag_active;
 
 static int sf_diag_write(const char *stage, int rc, int state)
 {
+#ifdef SF_DISABLE_DIAG_TXT
+    (void)stage; (void)rc; (void)state;
+    return 0;
+#else
     const char *status = state==1?"IN_PROGRESS":(state==2?"ERROR":"SUCCESS");
     FILE *f;
     int good;
@@ -106,6 +115,7 @@ static int sf_diag_write(const char *stage, int rc, int state)
         }
     }
     return 0;
+#endif
 }
 static int sf_diag_error(const char *stage, int rc)
 {
@@ -115,6 +125,9 @@ static int sf_diag_error(const char *stage, int rc)
 }
 void sf_cobra_diag_report_previous(void)
 {
+#ifdef SF_DISABLE_DIAG_TXT
+    return;
+#else
     char text[1600];
     FILE *f=fopen(SF_DIAG_LAST,"rb"),*out;
     size_t n;
@@ -130,6 +143,7 @@ void sf_cobra_diag_report_previous(void)
         (void)fclose(out);
     }
     log_printf("cobra: prior mount interrupted; examine cobra_previous_interruption.txt");
+#endif
 }
 static int sf_diag_before(const char *call)
 {

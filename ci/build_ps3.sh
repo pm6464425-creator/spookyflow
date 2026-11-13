@@ -51,9 +51,8 @@ fi
 end
 
 # --- mbedTLS (0.9.3: HTTPS for Download Missing Covers) ---------------------------
-# Optional: built from the official mbedTLS 2.28 release with a small config
-# (a TLS 1.2 client, no OS services). If anything here fails, spookyflow is
-# built without HTTPS (plain-HTTP cover sources still work).
+# Mandatory for PS2 Classics: built from the official mbedTLS 2.28 release with a small config
+# (a TLS 1.2 client, no OS services). If crypto fails, refuse to package.
 build_tls() {
   local ver=2.28.10 portlibs="$PS3DEV/portlibs/ppu" work=/tmp/sf_mbedtls
   rm -rf "$work" && mkdir -p "$work/obj" || return 1
@@ -125,9 +124,11 @@ CFG
   cp "$work/sf_mbedtls_config.h" "$portlibs/include/" || return 1
   echo "mbedTLS $ver built: $portlibs/lib/libsfmbedtls.a"
 }
-say "mbedTLS (HTTPS)"
-TLS=0
-if build_tls; then TLS=1; else echo "warning: mbedTLS could not be built; spookyflow is built without HTTPS"; fi
+say "mbedTLS (mandatory PS2 Classics AES/SHA1)"
+if ! build_tls; then
+  echo "FATAL: PS2 Classics encryption unavailable; refusing PKG."
+  exit 1
+fi
 end
 
 # --- BDISO native NTFS read/write, only for movie art on the external disk. --
@@ -177,16 +178,8 @@ test -s pkgfiles/USRDIR/ps1_boxart_names.txt
 end
 
 # --- build ----------------------------------------------------------------------
-say "make pkg (SF_TLS=$TLS)"
+say "make pkg (SF_TLS=1, PS2 Classics mandatory)"
 make clean >/dev/null 2>&1 || true
-if ! make pkg SF_TLS=$TLS; then
-  if [ "$TLS" = 1 ]; then
-    echo "warning: the build with HTTPS failed (above); building without it"
-    make clean >/dev/null 2>&1 || true
-    make pkg SF_TLS=0
-  else
-    exit 1
-  fi
-fi
+make pkg SF_TLS=1
 end
 ls -la ./*.pkg

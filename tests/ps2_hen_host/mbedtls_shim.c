@@ -37,5 +37,5 @@ int mbedtls_aes_crypt_ecb(mbedtls_aes_context *ctx,int mode,const unsigned char 
 {return crypt(ctx->key,mode,0,16,NULL,in,out);}
 int mbedtls_aes_crypt_cbc(mbedtls_aes_context *ctx,int mode,size_t n,unsigned char *iv,const unsigned char *in,unsigned char *out)
 {return n>=16&&n%16==0?crypt(ctx->key,mode,1,n,iv,in,out):-1;}
-int mbedtls_sha1(const unsigned char *input,size_t n,unsigned char out[20])
+int mbedtls_sha1_ret(const unsigned char *input,size_t n,unsigned char out[20])
 {return SHA1(input,n,out)?0:-1;}

@@ -9,9 +9,15 @@ static int g_echo;
 
 int log_open(const char *path)
 {
+#ifdef SF_DISABLE_DIAG_TXT
+    (void)path;
+    if (g_log) { fclose(g_log); g_log = NULL; }
+    return 0;
+#else
     if (g_log) fclose(g_log);
     g_log = fopen(path, "a");
     return g_log ? 0 : -1;
+#endif
 }
 
 void log_close(void)

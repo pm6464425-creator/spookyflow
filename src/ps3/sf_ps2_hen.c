@@ -30,6 +30,9 @@ typedef pthread_t sys_ppu_thread_t;
 #else
 #include <sys/thread.h>
 #endif
+#if !defined(SF_HAVE_TLS) && !defined(SF_PS2_HEN_HOST_TEST)
+#error "PS2 Classics encryption requires mbedTLS; SF_TLS=0 is forbidden"
+#endif
 #include "sf_ps2_hen.h"
 #include "ps2_mount_plan.h"
 #include "log.h"
@@ -167,6 +170,7 @@ static int launcher_installed(void)
             (void)closedir(games);
         }
     }
+#ifndef SF_DISABLE_DIAG_TXT
     {FILE *f=fopen(SF_LAUNCHER_PROBE,"wb");
      if(f){
         (void)fprintf(f,
@@ -184,6 +188,7 @@ static int launcher_installed(void)
             candidates[0]?candidates:"(none)",SF_CLASSICS_APP,SF_CLASSICS_DIR);
         (void)fflush(f);(void)fclose(f);
      }}
+#endif
     log_printf("ps2 hen: launcher %s usrdir=%d param=%d title_id=%s eboot=%d alt=%d image=%d",
         accepted?"FOUND":"NOT_FOUND",usrdir,param,id[0]?id:"?",eboot,alternate,image);
     return accepted;
@@ -231,11 +236,16 @@ static uint64_t get64(const uint8_t *p)
 }
 static void record(const char *stage,const char *path,int code,int progress)
 {
+#ifdef SF_DISABLE_DIAG_TXT
+    (void)stage; (void)path; (void)code; (void)progress;
+    return;
+#else
     FILE *f=fopen(SF_HEN_DIAG,"wb");
     if (!f) return;
     fprintf(f,"BACKEND=PS2_CLASSICS_HEN\nSTAGE=%s\nRC=%d\nPROGRESS=%d\nPATH=%s\n",
             stage,code,progress,path?path:"(null)");
     (void)fflush(f);(void)fclose(f);
+#endif
 }
 #ifdef SF_HAVE_TLS
 /* PS2 Classics universal-placeholder constants, from Apollo/flatZ (GPLv3). */
@@ -349,7 +359,7 @@ static int source_fingerprint(const char *source,uint64_t size,char hex[41])
     f=fopen(source,"rb");if(!f)return -1;
     if(read_bytes(f,0,raw,SEG)!=0 ||
        read_bytes(f,size-SEG,raw+SEG,SEG)!=0 ||
-       mbedtls_sha1(raw,sizeof(raw),digest)!=0)rc=-1;
+       mbedtls_sha1_ret(raw,sizeof(raw),digest)!=0)rc=-1;
     if(fclose(f)!=0)rc=-1;
     if(rc!=0)return -1;
     for(i=0;i<20;i++){hex[2*i]=alphabet[digest[i]>>4];
@@ -572,7 +582,7 @@ static int perform_conversion(const char *path)
             }
             memset(iv,0,16);
             if(mbedtls_aes_crypt_cbc(&aes_data,MBEDTLS_AES_ENCRYPT,SEG,iv,blk,blk)!=0){rc=-32;goto cleanup;}
-            if(mbedtls_sha1(blk,SEG,meta+j*0x20)!=0){rc=-32;goto cleanup;}
+            if(mbedtls_sha1_ret(blk,SEG,meta+j*0x20)!=0){rc=-32;goto cleanup;}
             put32(meta+j*0x20+0x14,(uint32_t)i);
             if(write_bytes(out,blk,SEG)){rc=-34;goto cleanup;}
             s_job.progress=(int)((i+1)*100/blocks);

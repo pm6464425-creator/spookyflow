@@ -33,7 +33,7 @@ checks={
  "11b diagnostic records each detected launcher artifact": all(x in hen for x in ('USRDIR_READABLE=%d','PARAM_SFO_READABLE=%d','USRDIR_EBOOT_READABLE=%d','LAUNCHER_ACCEPTED=%d','ps2_launcher_probe.txt')),
  "11c refuses absent launcher before opening image": 'if(!launcher_installed()){record("LAUNCHER_NOT_FOUND",path,-64,0);return -64;}' in hen,
  "11d never creates missing PS2 Classics directory": 'mkdir(SF_CLASSICS_DIR' not in hen,
- "11e error toast links diagnosis not repeated install": "No se detecta PS2 Classics (ver diagnóstico)" in app,
+ "11e error toast links diagnosis not repeated install": "No se detecta PS2 Classics" in app,
  "12 universal PS2U10000 target": '"/dev_hdd0/game/PS2U10000/USRDIR"' in hen,
  "13 source restricted to HDD PS2ISO or FAT32 USB": "sf_hen_safe_iso_path(path)" in hen and '"/dev_usb00"' in hen,
  "14 split ISO safely rejected": 'if(ends(path,".iso.0"))return -62;' in hen,
@@ -44,7 +44,7 @@ checks={
  "19 DVD ISO9660 signature validated": 'read_bytes(in,0x8000,probe,6)' in hen,
  "20 CD ISO9660 signature validated": 'read_bytes(in,0x9318,probe,6)' in hen,
  "21 cipher AES-128-CBC implemented": "MBEDTLS_AES_ENCRYPT,SEG,iv,blk,blk" in hen,
- "22 SHA1 metadata checksum": "mbedtls_sha1(blk,SEG,meta+j*0x20)" in hen,
+ "22 SHA1 metadata checksum": "mbedtls_sha1_ret(blk,SEG,meta+j*0x20)" in hen,
  "23 NPD CMAC header": "omac(npd_omac3,buf,0x30+11,h+0x50)" in hen,
  "24 per-group encrypted metadata": "MBEDTLS_AES_ENCRYPT,SEG,iv,meta,meta" in hen,
  "25 big-endian segment index": "put32(meta+j*0x20+0x14,(uint32_t)i);" in hen,
@@ -64,6 +64,8 @@ checks={
  "39 invalid encrypted CONFIG rejected": "if(!verify_cfg(src))return -84;" in hen,
  "40 config prepared on cache hit": "int cfg=ps2_stage_config(gameid);" in hen,
  "41 config stage before image success status": "if(rc==0)rc=ps2_stage_config(s_job.gameid);" in hen,
+ "42 SHA1 compatible with mbedTLS 2.28": "mbedtls_sha1_ret(raw,sizeof(raw),digest)" in hen and "mbedtls_sha1_ret(blk,SEG,meta+j*0x20)" in hen,
+ "43 crypto required at PS3 compilation": '#error "PS2 Classics encryption requires mbedTLS' in hen,
 }
 for k,ok in checks.items():print(("PASS" if ok else "FAIL"),k)
 print("PS2 HEN static audit %d/%d"%(sum(checks.values()),len(checks)))

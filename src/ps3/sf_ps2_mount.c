@@ -51,6 +51,10 @@ static int raw_ps2_netemu(int setting)
 }
 static int journal(const char *stage,const char *path,int rc,int active)
 {
+#ifdef SF_DISABLE_DIAG_TXT
+    (void)stage; (void)path; (void)rc; (void)active;
+    return 0;
+#else
     FILE *f=fopen(PS2_DIAG,"wb");
     int ok=1;
     if(!f) return -1;
@@ -72,6 +76,7 @@ static int journal(const char *stage,const char *path,int rc,int active)
         }
     }
     return 0;
+#endif
 }
 int sf_ps2_preflight(const char *path)
 {

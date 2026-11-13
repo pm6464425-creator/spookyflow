@@ -18,6 +18,10 @@ static void unlock_diag(void){__sync_lock_release(&g_lock);}
 
 int cover_diag_start(const char *path)
 {
+#ifdef SF_DISABLE_DIAG_TXT
+    (void)path;
+    return 0;
+#else
     lock_diag();
     if(g_file){fflush(g_file);fclose(g_file);g_file=NULL;}
     g_line=0;
@@ -32,6 +36,7 @@ int cover_diag_start(const char *path)
     }
     unlock_diag();
     return g_file?0:-1;
+#endif
 }
 void cover_diag(const char *stage,const char *fmt,...)
 {

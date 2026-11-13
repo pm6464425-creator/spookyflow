@@ -1461,7 +1461,7 @@ static void launch_disc(App *a, int disc)
                 if (result < 0) {
                     log_printf("ps2 hen: staging refused rc=%d for %s",result,path);
                     if (result == -64)
-                        app_show_toast(a, "No se detecta PS2 Classics (ver diagnóstico)");
+                        app_show_toast(a, "No se detecta PS2 Classics");
                     else if (result == -61 || result == -62)
                         app_show_toast(a, "PS2 Classics: requiere ISO sin dividir");
                     else if (result == -65)
@@ -1469,7 +1469,7 @@ static void launch_disc(App *a, int disc)
                     else if (result == -66)
                         app_show_toast(a, "PS2 Classics: hay un respaldo pendiente");
                     else
-                        app_show_toast(a, "Error al preparar PS2 Classics (ver registro)");
+                        app_show_toast(a, "Error al preparar PS2 Classics");
                     return;
                 }
                 sf_strlcpy(a->last_launch, name, sizeof(a->last_launch));
@@ -1489,7 +1489,7 @@ static void launch_disc(App *a, int disc)
             else if (result == -45)
                 app_show_toast(a, "Montaje PS2: Cobra no disponible");
             else
-                app_show_toast(a, "PS2 ISO no disponible (ver registro)");
+                app_show_toast(a, "PS2 ISO no disponible");
             return;
         }
         ps2cfg_apply(a, path, lib_str(a->lib, d ? d->id : g->id), c.ps2cfg);
@@ -1499,7 +1499,7 @@ static void launch_disc(App *a, int disc)
         result = a->host.launch_ps2(path, c.emulator);
         if (result != 0) {
             log_printf("ps2: mount failed rc=%d for %s", result, path);
-            app_show_toast(a, "Falló el montaje PS2 (ver registro)");
+            app_show_toast(a, "No se pudo montar PS2");
             return;
         }
         sound_play(SND_CONFIRM);
@@ -1855,7 +1855,7 @@ void app_update(App *a, uint32_t held, float dt)
             app_request_exit(a,"ps2 classics prepared");
         } else {
             log_printf("ps2 hen: conversion failed rc=%d",status);
-            app_show_toast(a,"Error PS2 Classics (ps2_hen_last.txt)");
+            app_show_toast(a,"Error de conversión PS2 Classics");
         }
         return;
     }
