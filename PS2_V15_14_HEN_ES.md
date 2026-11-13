@@ -69,3 +69,7 @@ Los archivos originales `ISO.BIN.ENC` y `CONFIG` existentes en PS2 Classics
 Placeholder se protegen con respaldo `.sf-original` antes de ser sustituidos;
 los archivos de SpookyFlow se reconocen mediante marcadores `.sf-source`.
 No se elimina ni se sobrescribe ningún respaldo ajeno existente.
+
+## V15.15 — Reparación del aviso del lanzador
+
+La V15.14 bloqueaba el proceso si no encontraba `USRDIR/EBOOT.BIN` como archivo regular. Algunos lanzadores instalados y funcionales no exponen ese archivo de esa manera. La V15.15 identifica la instalación de PS2U10000 comprobando la carpeta `USRDIR` junto con `PARAM.SFO` o un ejecutable reconocido. No interpreta una ISO dañada como un lanzador ausente. Registra las comprobaciones concretas en `/dev_hdd0/tmp/spookyflow/ps2_launcher_probe.txt` y, cuando no está disponible el lanzador, mantiene la negativa segura, sin alterar su contenido. El arranque en PS3 física continúa pendiente de validación.

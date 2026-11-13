@@ -1461,7 +1461,7 @@ static void launch_disc(App *a, int disc)
                 if (result < 0) {
                     log_printf("ps2 hen: staging refused rc=%d for %s",result,path);
                     if (result == -64)
-                        app_show_toast(a, "Instala y activa PS2 Classics Placeholder");
+                        app_show_toast(a, "No se detecta PS2 Classics (ver diagnóstico)");
                     else if (result == -61 || result == -62)
                         app_show_toast(a, "PS2 Classics: requiere ISO sin dividir");
                     else if (result == -65)

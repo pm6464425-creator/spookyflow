@@ -83,7 +83,9 @@ static void make_fixture(void)
     f=fopen(ISO,"wb");CHECK(f!=NULL);
     CHECK(fwrite(base_data,1,sizeof(base_data),f)==sizeof(base_data));
     CHECK(fclose(f)==0);
-    write_file(DIR "/EBOOT.BIN","dummy",5);
+    /* Real package evidence: launcher may exist even if EBOOT is not
+     * visible as a regular file. PARAM.SFO + USRDIR is a valid install. */
+    write_file(ROOT "/placeholder/PARAM.SFO","PS2U10000",9);
     write_file(IMAGE,"EXISTING USER CLASSICS GAME",27);
     write_file(DIR "/CONFIG","PREVIOUS USER CONFIG",20);
 }
@@ -97,6 +99,14 @@ int main(void)
     uint64_t virtual_size,expected,block,blocks;int rc;FILE *f;
     CHECK(system("rm -rf build-host/ps2hen")==0);
     make_fixture();
+    /* Isolated regression for the user's real screenshot: previously
+     * V15.14 rejected PS2U10000 solely for an unseen USRDIR/EBOOT.BIN. */
+    CHECK(size_file(DIR "/EBOOT.BIN")==0);
+    CHECK(size_file(ROOT "/placeholder/PARAM.SFO")>0);
+    /* An uninstalled launcher must still fail safely without side effects. */
+    CHECK(rename(ROOT "/placeholder/PARAM.SFO",ROOT "/placeholder/PARAM.SFO.hide")==0);
+    CHECK(sf_ps2_hen_start(ISO,"SLUS_201.74")==-64);
+    CHECK(rename(ROOT "/placeholder/PARAM.SFO.hide",ROOT "/placeholder/PARAM.SFO")==0);
     SHA1(base_data,sizeof(base_data),original_sha);
     CHECK(sf_ps2_hen_start("build-host/ps2hen/PS2ISO/no.iso",NULL)<0);
     rc=sf_ps2_hen_start(ISO,"SLUS_201.74");

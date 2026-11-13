@@ -42,7 +42,19 @@ typedef pthread_t sys_ppu_thread_t;
 #define SF_CLASSICS_DIR "/dev_hdd0/game/PS2U10000/USRDIR"
 #define SF_HEN_DIAG "/dev_hdd0/tmp/spookyflow/ps2_hen_last.txt"
 #endif
+#ifdef SF_PS2_HEN_HOST_TEST
+#define SF_CLASSICS_APP "build-host/ps2hen/placeholder"
+#else
+#define SF_CLASSICS_APP "/dev_hdd0/game/PS2U10000"
+#endif
+#define SF_CLASSICS_PARAM SF_CLASSICS_APP "/PARAM.SFO"
 #define SF_CLASSICS_EBOOT SF_CLASSICS_DIR "/EBOOT.BIN"
+#define SF_CLASSICS_EBOOT_ALT SF_CLASSICS_APP "/EBOOT.BIN"
+#ifdef SF_PS2_HEN_HOST_TEST
+#define SF_LAUNCHER_PROBE "build-host/ps2hen/launcher_probe.txt"
+#else
+#define SF_LAUNCHER_PROBE "/dev_hdd0/tmp/spookyflow/ps2_launcher_probe.txt"
+#endif
 #define SF_CLASSICS_IMAGE SF_CLASSICS_DIR "/ISO.BIN.ENC"
 #define SF_CLASSICS_TMP SF_CLASSICS_DIR "/ISO.BIN.ENC.sf-part"
 #define SF_CLASSICS_USER_BACKUP SF_CLASSICS_DIR "/ISO.BIN.ENC.sf-original"
@@ -87,6 +99,36 @@ static int file_size(const char *name,uint64_t *out)
     if (!name || stat(name,&st)!=0 || !S_ISREG(st.st_mode) || st.st_size<0) return -1;
     if (out)*out=(uint64_t)st.st_size;
     return 0;
+}
+/* The official PS2 Classics Launcher is identified as PS2U10000, but
+ * some installed launchers do not expose EBOOT.BIN as a regular file to
+ * homebrew. webMAN checks the installed placeholder directory instead.
+ * Accept its installed PARAM.SFO and USRDIR, or a known executable variant.
+ * Never create a missing launcher directory or overwrite an unrecognized ID.
+ */
+static int launcher_installed(void)
+{
+    struct stat st;
+    int usrdir=(stat(SF_CLASSICS_DIR,&st)==0 && S_ISDIR(st.st_mode));
+    int param=exists_file(SF_CLASSICS_PARAM);
+    int eboot=exists_file(SF_CLASSICS_EBOOT);
+    int alt=exists_file(SF_CLASSICS_EBOOT_ALT);
+    int image=exists_file(SF_CLASSICS_IMAGE);
+    int accepted=usrdir && (param || eboot || alt);
+    FILE *f=fopen(SF_LAUNCHER_PROBE,"wb");
+    if(f){
+        (void)fprintf(f,
+            "BACKEND=PS2_CLASSICS_HEN\\nAPP_ID=PS2U10000\\n"
+            "USRDIR_EXISTS=%d\\nPARAM_SFO_EXISTS=%d\\n"
+            "USRDIR_EBOOT_EXISTS=%d\\nROOT_EBOOT_EXISTS=%d\\n"
+            "CLASSICS_IMAGE_EXISTS=%d\\nLAUNCHER_ACCEPTED=%d\\n"
+            "APP_PATH=%s\\nGAME_PATH=%s\\n",
+            usrdir,param,eboot,alt,image,accepted,SF_CLASSICS_APP,SF_CLASSICS_DIR);
+        (void)fflush(f);(void)fclose(f);
+    }
+    log_printf("ps2 hen: launcher %s usrdir=%d param=%d eboot=%d alternate=%d image=%d",
+        accepted?"FOUND":"NOT_FOUND",usrdir,param,eboot,alt,image);
+    return accepted;
 }
 static int ends(const char *a,const char *b)
 {
@@ -536,7 +578,7 @@ int sf_ps2_hen_start(const char *path,const char *gameid)
      * decryption is verified; do not silently encrypt only disc segment 0. */
     if(ends(path,".iso.0"))return -62;
     if(file_size(path,&s)!=0 || s<0x20000 || s>MAX_INPUT)return -63;
-    if(!exists_file(SF_CLASSICS_EBOOT))return -64;
+    if(!launcher_installed()){record("LAUNCHER_NOT_FOUND",path,-64,0);return -64;}
 #ifndef SF_HAVE_TLS
     (void)n;return -65;
 #else
