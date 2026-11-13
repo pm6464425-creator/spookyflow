@@ -571,7 +571,7 @@ static int finish_atomic(const char *source,uint64_t isosize)
     f=fopen(SF_CLASSICS_TMP,"rb");if(!f)return -35;
     if(fread(header,1,sizeof(header),f)!=sizeof(header)){fclose(f);return -35;}
     fclose(f);
-    if(memcmp(header,"PS2\\0",4) || size!=expected_size(get64(header+0x88)))return -35;
+    if(memcmp(header,"PS2\0",4) || size!=expected_size(get64(header+0x88)))return -35;
     if(write_manifest(source,isosize)!=0)return -36;
     /* Never overwrite an interrupted transaction's recovery copy. */
     if(exists_file(SF_CLASSICS_META_OLD)){
