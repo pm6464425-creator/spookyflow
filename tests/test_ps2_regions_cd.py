@@ -25,7 +25,7 @@ checks={
  "15 cooked CD stream uses real EDC/ECC sector function": 'sf_cdrom_mode2_form1(stream->sector,stream->userdata,stream->lba++)' in hen,
  "16 Mode2/Form1 subheader is duplicated": 'out[18]=out[22]=8' in cd,
  "17 Mode2/Form1 ECC P and Q calculated": 'ecc_block(out+12,86,24,2,86,out+0x81c)' in cd and 'ecc_block(out+12,52,43,86,88,out+0x8c8)' in cd,
- "18 cooked CD transform is streamed not written as source": 'cooked_cd_fill(in,&cdstream,blk,readn)' in hen and 'in=fopen(path,"rb");' in hen,
+ "18 cooked CD transform is streamed not written as source": 'cooked_cd_fill(&in,&cdstream,blk,readn)' in hen and 'sf_ps2_large_open(&in,path,0)' in hen,
  "19 LIMG for CD uses 2352 sector size and 2 disc type": 'limg[14]=0x09;limg[15]=0x30' in hen and 'limg[7]=2' in hen,
  "20 copied CD input validates 2048-sector alignment": 'if(size%2048u) return -24;' in hen,
  "21 raw CD input validates 2352-sector alignment": 'size%2352u' in hen,
