@@ -1358,7 +1358,7 @@ static void draw_flow_row(App *a, int tab, float xoff, float alpha)
         big.bright = 1.0f;
     }
     if (gl->count <= 0) {
-        d_text(&g_font_main, W() * 0.5f + xoff, H() * layout_flow_cy(), H() * 0.03f, sf_col_alpha(TH_TEXT_DIM, alpha), "No games", ALIGN_CENTER);
+        d_text(&g_font_main, W() * 0.5f + xoff, H() * layout_flow_cy(), H() * 0.03f, sf_col_alpha(TH_TEXT_DIM, alpha), "Sin juegos", ALIGN_CENTER);
         return;
     }
     if (tab == a->tab) {   /* 0.9.8: the shine sweeps once the row stops on a game */
@@ -1523,7 +1523,7 @@ static void draw_tabs(const App *a, float alpha, float yoff)
     d_badge(ICON_L1, xs[0], y, m.tab_h * 0.62f, sf_col_alpha(0xFFFFFFFFu, alpha));
     d_badge(ICON_R1, xs[PLAT_COUNT + 1], y, m.tab_h * 0.62f, sf_col_alpha(0xFFFFFFFFu, alpha));
     if (a->lib->tab[a->tab].demo) {
-        const char *txt = "Demo library";
+        const char *txt = "Biblioteca de prueba";
         float em = m.small_em * 0.92f;
         float cw = d_text_width(&g_font_main, em, txt) + d_xu(m.small_h * 0.9f);
         float cx = xs[4] + shoulder_w * 0.5f + d_xu(m.small_gap) + cw * 0.5f;
@@ -1559,12 +1559,12 @@ static int chip_texts(const App *a, int tab, int idx, char out[4][32])
     int n = 0;
     if (idx < 0 || idx >= gl->count) return 0;
     g = &gl->games[idx];
-    snprintf(out[n++], 32, "%d of %d", idx + 1, gl->count);      /* position in this tab */
+    snprintf(out[n++], 32, "%d de %d", idx + 1, gl->count);      /* position in this tab */
     /* 1.0: no release year for now (0.9.9's table had wrong and missing years) */
-    if (g->flags & GAME_HIDDEN) sf_strlcpy(out[n++], "Hidden", 32);   /* 1.1: shown by Show Hidden Games */
+    if (g->flags & GAME_HIDDEN) sf_strlcpy(out[n++], "Oculto", 32);   /* 1.1: shown by Show Hidden Games */
     if (g->pmax > 0) {
-        if (g->pmin == g->pmax || g->pmin == 0) snprintf(out[n++], 32, "%d player%s", g->pmax, g->pmax == 1 ? "" : "s");
-        else snprintf(out[n++], 32, "%d-%d players", g->pmin, g->pmax);
+        if (g->pmin == g->pmax || g->pmin == 0) snprintf(out[n++], 32, "%d jugador%s", g->pmax, g->pmax == 1 ? "" : "s");
+        else snprintf(out[n++], 32, "%d-%d jugadores", g->pmin, g->pmax);
     }
     if (g->size > 0) sf_format_size(g->size, out[n++], 32);
     return n;
@@ -1789,32 +1789,32 @@ void ui_bar_layout(int panel_mode, BarLayout *L)
     L->bar_h = m.bar_h;
     L->bar_y = m.bar_y - m.bar_h * 0.5f;
     if (!panel_mode) {
-        group_add_badge(&L->g[0], ICON_CROSS, L->icon);    L->g[0].label = "Launch";
-        group_add_badge(&L->g[1], ICON_SQUARE, L->icon);   L->g[1].label = "Display";
-        group_add_badge(&L->g[2], ICON_TRIANGLE, L->icon); L->g[2].label = "Game Settings";
+        group_add_badge(&L->g[0], ICON_CROSS, L->icon);    L->g[0].label = "Jugar";
+        group_add_badge(&L->g[1], ICON_SQUARE, L->icon);   L->g[1].label = "Vista";
+        group_add_badge(&L->g[2], ICON_TRIANGLE, L->icon); L->g[2].label = "Ajustes del juego";
         group_add_badge(&L->g[3], ICON_L2, L->icon);
         group_add_badge(&L->g[3], ICON_R2, L->icon);
         L->g[3].label = "A\xE2\x80\x93Z";
-        group_add_badge(&L->g[4], ICON_SELECT, L->icon);   L->g[4].label = "Next Song";
-        group_add_badge(&L->g[5], ICON_START, L->icon);    L->g[5].label = "Flow Settings";
-        group_add_badge(&L->g[6], ICON_CIRCLE, L->icon);   L->g[6].label = "Exit (Hold)";
+        group_add_badge(&L->g[4], ICON_SELECT, L->icon);   L->g[4].label = "Otra canción";
+        group_add_badge(&L->g[5], ICON_START, L->icon);    L->g[5].label = "Ajustes generales";
+        group_add_badge(&L->g[6], ICON_CIRCLE, L->icon);   L->g[6].label = "Salir (mantén)";
         L->n = 7;
     } else if (panel_mode == 1) {        /* 0.8.2: a value row: <- / -> change it */
-        group_add_badge(&L->g[0], ICON_DPAD_LR, L->icon);  L->g[0].label = "Change";
-        group_add_badge(&L->g[1], ICON_CIRCLE, L->icon);   L->g[1].label = "Back";
+        group_add_badge(&L->g[0], ICON_DPAD_LR, L->icon);  L->g[0].label = "Cambiar";
+        group_add_badge(&L->g[1], ICON_CIRCLE, L->icon);   L->g[1].label = "Volver";
         L->n = 2;
     } else if (panel_mode == 5) {        /* the About card */
-        group_add_badge(&L->g[0], ICON_CIRCLE, L->icon);   L->g[0].label = "Back";
+        group_add_badge(&L->g[0], ICON_CIRCLE, L->icon);   L->g[0].label = "Volver";
         L->n = 1;
     } else if (panel_mode == 3) {
-        group_add_badge(&L->g[0], ICON_CROSS, L->icon);    L->g[0].label = "Launch";
-        group_add_badge(&L->g[1], ICON_TRIANGLE, L->icon); L->g[1].label = "Game Settings";
-        group_add_badge(&L->g[2], ICON_CIRCLE, L->icon);   L->g[2].label = "Back";
+        group_add_badge(&L->g[0], ICON_CROSS, L->icon);    L->g[0].label = "Jugar";
+        group_add_badge(&L->g[1], ICON_TRIANGLE, L->icon); L->g[1].label = "Ajustes del juego";
+        group_add_badge(&L->g[2], ICON_CIRCLE, L->icon);   L->g[2].label = "Volver";
         L->n = 3;
     } else {
         group_add_badge(&L->g[0], ICON_CROSS, L->icon);
-        L->g[0].label = panel_mode == 4 ? "Select" : panel_mode >= 2 ? "Launch" : "Change";
-        group_add_badge(&L->g[1], ICON_CIRCLE, L->icon);   L->g[1].label = "Back";
+        L->g[0].label = panel_mode == 4 ? "Elegir" : panel_mode >= 2 ? "Jugar" : "Cambiar";
+        group_add_badge(&L->g[1], ICON_CIRCLE, L->icon);   L->g[1].label = "Volver";
         L->n = 2;
     }
     {
@@ -1865,7 +1865,7 @@ static void draw_bar(const App *a, float alpha)
 {
     BarLayout main_l, panel_l, sel_l, disp_l, about_l;
     float pe = ease_out_cubic(a->panel_anim), de = ease_in_out(a->display_t), ab = ease_in_out(a->about_t);
-    static float g_bar_sel = 0.0f;      /* 0: "Change" (a value row), 1: "Select" (a group or an action) */
+    static float g_bar_sel = 0.0f;      /* 0: "Cambiar" (a value row), 1: "Elegir" (a group or an action) */
     static double g_bar_time;
     int want_sel = a->panel != PANEL_NONE && a->row >= 0 && a->row < a->nrows && menu_is_action(a->rows[a->row]);
     float dt = (float)(a->time - g_bar_time);
@@ -2268,7 +2268,7 @@ static void draw_panel(App *a)
     float dt, scroll_y, clip_top, clip_bot;
     uint32_t hot = accent() | 0xFFu;
     char gtitle[64];
-    const char *ptitle = a->panel == PANEL_GAME ? "Game Settings" : a->panel == PANEL_DISC ? "Choose Disc" : "Flow Settings";
+    const char *ptitle = a->panel == PANEL_GAME ? "Ajustes del juego" : a->panel == PANEL_DISC ? "Elegir disco" : "Ajustes generales";
     int page_key = a->panel * 64 + a->flow_group + 1, snap;
     if (a->panel_anim <= 0.0f) return;
     if (per_game) {
@@ -2438,20 +2438,20 @@ static void draw_panel(App *a)
 
 /* ---- About spookyflow (0.8.2): a centered card over Flow Settings ---- */
 static const char *const k_about_features[] = {
-    "Your PS1, PS2 and PS3 games in one cover flow, with their covers and cases",
-    "PS1, PS2 and PS3 games on the internal drive",
-    "PS1 and PS3 games on FAT32 USB drives, PS1 and PS3 ISOs on NTFS / exFAT",
-    "Launched through webMAN MOD, with Auto-Play, emulator, offline and PS2 config options",
-    "Download Missing Covers, multi-disc games, display mode and the A\xE2\x80\x93Z jump",
-    "Eight backgrounds or your own pictures, frosted glass and case lighting",
-    "Background music, sound effects and storage by console",
+    "Tus juegos de PS1, PS2 y PS3 con sus carátulas y estuches",
+    "Juegos de PS1, PS2 y PS3 en el disco interno",
+    "Juegos PS1 y PS3 en USB FAT32 y archivos ISO en NTFS o exFAT",
+    "Inicio con webMAN MOD: modo automático, emulador, sin conexión y ajustes de PS2",
+    "Descarga de carátulas, juegos multidisco, modos de vista y búsqueda A–Z",
+    "Ocho fondos o tus imágenes, efecto de cristal y luz en estuches",
+    "Música de fondo, efectos de sonido y espacio por consola",
 };
 static const char *const k_about_tools[] = {
-    "Made with",
+    "Hecho con",
     "PSL1GHT SDK  \xC2\xB7  Tiny3D  \xC2\xB7  webMAN MOD  \xC2\xB7  mbedTLS",
-    "minimp3 by lieff  \xC2\xB7  DejaVu fonts",
-    "Covers: gamecovers.free.fr  \xC2\xB7  GameTDB  \xC2\xB7  RPDB  \xC2\xB7  xlenore",
-    "Written with Claude by Anthropic",
+    "minimp3 de lieff  \\xC2\\xB7  fuentes DejaVu",
+    "Carátulas: gamecovers.free.fr  \\xC2\\xB7  GameTDB  \\xC2\\xB7  RPDB  \\xC2\\xB7  xlenore",
+    "Desarrollado con Claude de Anthropic",
 };
 
 static void title_line(float lx, float lw, float y, uint32_t hot, float al)
@@ -2485,27 +2485,27 @@ static void draw_about(const App *a)
     d_rrect_stroke(x, y, w, h, r, 0.0035f * H(), sf_col_alpha(glow(accent_or(0xFFFFFF99u, 0.95f)), al));
     yy = y + 0.075f * h / 0.80f;
     wordmark_text(cx, yy, 0.068f * H() * sc, al);
-    snprintf(ver, sizeof(ver), "Version %s", APP_VERSION);
+    snprintf(ver, sizeof(ver), "Versión %s", APP_VERSION);
     yy += 0.058f * H() * sc;
     d_text(&g_font_main, cx, yy, 0.022f * H() * sc, sf_col_alpha(TH_TEXT_DIM, al), ver, ALIGN_CENTER);
     yy += 0.036f * H() * sc;
     title_line(cx - iw * 0.5f, iw, yy, hot, al);
     yy += 0.068f * H() * sc;
     d_text_box(&g_font_main, cx, yy, iw, 0.025f * H() * sc, 3, sf_col_alpha(TH_TEXT_DIM, al),
-               "A cover-flow launcher for the PlayStation 3. Browse your games with their real covers and cases, "
-               "change how each one starts, and launch it in a press.");
+               "Un lanzador de juegos para PlayStation 3. Explora tu colección con sus carátulas y estuches, "
+               "ajusta cómo iniciar cada juego y ejecútalo con un botón.");
     yy += 0.076f * H() * sc;
-    d_text(&g_font_main, cx, yy, 0.027f * H() * sc, sf_col_alpha(sf_col_mix(hot, 0xFFFFFFFFu, 0.45f), al), "Features", ALIGN_CENTER);
+    d_text(&g_font_main, cx, yy, 0.027f * H() * sc, sf_col_alpha(sf_col_mix(hot, 0xFFFFFFFFu, 0.45f), al), "Funciones", ALIGN_CENTER);
     yy += 0.044f * H() * sc;
     for (i = 0; i < (int)(sizeof(k_about_features) / sizeof(k_about_features[0])); i++) {
         d_text_fit(&g_font_main, cx, yy, 0.0225f * H() * sc, sf_col_alpha(TH_TEXT_DIM, al), k_about_features[i], ALIGN_CENTER, iw);
         yy += 0.031f * H() * sc;   /* 1.1: seven features, five credits */
     }
     yy += 0.016f * H() * sc;
-    d_text(&g_font_main, cx, yy, 0.027f * H() * sc, sf_col_alpha(sf_col_mix(hot, 0xFFFFFFFFu, 0.45f), al), "Created by spooky", ALIGN_CENTER);
+    d_text(&g_font_main, cx, yy, 0.027f * H() * sc, sf_col_alpha(sf_col_mix(hot, 0xFFFFFFFFu, 0.45f), al), "Creado por spooky", ALIGN_CENTER);
     yy += 0.044f * H() * sc;
     for (i = 0; i < (int)(sizeof(k_about_tools) / sizeof(k_about_tools[0])); i++) {
-        /* "Made with" first, a little brighter (0.8.4: swapped with "Created by spooky") */
+        /* "Hecho con" first, a little brighter (0.8.4: swapped with "Creado por spooky") */
         d_text_fit(&g_font_main, cx, yy, 0.0225f * H() * sc, sf_col_alpha(TH_TEXT_DIM, al), k_about_tools[i], ALIGN_CENTER, iw);
         yy += 0.031f * H() * sc;   /* 1.1: seven features, five credits */
     }
@@ -2532,7 +2532,7 @@ static void draw_storage(const App *a)
     d_rrect_glow(x, y, w, h, r, 0.014f * H(), sf_col_alpha(hot, 0.22f * al * (0.6f + 0.4f * g_glow)));
     d_rrect_stroke(x, y, w, h, r, 0.0035f * H(), sf_col_alpha(glow(accent_or(0xFFFFFF99u, 0.95f)), al));
     yy = y + 0.085f * H() * sc;
-    d_text(&g_font_main, cx, yy, 0.045f * H() * sc, sf_col_alpha(TH_TEXT, al), "Storage", ALIGN_CENTER);
+    d_text(&g_font_main, cx, yy, 0.045f * H() * sc, sf_col_alpha(TH_TEXT, al), "Almacenamiento", ALIGN_CENTER);
     yy += 0.045f * H() * sc;
     title_line(lx, iw, yy, hot, al);
     yy += 0.075f * H() * sc;
@@ -2549,25 +2549,25 @@ static void draw_storage(const App *a)
         }
         total += s; ngames += n; unknown += u;
         d_text(&g_font_main, lx, yy, em, sf_col_alpha(head, al), names[p], ALIGN_LEFT);
-        if (n == 0) sf_strlcpy(buf, p == PLAT_BDISO ? "No movies" : "No games", sizeof(buf));
-        else snprintf(buf, sizeof(buf), p == PLAT_BDISO ? "%d movie%s" : "%d game%s", n, n == 1 ? "" : "s");
+        if (n == 0) sf_strlcpy(buf, p == PLAT_BDISO ? "Sin películas" : "Sin juegos", sizeof(buf));
+        else snprintf(buf, sizeof(buf), p == PLAT_BDISO ? "%d película%s" : "%d juego%s", n, n == 1 ? "" : "s");
         d_text(&g_font_main, cx - iw * 0.08f, yy, em, sf_col_alpha(TH_TEXT_DIM, al), buf, ALIGN_CENTER);
-        if (n > 0 && s > 0) sf_format_size(s, sz, sizeof(sz)); else sf_strlcpy(sz, n > 0 ? "Unknown" : "", sizeof(sz));
+        if (n > 0 && s > 0) sf_format_size(s, sz, sizeof(sz)); else sf_strlcpy(sz, n > 0 ? "Desconocido" : "", sizeof(sz));
         d_text(&g_font_main, rxe, yy, em, sf_col_alpha(TH_TEXT, al), sz, ALIGN_RIGHT);
         yy += 0.068f * H() * sc;
     }
     d_rect(lx, yy - 0.036f * H() * sc, iw, 0.0022f * H(), sf_col_alpha(TH_TAB_INACTIVE, al * 2.0f));
     yy += 0.012f * H() * sc;
-    d_text(&g_font_main, lx, yy, em * 1.08f, sf_col_alpha(TH_TEXT, al), "All Media", ALIGN_LEFT);
-    snprintf(buf, sizeof(buf), "%d game%s", ngames, ngames == 1 ? "" : "s");
+    d_text(&g_font_main, lx, yy, em * 1.08f, sf_col_alpha(TH_TEXT, al), "Toda la colección", ALIGN_LEFT);
+    snprintf(buf, sizeof(buf), "%d juego%s", ngames, ngames == 1 ? "" : "s");
     d_text(&g_font_main, cx - iw * 0.08f, yy, em * 1.08f, sf_col_alpha(TH_TEXT_DIM, al), buf, ALIGN_CENTER);
     if (total > 0) sf_format_size(total, sz, sizeof(sz)); else sf_strlcpy(sz, "0 GB", sizeof(sz));
     d_text(&g_font_main, rxe, yy, em * 1.08f, sf_col_alpha(hot, al), sz, ALIGN_RIGHT);
     if (app_sizes_busy(a)) {
-        sf_strlcpy(buf, "Adding up folder games\xE2\x80\xA6", sizeof(buf));
+        sf_strlcpy(buf, "Calculando juegos de carpetas\\xE2\\x80\\xA6", sizeof(buf));
         d_text_fit(&g_font_main, cx, y + h - 0.050f * H() * sc, 0.021f * H() * sc, sf_col_alpha(TH_TEXT_FAINT, al), buf, ALIGN_CENTER, iw);
     } else if (unknown > 0) {
-        snprintf(buf, sizeof(buf), "%d game%s with no size (nothing could be read)", unknown, unknown == 1 ? "" : "s");
+        snprintf(buf, sizeof(buf), "%d juego%s sin tamaño (no se pudieron leer)", unknown, unknown == 1 ? "" : "s");
         d_text_fit(&g_font_main, cx, y + h - 0.050f * H() * sc, 0.021f * H() * sc, sf_col_alpha(TH_TEXT_FAINT, al), buf, ALIGN_CENTER, iw);
     }
 }
@@ -2592,13 +2592,13 @@ static void draw_download(const App *a)
     d_rrect_glow(x, y, w, h, r, 0.014f * H(), sf_col_alpha(hot, 0.22f * al * (0.6f + 0.4f * g_glow)));
     d_rrect_stroke(x, y, w, h, r, 0.0035f * H(), sf_col_alpha(glow(accent_or(0xFFFFFF99u, 0.95f)), al));
     yy = y + 0.080f * H() * sc;
-    d_text_fit(&g_font_main, cx, yy, 0.040f * H() * sc, sf_col_alpha(TH_TEXT, al), "Download Missing Covers", ALIGN_CENTER, iw);
+    d_text_fit(&g_font_main, cx, yy, 0.040f * H() * sc, sf_col_alpha(TH_TEXT, al), "Descargar carátulas faltantes", ALIGN_CENTER, iw);
     yy += 0.042f * H() * sc;
     title_line(lx, iw, yy, hot, al);
     yy += 0.066f * H() * sc;
-    if (busy) snprintf(line, sizeof(line), "Looking for covers\xE2\x80\xA6  %d of %d games", pos, n);
+    if (busy) snprintf(line, sizeof(line), "Buscando carátulas\\xE2\\x80\\xA6 %d de %d juegos", pos, n);
     else if (a->dl_note[0]) sf_strlcpy(line, a->dl_note, sizeof(line));
-    else snprintf(line, sizeof(line), "Done: %d cover%s added", got, got == 1 ? "" : "s");
+    else snprintf(line, sizeof(line), "Listo: %d carátula%s agregada%s", got, got == 1 ? "" : "s", got == 1 ? "" : "s");
     d_text_fit(&g_font_main, cx, yy, em, sf_col_alpha(TH_TEXT, al), line, ALIGN_CENTER, iw);
     yy += 0.050f * H() * sc;
     {   /* the progress bar: a track in the tabs' see-through colour, filled in the UI colour */
@@ -2611,12 +2611,12 @@ static void draw_download(const App *a)
             d_rrect(bx, yy - bh * 0.5f, sf_maxf(bw * shown, bh), bh, rr, sf_col_alpha(glow(accent_or(0xFFFFFFFFu, 1.0f)), al));
     }
     yy += 0.058f * H() * sc;
-    snprintf(line, sizeof(line), "Added %d  \xC2\xB7  Not found %d  \xC2\xB7  Already had one %d", a->dl_got, a->dl_missing, a->dl_have);
+    snprintf(line, sizeof(line), "Nuevas %d  \\xC2\\xB7  No encontradas %d  \\xC2\\xB7  Existentes %d", a->dl_got, a->dl_missing, a->dl_have);
     d_text_fit(&g_font_main, cx, yy, 0.023f * H() * sc, sf_col_alpha(TH_TEXT_DIM, al), line, ALIGN_CENTER, iw);
     yy += 0.040f * H() * sc;
-    if (busy) sf_strlcpy(line, "You can close this: it carries on, covers appear as they arrive", sizeof(line));
-    else if (a->dl_tls) sf_strlcpy(line, "Some sources need HTTPS, which this version can't use yet", sizeof(line));
-    else if (a->dl_noid > 0) snprintf(line, sizeof(line), "%d game%s without a title ID can't be looked up", a->dl_noid, a->dl_noid == 1 ? "" : "s");
+    if (busy) sf_strlcpy(line, "Puedes cerrar: la búsqueda continúa en segundo plano", sizeof(line));
+    else if (a->dl_tls) sf_strlcpy(line, "Algunas fuentes requieren HTTPS no disponible", sizeof(line));
+    else if (a->dl_noid > 0) snprintf(line, sizeof(line), "%d juego%s sin ID de título", a->dl_noid, a->dl_noid == 1 ? "" : "s");
     else line[0] = '\0';
     if (line[0]) d_text_fit(&g_font_main, cx, yy, 0.021f * H() * sc, sf_col_alpha(TH_TEXT_FAINT, al), line, ALIGN_CENTER, iw);
 }
@@ -2709,7 +2709,7 @@ static void draw_music_card(App *a, float ia)
     if (al <= 0.0f) return;
     if (over > 0.0f) off = sf_clampf((t - MCARD_SCROLL_WAIT) * speed, 0.0f, over);
     namew = sf_minf(tw, maxw);
-    namew = sf_maxf(namew, d_text_width(&g_font_main, em_l, "NOW PLAYING") + d_xu(0.05f * H()));
+    namew = sf_maxf(namew, d_text_width(&g_font_main, em_l, "REPRODUCIENDO") + d_xu(0.05f * H()));
     w = d_xu(h * 0.30f) + kw + d_xu(h * 0.22f) + namew + d_xu(h * 0.38f);
     swap = a->music_swap_t < 1.0f && a->music_prev_name[0] ? ease_in_out(a->music_swap_t) : 1.0f;
     if (swap < 1.0f && a->music_prev_w > 0.0f) w = sf_lerp(a->music_prev_w, w, swap);   /* the card eases to the new width */
@@ -2725,9 +2725,9 @@ static void draw_music_card(App *a, float ia)
     d_image(TEX_CATS, kx, ky, kw, kh, sf_col_alpha(0xFFFFFFFFu, al));
     /* label + equalizer, then the song name */
     tx = kx + kw + d_xu(h * 0.22f);
-    d_text(&g_font_main, tx, y + h * 0.32f, em_l, sf_col_alpha(accent_or(TH_TEXT_DIM, 1.0f), al), "NOW PLAYING", ALIGN_LEFT);
+    d_text(&g_font_main, tx, y + h * 0.32f, em_l, sf_col_alpha(accent_or(TH_TEXT_DIM, 1.0f), al), "REPRODUCIENDO", ALIGN_LEFT);
     {
-        float bx = tx + d_text_width(&g_font_main, em_l, "NOW PLAYING") + d_xu(0.010f * H());
+        float bx = tx + d_text_width(&g_font_main, em_l, "REPRODUCIENDO") + d_xu(0.010f * H());
         float bw = d_xu(0.0045f * H()), gap = d_xu(0.0035f * H()), base = y + h * 0.32f + em_l * 0.36f;
         for (i = 0; i < 4; i++) {
             float lv = 0.35f + 0.65f * fabsf(sinf(now * (4.1f + 1.3f * (float)i) + (float)i * 1.7f));
