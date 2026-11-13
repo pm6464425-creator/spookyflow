@@ -50,7 +50,7 @@ jobs:
           mkdir -p build-host
           cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=undefined -Isrc/core src/core/ps2_mount_plan.c tests/test_ps2_mount_plan.c -o build-host/test_ps2_mount_plan
           ./build-host/test_ps2_mount_plan
-      - name: PS2 HEN Classics conversion - 54 safety and integration checks
+      - name: PS2 HEN Classics conversion - 53 safety and integration checks
         run: python3 tests/test_ps2_hen_integration.py
       - name: PS2 HEN actual encrypted ISO AES SHA1 end-to-end round-trip
         run: |
