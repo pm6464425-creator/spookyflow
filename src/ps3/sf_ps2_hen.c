@@ -69,6 +69,7 @@ typedef pthread_t sys_ppu_thread_t;
 #define SF_CLASSICS_OLD SF_CLASSICS_DIR "/ISO.BIN.ENC.sf-old"
 #define SF_CLASSICS_META SF_CLASSICS_DIR "/ISO.BIN.ENC.sf-source"
 #define SF_CLASSICS_META_TMP SF_CLASSICS_DIR "/ISO.BIN.ENC.sf-source-part"
+#define SF_CLASSICS_META_OLD SF_CLASSICS_DIR "/ISO.BIN.ENC.sf-source-old"
 #define SF_CFG_TARGET SF_CLASSICS_DIR "/CONFIG"
 #define SF_CFG_TMP SF_CLASSICS_DIR "/CONFIG.sf-part"
 #define SF_CFG_OWNER SF_CLASSICS_DIR "/CONFIG.sf-source"
@@ -555,37 +556,86 @@ static int write_manifest(const char *source,uint64_t isosize)
     if(fclose(f)!=0)rc=-1;
     return rc;
 }
+/* Finalize without relying on POSIX replace-existing rename semantics.
+ * PS3 filesystems can reject rename(temp, existing_target). Keep the old
+ * image and its matching manifest separately until BOTH are committed. */
 static int finish_atomic(const char *source,uint64_t isosize)
 {
     const char *backup;
     int had_old=exists_file(SF_CLASSICS_IMAGE);
+    int had_meta=exists_file(SF_CLASSICS_META);
+    int meta_saved=0;
     uint64_t size=0;
     FILE *f;uint8_t header[0x90];
     if(file_size(SF_CLASSICS_TMP,&size)!=0 || size<3*SEG)return -35;
     f=fopen(SF_CLASSICS_TMP,"rb");if(!f)return -35;
     if(fread(header,1,sizeof(header),f)!=sizeof(header)){fclose(f);return -35;}
     fclose(f);
-    if(memcmp(header,"PS2\0",4) || size!=expected_size(get64(header+0x88)))return -35;
+    if(memcmp(header,"PS2\\0",4) || size!=expected_size(get64(header+0x88)))return -35;
     if(write_manifest(source,isosize)!=0)return -36;
-    backup=exists_file(SF_CLASSICS_META)?SF_CLASSICS_OLD:SF_CLASSICS_USER_BACKUP;
+    /* Never overwrite an interrupted transaction's recovery copy. */
+    if(exists_file(SF_CLASSICS_META_OLD)){
+        log_printf("PS2_DIAG COMMIT_BLOCKED=MANIFEST_RECOVERY_EXISTS PATH=%s",
+                   SF_CLASSICS_META_OLD);
+        return -43;
+    }
+    backup=had_meta?SF_CLASSICS_OLD:SF_CLASSICS_USER_BACKUP;
     if(had_old){
         if(exists_file(backup))return -37; /* protect existing backup */
-        if(rename(SF_CLASSICS_IMAGE,backup)!=0)return -38;
+        if(rename(SF_CLASSICS_IMAGE,backup)!=0){
+            log_printf("PS2_DIAG COMMIT_FAIL=IMAGE_BACKUP ERRNO=%d",errno);
+            return -38;
+        }
     }
     if(rename(SF_CLASSICS_TMP,SF_CLASSICS_IMAGE)!=0){
-        if(had_old)(void)rename(backup,SF_CLASSICS_IMAGE);
+        int e=errno;
+        if(had_old && rename(backup,SF_CLASSICS_IMAGE)!=0)
+            log_printf("PS2_DIAG ROLLBACK_FAIL=IMAGE_RESTORE ERRNO=%d",errno);
+        log_printf("PS2_DIAG COMMIT_FAIL=IMAGE_INSTALL ERRNO=%d",e);
         return -39;
     }
-    /* When replacing an image managed by SpookyFlow, keep a rollback until
-     * both the encrypted image and its associated metadata are committed. */
-    if(rename(SF_CLASSICS_META_TMP,SF_CLASSICS_META)!=0){
-        (void)remove(SF_CLASSICS_IMAGE);
-        if(had_old)(void)rename(backup,SF_CLASSICS_IMAGE);
-        return -40;
+    /* Remove the old destination from the way BEFORE promoting the new
+     * manifest: rename(temp, target) may not replace an existing file on PS3. */
+    if(had_meta){
+        if(rename(SF_CLASSICS_META,SF_CLASSICS_META_OLD)!=0){
+            int e=errno;
+            log_printf("PS2_DIAG COMMIT_FAIL=MANIFEST_BACKUP ERRNO=%d",e);
+            goto rollback_image;
+        }
+        meta_saved=1;
     }
-    if(had_old && strcmp(backup,SF_CLASSICS_OLD)==0)
-        (void)remove(SF_CLASSICS_OLD);
-    return 0; /* leave external user's original encrypted file backed up */
+    if(rename(SF_CLASSICS_META_TMP,SF_CLASSICS_META)!=0){
+        int e=errno;
+        log_printf("PS2_DIAG COMMIT_FAIL=MANIFEST_INSTALL ERRNO=%d",e);
+        if(meta_saved){
+            if(rename(SF_CLASSICS_META_OLD,SF_CLASSICS_META)!=0){
+                log_printf("PS2_DIAG ROLLBACK_FAIL=MANIFEST_RESTORE ERRNO=%d",errno);
+                /* Both images and both manifests remain available. */
+                return -44;
+            }
+        }
+        goto rollback_image;
+    }
+    if(meta_saved && remove(SF_CLASSICS_META_OLD)!=0)
+        log_printf("PS2_DIAG COMMIT_WARN=MANIFEST_BACKUP_CLEANUP ERRNO=%d",errno);
+    if(had_old && strcmp(backup,SF_CLASSICS_OLD)==0 &&
+       remove(SF_CLASSICS_OLD)!=0)
+        log_printf("PS2_DIAG COMMIT_WARN=IMAGE_BACKUP_CLEANUP ERRNO=%d",errno);
+    log_printf("PS2_DIAG COMMIT_RESULT=OK MANIFEST_REPLACED=%d",had_meta);
+    return 0;
+rollback_image:
+    /* Do not destroy the only valid image if restoring the previous
+     * one fails; preserve the backup for forensic recovery. */
+    if(remove(SF_CLASSICS_IMAGE)!=0){
+        log_printf("PS2_DIAG ROLLBACK_FAIL=NEW_IMAGE_REMOVAL ERRNO=%d",errno);
+        return -44;
+    }
+    if(had_old && rename(backup,SF_CLASSICS_IMAGE)!=0){
+        log_printf("PS2_DIAG ROLLBACK_FAIL=IMAGE_RESTORE ERRNO=%d",errno);
+        return -44;
+    }
+    log_printf("PS2_DIAG COMMIT_RESULT=ROLLED_BACK");
+    return -40;
 }
 /* Streaming state converts a single cooked 2048-byte CD data track
  * to genuine 2352 Mode2/Form1 sectors; it does not reencode files in RAM,
@@ -691,6 +741,7 @@ static int perform_conversion(const char *path)
     /* Source integrity: reject media changed during the conversion. */
     {uint64_t size_after=0;
       if(file_size(path,&size_after)!=0 || size_after!=size){rc=-45;goto cleanup;}}
+    record("FINALIZANDO",path,0,100);
     rc=finish_atomic(path,size);
     if(rc==0)rc=ps2_stage_config(s_job.gameid);
 cleanup:
