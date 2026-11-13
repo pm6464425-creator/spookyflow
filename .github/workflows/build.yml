@@ -63,6 +63,13 @@ jobs:
              -o build-host/test_ps1_file_match
           ./build-host/test_ps1_file_match
           python3 tests/test_ps1_name_resolver_integration.py
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined \
+             -fno-omit-frame-pointer -DSF_SINGLE_DIAG_FILE=1 \
+             -Isrc/core -Isrc/ps3 \
+             src/core/log.c src/core/sf_ps1_file_match.c \
+             src/ps3/sf_ps1_resolve.c tests/test_ps1_resolve_real_fs.c \
+             -o build-host/test_ps1_resolve_real_fs
+          ./build-host/test_ps1_resolve_real_fs
       - name: V15.25 PS1 28 BIN / 28 tracks and audio CUE validation
         run: |
           mkdir -p build-host
