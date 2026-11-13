@@ -54,6 +54,15 @@ jobs:
         run: python3 tests/test_ps2_hen_integration.py
       - name: V15.21 PS2 HEN XMB autoplay - 24 safety checks
         run: python3 tests/test_ps2_hen_autoplay.py
+      - name: V15.25 PS1 28 BIN / 28 tracks and audio CUE validation
+        run: |
+          mkdir -p build-host
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined \
+             -fno-omit-frame-pointer -Isrc/core \
+             src/core/sf_ps1_multibin.c tests/test_ps1_multibin.c \
+             -o build-host/test_ps1_multibin
+          ./build-host/test_ps1_multibin
+          python3 tests/test_ps1_multibin_integration.py
       - name: V15.24 PS1 diagnostic-only single file and no blind webMAN fallback
         run: python3 tests/test_ps1_diag_v15_24.py
       - name: V15.23 PS1 native Cobra and CUE safety checks
@@ -432,6 +441,23 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title "SpookyFlow V15.21 - Inicio PS2 Classics automatico desde XMB (experimental)" \
             --notes "Envía orden local a webMAN tras preparar el PS2 Classics Launcher (PS2U10000); espera al XMB, luego inicia automáticamente. Sin webMAN conserva inicio manual. Mantiene la V15.20, CONFIG, PS1, PS3, BDISO y único diagnóstico. Pruebas automáticas, no validado en PS3 HEN física."
+      - name: Publish V15.25 PS1 Redump multi-BIN autodetect and Cobra (experimental)
+        if: github.ref == 'refs/heads/fix/v15-25-ps1-multibin-cobra-auto'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-25-ps1-multibin-cobra-auto" --jq '.commit.sha')
+          if [ "$GITHUB_SHA" != "$current" ]; then
+            echo "Skipping outdated build"
+            exit 0
+          fi
+          short="${GITHUB_SHA:0:8}"
+          cp spookyflow.pkg SPOOKYFLOW_V15_25_PS1_MULTIBIN_COBRA_HEN.pkg
+          gh release create "spookyflow-v15-25-ps1-multibin-${short}" \
+            SPOOKYFLOW_V15_25_PS1_MULTIBIN_COBRA_HEN.pkg \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "SpookyFlow V15.25 - PS1 CUE 28 BIN Cobra HEN experimental" \
+            --notes "Causa confirmada por diagnostico_ps1.txt de Tekken USA: FILE_COUNT=28 TRACK_COUNT=28, la version anterior solo aceptaba un BIN y webMAN no estaba activo. Implementa combinacion automatica en hilo separado de 28 BIN Redump (un FILE por TRACK, MODE2/2352 y AUDIO) a un solo BIN cacheado dentro de /dev_hdd0/tmp/spookyflow/ps1_unido_<hash>.bin; conserva audio CDDA e indices 00/01 y PREGAP, ajusta LBA y monta directamente con Cobra HEN/CFW, sin webMAN. Usa LV2 64-bit I/O, verifica espacio 64 MiB extra y tamaño, finalizacion atomica, cancela temporales, mantiene los BIN/CUE originales, muestra progreso en interfaz y escribe estados PS1 en diagnostico_ps1.txt unico. Otras configuraciones CUE no cubiertas siguen con respaldo legacy; PS2 V15.22, PS3 y BDISO sin cambios. Pruebas host y PKG PS3 realizadas, prueba real en HEN pendiente."
       - name: Publish V15.24 PS1 focused diagnostic and netemu route (experimental)
         if: github.ref == 'refs/heads/fix/v15-24-ps1-native-focused-diagnostic'
         env:
