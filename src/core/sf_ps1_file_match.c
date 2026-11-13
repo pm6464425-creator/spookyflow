@@ -174,13 +174,13 @@ static int normalize(const char *name,SfPs1MatchKey *key)
         p++;
     }
     key->title[w]=0;
-    if(w==0){
-        /* Some users store an image by serial only: SCES_015.19.bin.
-           Use this as an exact serial match, never as a title guess. */
-        char bare[SF_PS1_MATCH_NAME_MAX],serial[SF_PS1_MATCH_TAG_MAX];
-        compact(name,(size_t)(ext-name),bare,sizeof(bare));
-        if(serial_tag(bare,serial,sizeof(serial))){
+    /* Some users store an image by serial only: SCES_015.19.bin.
+       In that case the filename is an identifier, not a game title. */
+    {
+        char serial[SF_PS1_MATCH_TAG_MAX];
+        if(serial_tag(key->title,serial,sizeof(serial))){
             strcpy(key->serial,serial);
+            key->title[0]=0;
             return 1;
         }
     }
