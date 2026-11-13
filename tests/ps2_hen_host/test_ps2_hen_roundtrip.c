@@ -83,6 +83,7 @@ static void make_fixture(void)
     CHECK(fclose(f)==0);
     write_file(DIR "/EBOOT.BIN","dummy",5);
     write_file(IMAGE,"EXISTING USER CLASSICS GAME",27);
+    write_file(DIR "/CONFIG","PREVIOUS USER CONFIG",20);
 }
 int main(void)
 {
@@ -95,8 +96,8 @@ int main(void)
     CHECK(system("rm -rf build-host/ps2hen")==0);
     make_fixture();
     SHA1(base_data,sizeof(base_data),original_sha);
-    CHECK(sf_ps2_hen_start("build-host/ps2hen/PS2ISO/no.iso")<0);
-    rc=sf_ps2_hen_start(ISO);
+    CHECK(sf_ps2_hen_start("build-host/ps2hen/PS2ISO/no.iso",NULL)<0);
+    rc=sf_ps2_hen_start(ISO,"SLUS_201.74");
     CHECK(rc==0);
     CHECK(wait_done()==1);
     CHECK(size_file(ISO)==sizeof(base_data));
@@ -105,6 +106,14 @@ int main(void)
      SHA1(buf,sizeof(buf),next_sha);CHECK(!memcmp(original_sha,next_sha,20));}
     fclose(f);
     CHECK(size_file(USER_BACKUP)==27);
+    CHECK(size_file(DIR "/CONFIG.sf-original")==20);
+    CHECK(size_file(DIR "/CONFIG")==49152);
+    {FILE *cfg=fopen(DIR "/CONFIG","rb");unsigned char head[0x90];
+     CHECK(cfg!=NULL);
+     CHECK(fread(head,1,sizeof(head),cfg)==sizeof(head));
+     CHECK(!memcmp(head,"PS2\\0",4));
+     CHECK(!memcmp(head+0x10,"2P0001-PS2U10000_00-0000111122223333",36));
+     CHECK(fclose(cfg)==0);}
     f=fopen(USER_BACKUP,"rb");CHECK(f!=NULL);
     {char buf[28]={0};CHECK(fread(buf,1,27,f)==27);CHECK(strcmp(buf,"EXISTING USER CLASSICS GAME")==0);}
     fclose(f);
@@ -150,13 +159,13 @@ int main(void)
         }
     }
     CHECK(fclose(f)==0);
-    CHECK(sf_ps2_hen_start(ISO)==1); /* cache skip */
+    CHECK(sf_ps2_hen_start(ISO,"SLUS_201.74")==1); /* cache skip */
     CHECK(size_file(DIR "/ISO.BIN.ENC.sf-part")==0); /* no leftover partial */
     CHECK(size_file(DIR "/ISO.BIN.ENC.sf-source")>0);
     /* Same name and size, modified contents: must invalidate the cache. */
     f=fopen(ISO,"rb+");CHECK(f!=NULL);
     CHECK(fputc(0xF2,f)!=EOF);CHECK(fclose(f)==0);
-    CHECK(sf_ps2_hen_start(ISO)==0);
+    CHECK(sf_ps2_hen_start(ISO,"SLUS_201.74")==0);
     CHECK(wait_done()==1);
     CHECK(size_file(USER_BACKUP)==27);
     CHECK(size_file(DIR "/ISO.BIN.ENC.sf-old")==0);
@@ -167,7 +176,7 @@ int main(void)
      cd[0x9318]=1;memcpy(cd+0x9319,"CD001",5);
      cd[0x936c]=0x32;cd[0x936d]=0x01;
      write_file(cdpath,cd,sizeof(cd));
-     CHECK(sf_ps2_hen_start(cdpath)==0);
+     CHECK(sf_ps2_hen_start(cdpath,NULL)==0);
      CHECK(wait_done()==1);
      f=fopen(IMAGE,"rb");CHECK(f!=NULL);
      CHECK(fseeko(f,(off_t)((2u+blocks-1u)*SEG),SEEK_SET)==0);
@@ -180,7 +189,7 @@ int main(void)
     }
     /* A corrupt ISO must not replace the valid previously prepared image. */
     {static unsigned char bad[0x20000];write_file(ROOT "/PS2ISO/bad.iso",bad,sizeof(bad));}
-    CHECK(sf_ps2_hen_start(ROOT "/PS2ISO/bad.iso")==0);
+    CHECK(sf_ps2_hen_start(ROOT "/PS2ISO/bad.iso",NULL)==0);
     CHECK(wait_done()<0);
     CHECK(size_file(IMAGE)==expected);
     CHECK(size_file(DIR "/ISO.BIN.ENC.sf-part")==0);

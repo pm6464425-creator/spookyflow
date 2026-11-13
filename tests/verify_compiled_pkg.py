@@ -89,6 +89,14 @@ def verify(package):
     assert len(rawiso) == 7930 and rawiso[:4] == b"SCE\x00", (
         "Invalid embedded raw_iso.sprx",len(rawiso))
 
+    # Exact encrypted PS2 Classics Rumble Racing CONFIG must be in the real
+    # installable PKG, not merely mentioned by source code or a CI fixture.
+    cfg = files["USRDIR/ps2configs/SLUS_201.74.ENC"]
+    assert cfg[:4] == bytes((80,83,50,0)) and len(cfg) == 49152, "Rumble encrypted CONFIG missing or invalid"
+    assert cfg[0x10:0x34] == b"2P0001-PS2U10000_00-0000111122223333", "Wrong placeholder CID"
+    assert cfg == Path("pkgfiles/USRDIR/ps2configs/SLUS_201.74.ENC").read_bytes()
+    print("PASS embedded Rumble Racing encrypted CONFIG, size:", len(cfg))
+
     icon = files["ICON0.PNG"]
     expected = Path("pkgfiles/ICON0.PNG").read_bytes()
     assert icon == expected, "Embedded XMB icon differs from new source image"

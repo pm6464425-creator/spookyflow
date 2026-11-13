@@ -1454,7 +1454,10 @@ static void launch_disc(App *a, int disc)
                     app_show_toast(a, "Preparación PS2 Classics no disponible");
                     return;
                 }
-                result = a->host.ps2_hen_start(path);
+                {char gid[16]="";
+                 (void)ps2_disc_id(a,path,lib_str(a->lib,d ? d->id : g->id),gid,sizeof(gid));
+                 log_printf("ps2 hen: detected disc ID=%s",gid[0]?gid:"unknown");
+                 result = a->host.ps2_hen_start(path,gid);}
                 if (result < 0) {
                     log_printf("ps2 hen: staging refused rc=%d for %s",result,path);
                     if (result == -64)

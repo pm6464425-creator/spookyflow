@@ -49,6 +49,19 @@ typedef pthread_t sys_ppu_thread_t;
 #define SF_CLASSICS_OLD SF_CLASSICS_DIR "/ISO.BIN.ENC.sf-old"
 #define SF_CLASSICS_META SF_CLASSICS_DIR "/ISO.BIN.ENC.sf-source"
 #define SF_CLASSICS_META_TMP SF_CLASSICS_DIR "/ISO.BIN.ENC.sf-source-part"
+#define SF_CFG_TARGET SF_CLASSICS_DIR "/CONFIG"
+#define SF_CFG_TMP SF_CLASSICS_DIR "/CONFIG.sf-part"
+#define SF_CFG_OWNER SF_CLASSICS_DIR "/CONFIG.sf-source"
+#define SF_CFG_OWNER_TMP SF_CLASSICS_DIR "/CONFIG.sf-source-part"
+#define SF_CFG_OLD SF_CLASSICS_DIR "/CONFIG.sf-old"
+#define SF_CFG_ORIGINAL SF_CLASSICS_DIR "/CONFIG.sf-original"
+#ifdef SF_PS2_HEN_HOST_TEST
+#define SF_CFG_PACKAGED "pkgfiles/USRDIR/ps2configs/SLUS_201.74.ENC"
+#define SF_CFG_INSTALLED "build-host/ps2hen/PS2CONFIG/CONFIG/ENC/"
+#else
+#define SF_CFG_PACKAGED "/dev_hdd0/game/SPKF00001/USRDIR/ps2configs/SLUS_201.74.ENC"
+#define SF_CFG_INSTALLED "/dev_hdd0/game/PS2CONFIG/USRDIR/CONFIG/ENC/"
+#endif
 
 #define SEG 0x4000u
 #define BLOCKS_PER_META 512u
@@ -56,6 +69,7 @@ typedef pthread_t sys_ppu_thread_t;
 #define MAX_INPUT (10ULL*1024ULL*1024ULL*1024ULL)
 typedef struct {
     char path[SF_PS2_MAX_PATH];
+    char gameid[16];     /* Read-only per-game ID, used only for encrypted CONFIG. */
     volatile int state; /* 0 idle, 2 working, 1 ready, negative error */
     volatile int progress;
     volatile int cancel;
@@ -261,6 +275,106 @@ static int ready_manifest(const char *source,uint64_t isosize)
     expected=expected_size(get64(h+0x88));
     return !memcmp(h,"PS2\0",4) && installed==expected;
 }
+/* Only an already-encrypted CONFIG for the exact disc ID is installed.
+ * Never reuse raw GX/SOFT configuration bytes as encrypted PS2 Classics.
+ * PS2CONFIG ENC is authoritative; the bundled Rumble Racing patch is fallback.
+ */
+static int ps2_valid_gameid(const char *id)
+{
+    int i;
+    if(!id || strlen(id)!=11 || id[4]!='_' || id[8]!='.')return 0;
+    for(i=0;i<4;i++)if(id[i]<'A'||id[i]>'Z')return 0;
+    for(i=5;i<11;i++)if(i!=8 && (id[i]<'0'||id[i]>'9'))return 0;
+    return 1;
+}
+static int ps2_config_source(const char *id,char out[SF_PS2_MAX_PATH])
+{
+    if(!ps2_valid_gameid(id))return 0;
+    if(snprintf(out,SF_PS2_MAX_PATH,"%s%s.ENC",SF_CFG_INSTALLED,id)>=SF_PS2_MAX_PATH)return 0;
+    if(exists_file(out))return 1;
+    if(!strcmp(id,"SLUS_201.74") && exists_file(SF_CFG_PACKAGED)){
+        strcpy(out,SF_CFG_PACKAGED);
+        return 1;
+    }
+    out[0]=0;
+    return 0;
+}
+static int verify_cfg(const char *path)
+{
+    unsigned char head[0x90];uint64_t size=0,vsize;FILE *f;
+    if(file_size(path,&size)!=0 || size<3*SEG || size>2*1024*1024)return 0;
+    f=fopen(path,"rb");if(!f)return 0;
+    if(fread(head,1,sizeof(head),f)!=sizeof(head)){fclose(f);return 0;}
+    fclose(f);
+    vsize=get64(head+0x88);
+    return !memcmp(head,"PS2\0",4) && !memcmp(head+0x10,CID,36) &&
+           vsize>0 && vsize<=0x20000 && size==expected_size(vsize);
+}
+static int ps2_stage_config(const char *id)
+{
+    char src[SF_PS2_MAX_PATH]={0};
+    char marker[SF_PS2_MAX_PATH+64];
+    const char *backup;
+    FILE *in=NULL,*out=NULL,*f;
+    unsigned char buf[8192];
+    size_t n;
+    int managed=exists_file(SF_CFG_OWNER),has_source=ps2_config_source(id,src),had_old;
+    if(exists_file(SF_CFG_OLD))return -81;
+    if(!has_source) {
+        /* No matching PS2 Classics patch: do not carry an old managed
+         * CONFIG into an unrelated game. Preserve third-party originals. */
+        if(managed && exists_file(SF_CFG_TARGET)){
+            if(rename(SF_CFG_TARGET,SF_CFG_OLD)!=0)return -82;
+            if(remove(SF_CFG_OLD)!=0) return -83;
+        }
+        if(managed)(void)remove(SF_CFG_OWNER);
+        return 0;
+    }
+    if(!verify_cfg(src))return -84; /* Never install an invalid .ENC */
+    if(snprintf(marker,sizeof(marker),"SF-PS2-CONFIG %s %s\n",id,src)>=(int)sizeof(marker))
+        return -85;
+    f=fopen(SF_CFG_OWNER,"rb");
+    if(f) {
+        char line[SF_PS2_MAX_PATH+64];
+        int same=fgets(line,sizeof(line),f) && strcmp(line,marker)==0;
+        fclose(f);
+        if(same && verify_cfg(SF_CFG_TARGET))return 0;
+    }
+    /* Stage and close a complete encrypted CONFIG before any replacement. */
+    in=fopen(src,"rb");if(!in)return -86;
+    out=fopen(SF_CFG_TMP,"wb");if(!out){fclose(in);return -87;}
+    while((n=fread(buf,1,sizeof(buf),in))>0){
+        if(fwrite(buf,1,n,out)!=n)break;
+    }
+    {int ok=feof(in)&&!ferror(out) && fflush(out)==0;
+     if(fclose(in)!=0)ok=0;
+     if(fclose(out)!=0)ok=0;
+     in=NULL;out=NULL;
+     if(!ok || !verify_cfg(SF_CFG_TMP)){(void)remove(SF_CFG_TMP);return -88;}
+    }
+    f=fopen(SF_CFG_OWNER_TMP,"wb");
+    if(!f){(void)remove(SF_CFG_TMP);return -89;}
+    {int ok=fputs(marker,f)!=EOF && fflush(f)==0;
+     if(fclose(f)!=0)ok=0;
+     if(!ok){(void)remove(SF_CFG_OWNER_TMP);(void)remove(SF_CFG_TMP);return -89;}}
+    had_old=exists_file(SF_CFG_TARGET);
+    backup=managed?SF_CFG_OLD:SF_CFG_ORIGINAL;
+    if(had_old && exists_file(backup)){(void)remove(SF_CFG_TMP);(void)remove(SF_CFG_OWNER_TMP);return -90;}
+    if(had_old && rename(SF_CFG_TARGET,backup)!=0){(void)remove(SF_CFG_TMP);(void)remove(SF_CFG_OWNER_TMP);return -91;}
+    if(rename(SF_CFG_TMP,SF_CFG_TARGET)!=0){
+        if(had_old)(void)rename(backup,SF_CFG_TARGET);
+        (void)remove(SF_CFG_OWNER_TMP);
+        return -92;
+    }
+    if(rename(SF_CFG_OWNER_TMP,SF_CFG_OWNER)!=0){
+        (void)remove(SF_CFG_TARGET);
+        if(had_old)(void)rename(backup,SF_CFG_TARGET);
+        return -93;
+    }
+    if(had_old && managed)(void)remove(SF_CFG_OLD);
+    log_printf("ps2 hen: encrypted CONFIG %s installed for %s",src,id);
+    return 0;
+}
 static int write_manifest(const char *source,uint64_t isosize)
 {
     FILE *f=fopen(SF_CLASSICS_META_TMP,"wb");int rc=0;
@@ -315,7 +429,7 @@ static int perform_conversion(const char *path)
     int rc=-30,had_limg=0;
     mbedtls_aes_init(&aes_data);mbedtls_aes_init(&aes_meta);
     if(file_size(path,&size)!=0){rc=-20;goto cleanup;}
-    if(ready_manifest(path,size)){rc=0;goto cleanup;}
+    if(ready_manifest(path,size)){rc=ps2_stage_config(s_job.gameid);goto cleanup;}
     in=fopen(path,"rb");if(!in){rc=-20;goto cleanup;}
     blk=malloc(SEG);meta=malloc(SEG);header=malloc(SEG);limg=malloc(SEG);
     if(!blk || !meta || !header || !limg){rc=-31;goto cleanup;}
@@ -373,6 +487,7 @@ static int perform_conversion(const char *path)
     {uint64_t size_after=0;
       if(file_size(path,&size_after)!=0 || size_after!=size){rc=-45;goto cleanup;}}
     rc=finish_atomic(path,size);
+    if(rc==0)rc=ps2_stage_config(s_job.gameid);
 cleanup:
     if(out)fclose(out);
     if(in)fclose(in);
@@ -399,7 +514,7 @@ static void *ps2_host_entry(void *arg)
 }
 #endif
 #endif /* SF_HAVE_TLS */
-int sf_ps2_hen_start(const char *path)
+int sf_ps2_hen_start(const char *path,const char *gameid)
 {
     uint64_t s=0;
     int n;
@@ -421,10 +536,15 @@ int sf_ps2_hen_start(const char *path)
 #ifndef SF_HAVE_TLS
     (void)n;return -65;
 #else
-    if(ready_manifest(path,s))return 1;
+    if(ready_manifest(path,s)) {
+        int cfg=ps2_stage_config(gameid);
+        return cfg<0?cfg:1;
+    }
     if(strlen(path)>=sizeof(s_job.path))return -61;
     if(exists_file(SF_CLASSICS_OLD))return -66;
     strcpy(s_job.path,path);
+    s_job.gameid[0]=0;
+    if(ps2_valid_gameid(gameid))strcpy(s_job.gameid,gameid);
     s_job.progress=0;s_job.cancel=0;s_job.state=2;
     __sync_synchronize();
 #ifdef SF_PS2_HEN_HOST_TEST

@@ -56,3 +56,16 @@ todavía automáticamente un CONFIG cifrado. No se promete compatibilidad univer
 
 Adaptaciones y atribuciones: GPL-3.0-or-later. La redistribución del código
 fuente correspondiente y sus avisos de licencia debe mantenerse.
+
+## CONFIG especial de Rumble Racing (SLUS_201.74)
+
+Incorpora en el PKG el archivo cifrado de PS2CONFIG de aldostools
+`USRDIR/ps2configs/SLUS_201.74.ENC`, identificado para Rumble Racing.
+Si está instalado PS2CONFIG, se prioriza el archivo ENC con el ID exacto; si
+no, se utiliza el respaldo incluido de este juego. Una configuración sin el
+ID correcto nunca se aplica indiscriminadamente a otro juego.
+
+Los archivos originales `ISO.BIN.ENC` y `CONFIG` existentes en PS2 Classics
+Placeholder se protegen con respaldo `.sf-original` antes de ser sustituidos;
+los archivos de SpookyFlow se reconocen mediante marcadores `.sf-source`.
+No se elimina ni se sobrescribe ningún respaldo ajeno existente.

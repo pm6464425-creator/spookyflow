@@ -75,7 +75,7 @@ typedef struct {
      * starts the game). NULL = launching not available. */
     int (*launch)(const char *request);
     /* HEN: asynchronous PS2 Classics converter, no webMAN dependency. */
-    int (*ps2_hen_start)(const char *path);
+    int (*ps2_hen_start)(const char *path,const char *gameid);
     int (*ps2_hen_poll)(int *percent);
     /* PS2: read-only preflight then local Cobra mount; independent of webMAN. */
     int (*ps2_preflight)(const char *path);

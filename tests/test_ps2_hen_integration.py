@@ -11,7 +11,7 @@ main=get("src/ps3/main.c")
 cfw=get("src/ps3/sf_ps2_mount.c")
 ci=get("ci/build_ps3.sh")
 checks={
- "01 async conversion launch hook": "int (*ps2_hen_start)(const char *path);" in apph,
+ "01 async conversion launch hook": "int (*ps2_hen_start)(const char *path,const char *gameid);" in apph,
  "02 converter polling hook": "int (*ps2_hen_poll)(int *percent);" in apph,
  "03 HEN start callback installed": "host.ps2_hen_start = sf_ps2_hen_start;" in main,
  "04 HEN poll callback installed": "host.ps2_hen_poll = sf_ps2_hen_poll;" in main,
@@ -19,7 +19,7 @@ checks={
  "06 PS3 Cobra callback preserved": "host.launch_ps3 = sf_cobra_mount_ps3;" in main,
  "07 BDISO callback preserved": "host.launch_bdiso = launch_bdiso;" in main,
  "08 original PS1 webMAN callback preserved": "host.launch = launch_via_webman;" in main,
- "09 HEN path before CONFIG and CFW mounting": app.index("if (result == -41) {") < app.index("ps2cfg_apply(a, path, lib_str",app.index("if (a->tab == PLAT_PS2")),
+ "09 HEN path before CONFIG and CFW mounting": app.index("if (result == -41) {") < app.index("ps2cfg_apply(a, path, lib_str",app.index("if (a->tab == PLAT_PS2")) and "ps2_disc_id(a,path" in app,
  "10 no webMAN network in HEN converter": all(x not in hen for x in ("webman_get","127.0.0.1", "ps3_webman")),
  "11 existing PS2 Classics Placeholder required": '"/EBOOT.BIN"' in hen and "if(!exists_file(SF_CLASSICS_EBOOT))return -64;" in hen,
  "12 universal PS2U10000 target": '"/dev_hdd0/game/PS2U10000/USRDIR"' in hen,
@@ -46,6 +46,12 @@ checks={
  "33 UI progress and controller lock": 'if (a->ps2_hen_busy && a->host.ps2_hen_poll)' in app and 'return; /* ignore controller inputs until the file is committed */' in app,
  "34 retains original 60fps coverflow animation": "animate(a,dt); /* keep moving the original stage/UI at 60 fps */" in app,
  "35 system exit requests cancellation": "sf_ps2_hen_cancel();" in main,
+ "36 selects per-game encrypted CONFIG": "ps2_config_source(const char *id" in hen and "SLUS_201.74" in hen,
+ "37 packaged encrypted CONFIG fallback": '"/dev_hdd0/game/SPKF00001/USRDIR/ps2configs/SLUS_201.74.ENC"' in hen,
+ "38 previous user CONFIG backed up": "SF_CFG_ORIGINAL" in hen and "rename(SF_CFG_TARGET,backup)" in hen,
+ "39 invalid encrypted CONFIG rejected": "if(!verify_cfg(src))return -84;" in hen,
+ "40 config prepared on cache hit": "int cfg=ps2_stage_config(gameid);" in hen,
+ "41 config stage before image success status": "if(rc==0)rc=ps2_stage_config(s_job.gameid);" in hen,
 }
 for k,ok in checks.items():print(("PASS" if ok else "FAIL"),k)
 print("PS2 HEN static audit %d/%d"%(sum(checks.values()),len(checks)))

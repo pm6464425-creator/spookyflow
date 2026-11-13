@@ -17,3 +17,9 @@ separate binary. No game data or copyrighted game artwork is included.
 See LICENSE and COPYING-IRISMAN where applicable; if the repository has no
 global GPL text, the GPLv3 license can be read at:
   https://www.gnu.org/licenses/gpl-3.0.txt
+
+Special encrypted PS2 Classics CONFIG for Rumble Racing (SLUS_201.74):
+  Source: aldostools/webMAN-MOD
+  _Projects_/updater/PS2CONFIG/USRDIR/CONFIG/ENC/SLUS_201.74.ENC
+  SHA-1 Git blob: b0784125ddec8edfa8d95f3649361bc0c9b1471b
+Distributed as pkgfiles/USRDIR/ps2configs/SLUS_201.74.ENC.
