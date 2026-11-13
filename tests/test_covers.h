@@ -489,6 +489,92 @@ static void test_ps1_cue_bin_track_grouping(void)
     memfs_reset();
 }
 
+/* V15.11 regressions for the actual two remaining user games.
+ * Golden Leon is a separate Russian ROM hack with its own LaunchBox
+ * packaging. Do NOT use the retail Tekken 3 cover just because its
+ * internal boot title ID is the same. The correct selected cover must
+ * save under the exact user's CUE filename for lookup/rendering. */
+static int g_ps1_special_http_hits,g_ps1_special_http_wrong;
+static int ps1_remaining_covers_mock_http(void *ctx,const char *url,
+                                           uint8_t *buf,uint32_t cap,
+                                           uint32_t *len,char *loc,size_t loc_cap)
+{
+    static const char *const golden=
+        "https://images.launchbox-app.com/817f6c51-f659-4f8f-b0f2-40a486b39b60.png";
+    static const char *const ace=
+        "https://thumbnails.libretro.com/Sony%20-%20PlayStation/Named_Boxarts/Ace%20Combat%203%20-%20Electrosphere%20(USA).png";
+    (void)ctx;
+    if(loc_cap)loc[0]=0;
+    *len=0;
+    if(strcmp(url,golden)!=0&&strcmp(url,ace)!=0){
+        g_ps1_special_http_wrong++;
+        return 404;
+    }
+    if(cap<120)return COVER_HTTP_BIG;
+    memset(buf,0,120);
+    memcpy(buf,"\x89PNG\r\n\x1a\n",8);
+    *len=120;
+    g_ps1_special_http_hits++;
+    return 200;
+}
+static void test_ps1_ace_and_golden_leon_cover_download(void)
+{
+    CoverIO io;
+    CoverDl d;
+    CoverDlItem item;
+    const char *index=
+        "Ace Combat 3 - Electrosphere (USA).png\n"
+        "Ace Combat 3 - Electrosphere (Europe) (En,Fr,De,Es,It).png\n"
+        "Tekken 3 (USA).png\n";
+    printf("PS1 Ace Combat 3 and Golden Leon: real official/hack cover lookup\n");
+    memfs_reset();
+    mem_io(&io,"/cache");
+    memfs_put(PS1_BOXART_INDEX,index,(uint32_t)strlen(index));
+    /* Retail Tekken 3 art preexists; it is NOT Golden Leon's art. */
+    memfs_put(COVER_DL_DIR "/SLUS00402.jpg","IMG 96 96 0 0 0 255",18);
+    memset(&item,0,sizeof(item));
+    item.plat=PLAT_PS1;
+    sf_strlcpy(item.path,"/dev_hdd0/PSXISO/Tekken 3 OT Golden Leon (MOD).cue",
+               sizeof(item.path));
+    sf_strlcpy(item.id,"SLUS00402",sizeof(item.id));
+    memset(&d,0,sizeof(d));
+    d.item=&item;d.n=1;d.io=&io;
+    d.http=ps1_remaining_covers_mock_http;
+    d.auto_mode=1;
+    g_ps1_special_http_hits=g_ps1_special_http_wrong=0;
+    cover_dl_run(&d);
+    CHECK(d.finished && d.n_got==1 && d.n_have==0);
+    CHECK(g_ps1_special_http_hits==1 && g_ps1_special_http_wrong==0);
+    CHECK(memfs_find(COVER_DL_DIR "/Tekken 3 OT Golden Leon (MOD).png")!=NULL);
+    CHECK(memfs_find(COVER_DL_DIR "/SLUS00402.jpg")!=NULL); /* unchanged */
+    CHECK(cover_has_art(&io,PLAT_PS1,item.path,0,0,""));
+    /* Do not replace the special edition with unrelated standard artwork. */
+    memset(&item,0,sizeof(item));
+    item.plat=PLAT_PS1;
+    sf_strlcpy(item.path,"/dev_hdd0/PSXISO/Ace Combat 3.cue",
+               sizeof(item.path));
+    memset(&d,0,sizeof(d));
+    d.item=&item;d.n=1;d.io=&io;
+    d.http=ps1_remaining_covers_mock_http;
+    d.auto_mode=1;
+    cover_dl_run(&d);
+    CHECK(d.finished && d.n_got==1 && d.n_noid==0);
+    CHECK(g_ps1_special_http_hits==2 && g_ps1_special_http_wrong==0);
+    CHECK(memfs_find(COVER_DL_DIR "/Ace Combat 3.png")!=NULL);
+    CHECK(cover_has_art(&io,PLAT_PS1,item.path,0,0,""));
+    /* A bogus similarly named fighter must not get Golden Leon cover. */
+    memset(&item,0,sizeof(item));
+    item.plat=PLAT_PS1;
+    sf_strlcpy(item.path,"/dev_hdd0/PSXISO/Tekken 3 Fan Tournament.cue",
+               sizeof(item.path));
+    memset(&d,0,sizeof(d));d.item=&item;d.n=1;d.io=&io;
+    d.http=ps1_remaining_covers_mock_http;d.auto_mode=1;
+    cover_dl_run(&d);
+    CHECK(d.finished && d.n_got==0);
+    CHECK(g_ps1_special_http_hits==2);
+    memfs_reset();
+}
+
 /* PS1 V15.10: user reports "Disney Tarzan Latino.cue" with
  * "Disney Tarzan Latino.bin", while real Libretro archive contains
  * "Disney Tarzan (Spain).png". This must download and SAVE the cover
