@@ -1789,7 +1789,7 @@ void ui_bar_layout(int panel_mode, BarLayout *L)
     L->bar_h = m.bar_h;
     L->bar_y = m.bar_y - m.bar_h * 0.5f;
     if (!panel_mode) {
-        group_add_badge(&L->g[0], ICON_CROSS, L->icon);    L->g[0].label = "Jugar";
+        group_add_badge(&L->g[0], ICON_CROSS, L->icon);    L->g[0].label = "Iniciar";
         group_add_badge(&L->g[1], ICON_SQUARE, L->icon);   L->g[1].label = "Vista";
         group_add_badge(&L->g[2], ICON_TRIANGLE, L->icon); L->g[2].label = "Ajustes del juego";
         group_add_badge(&L->g[3], ICON_L2, L->icon);
@@ -1807,13 +1807,13 @@ void ui_bar_layout(int panel_mode, BarLayout *L)
         group_add_badge(&L->g[0], ICON_CIRCLE, L->icon);   L->g[0].label = "Volver";
         L->n = 1;
     } else if (panel_mode == 3) {
-        group_add_badge(&L->g[0], ICON_CROSS, L->icon);    L->g[0].label = "Jugar";
+        group_add_badge(&L->g[0], ICON_CROSS, L->icon);    L->g[0].label = "Iniciar";
         group_add_badge(&L->g[1], ICON_TRIANGLE, L->icon); L->g[1].label = "Ajustes del juego";
         group_add_badge(&L->g[2], ICON_CIRCLE, L->icon);   L->g[2].label = "Volver";
         L->n = 3;
     } else {
         group_add_badge(&L->g[0], ICON_CROSS, L->icon);
-        L->g[0].label = panel_mode == 4 ? "Elegir" : panel_mode >= 2 ? "Jugar" : "Cambiar";
+        L->g[0].label = panel_mode == 4 ? "Elegir" : panel_mode >= 2 ? "Iniciar" : "Cambiar";
         group_add_badge(&L->g[1], ICON_CIRCLE, L->icon);   L->g[1].label = "Volver";
         L->n = 2;
     }
