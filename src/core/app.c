@@ -366,7 +366,7 @@ static void sync_bg_image(App *a)
     } else {
         a->bg_loaded[0] = '\0';
         log_printf("backgrounds: %s could not be loaded", path);
-        if (a->mode == MODE_FLOW) app_show_toast(a, "No se pudo cargar esa imagen (ver registro)");
+        if (a->mode == MODE_FLOW) app_show_toast(a, "No se pudo cargar esa imagen");
     }
 }
 
@@ -1324,7 +1324,7 @@ static void apply_fx(App *a, RowKind k, int fx)
     case MENU_FX_XMB_TOP:
         log_printf("flow setting: Pin to top of XMB = %s", a->settings.xmb_top ? "On" : "Off");
         app_save(a);
-        if (sync_xmb_priority(a) < 0) app_show_toast(a, "No se pudo actualizar la posición en XMB (ver registro)");   /* only failures say anything */
+        if (sync_xmb_priority(a) < 0) app_show_toast(a, "No se pudo actualizar la posición en XMB");   /* only failures say anything */
         break;
     case MENU_FX_PS2CFG:        /* handled in panel_input (needs the direction) */
         break;
@@ -1433,7 +1433,7 @@ static void launch_disc(App *a, int disc)
         log_printf("bdiso: mount %s", path);
         rc = a->host.launch_bdiso(path);
         if (rc != 0) { log_printf("bdiso: mount failed rc=%d path=%s",rc,path);
-            app_show_toast(a,"Falló el montaje BDISO (ver registro)"); return; }
+            app_show_toast(a,"Falló el montaje BDISO"); return; }
         sound_play(SND_CONFIRM);
         sf_strlcpy(a->last_launch,name,sizeof(a->last_launch));
         a->launched=1;
@@ -1516,7 +1516,7 @@ static void launch_disc(App *a, int disc)
         result = a->host.launch_ps3(path, folder, tid);
         if (result != 0) {
             log_printf("cobra: mount failure %d for %s", result, path);
-            app_show_toast(a, "Falló el montaje Cobra (ver registro)");
+            app_show_toast(a, "Falló el montaje Cobra");
             return;
         }
         sound_play(SND_CONFIRM);
