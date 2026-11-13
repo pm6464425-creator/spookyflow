@@ -16,7 +16,7 @@ chk={
 "PS1 cue track metadata is forwarded": "s_cobra_tracks[i].lba=s_plan.tracks[i].lba;" in p and "s_cobra_tracks[i].is_audio=s_plan.tracks[i].is_audio;" in p,
 "PS1 native actual Cobra PSX opcode": "cobra_mount_psx_disc_image" in p,
 "PS1 Cobra guard": "ps1_cobra_version(&v)" in p,
-"PS1 no alteration before guard": p.index("rc=prepare(path,emulator);")<p.index("cobra_send_fake_disc_eject_event()"),
+"PS1 no alteration before guard": "int rc=prepare(path,emulator);" in p and "if(rc!=0){" in p.split("int sf_ps1_mount(const char *path,int emulator)",1)[1].split("return mount_prepared();",1)[0] and "ps1_cobra_version(&v)" in p.split("static int mount_prepared(void)",1)[1].split("cobra_send_fake_disc_eject_event()",1)[0],
 "PS1 undo disc events on error": "if(ejected)(void)cobra_send_fake_disc_insert_event()" in p,
 "PS1 no fake success": 'PS1_DIAG STAGE=MOUNT_PSX_7027 SYS_RC=%d' in p and "if(rc!=0){rc=-44;goto fail;}" in p,
 "PS1 no extra TXT": 'fopen(' not in p.replace('fopen(path,"rb")',''),
