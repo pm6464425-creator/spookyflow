@@ -38,8 +38,9 @@ checks=[
   "y[0] == cvr_version(j->plat)" in art),
  ("Other platform cache version remains 6",
   "#define CVR_VERSION 6" in art),
- ("Downloaded cover exact by serial first",
-  "nu=valid_serial ? cover_dl_urls" in art),
+ ("Downloaded cover by serial for standard games, but verified custom hack first",
+  "nu=ps1_special ? 0 :" in art and
+  "valid_serial ? cover_dl_urls(it->plat,it->id,urls,COVER_DL_URLS)" in art),
  ("No serial: fallback to real libretro region-qualified filename",
   "cover_dl_ps1_title_url(it->path,urls[nu],COVER_URL_MAX)" in art),
  ("Libretro official live thumbnail root",
