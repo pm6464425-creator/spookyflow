@@ -14,6 +14,7 @@ import re
 
 BASELINE = {
     "src/core/font.c": "0ad3b1a90e325599a6e8271ae49f443a3bac3d55",
+    "src/core/library.c": "a9c29d07d2dc4cca179aec4460ff9620bd29b19a",
     "src/core/font.h": "f689789494bc00ca6faf621d469bbbd36edba257",
     "src/core/font_data.c": "a5135f6e296147299825b02831fe08af7e830bcb",
     "src/core/draw.c": "726a8c85e1300900aecff67960f29c2c1fa0a55a",
@@ -82,7 +83,7 @@ media_paths=["src/core/icons_data.c","src/core/images_data.c",
 control_paths=["src/core/input.c","src/ps3/main.c",
                "src/ps3/sf_cobra_mount.c","src/ps3/ps3_webman.c"]
 # 6: All PS1 cover/BDISO scanning, fetching, decoding and mounting intact.
-cover_paths=["src/core/coverart.c","src/core/ps1_name_match.c",
+cover_paths=["src/core/library.c","src/core/coverart.c","src/core/ps1_name_match.c",
              "src/core/scanner.c","src/ps3/ps3_covers.c",
              "src/ps3/sf_bdiso_ntfs.c","src/ps3/sf_bdiso_art.c"]
 # 7: Existing settings file keys preserved, as well as XMB app identity.
@@ -132,7 +133,7 @@ checks=[
       unicode_used.issubset(cps)
       and 'carátula%s agregada%s", got, got == 1 ? "" : "s", got == 1 ? "" : "s"' in ui
       and 'carátula%s descargada%s", a->dl_got, a->dl_got == 1 ? "" : "s", a->dl_got == 1 ? "" : "s"' in app
-      and '"Disco %d"' in library)
+      and 'snprintf(lab,sizeof(lab),"Disco %s",num);' in ui)
 ]
 for title,ok in checks:
     print(("PASS" if ok else "FAIL"),title)
