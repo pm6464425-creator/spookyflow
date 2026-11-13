@@ -17,7 +17,7 @@
 const char *settings_color_name(int c)
 {
     static const char *const names[UI_COLOR_COUNT] = {
-        "Blue", "Red", "Green", "Purple", "Pink", "Orange", "White"
+        "Azul", "Rojo", "Verde", "Morado", "Rosa", "Naranja", "Blanco"
     };
     return (c >= 0 && c < UI_COLOR_COUNT) ? names[c] : "";
 }
@@ -269,6 +269,6 @@ int settings_autoplay_effective(const Settings *s, const GameCfg *cfg)
 
 const char *settings_background_name(int bg)
 {
-    static const char *const names[BG_COUNT] = { "Drift", "Picture", "Aurora", "Fireflies", "Ribbons", "Halo", "Twilight", "Stage" };
-    return (bg >= 0 && bg < BG_COUNT) ? names[bg] : "Stage";
+    static const char *const names[BG_COUNT] = { "Deriva", "Imagen", "Aurora", "Luciérnagas", "Cintas", "Halo", "Crepúsculo", "Escenario" };
+    return (bg >= 0 && bg < BG_COUNT) ? names[bg] : "Escenario";
 }
