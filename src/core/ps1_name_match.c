@@ -43,6 +43,7 @@ static int stopword(const char *s)
         "jap","ntsc","pal","eng","en","es","fr","ger",
         "france","germany","italy","uk","brasil","brazil",
         "region","world","rev","revision","rerelease",
+        "mod","hack","russian","russia","rus",
         "cd","disc","disk","disco","track","pista"
     };
     int i;
@@ -133,6 +134,14 @@ static int valid_exact_key(const NameParts *game,const NameParts *cover)
      * a WHOLE Disney token, not arbitrary substring/fuzzy matching. */
     if(!strncmp(game->key,"disney ",7) && eq(game->key+7,cover->key))return 1;
     if(!strncmp(cover->key,"disney ",7) && eq(cover->key+7,game->key))return 1;
+    /* One verified official title alias, NOT fuzzy substring matching:
+     * local "Ace Combat 3.cue" == catalog "Ace Combat 3 - Electrosphere".
+     * Its worldwide PS1 releases are indexed with the subtitle.
+     * Never match "Ace Combat 2" or unrelated Ace titles. */
+    if(eq(game->key,"ace combat 3") &&
+       eq(cover->key,"ace combat 3 electrosphere"))return 1;
+    if(eq(cover->key,"ace combat 3") &&
+       eq(game->key,"ace combat 3 electrosphere"))return 1;
     return 0;
 }
 static int score(const NameParts *game,const NameParts *cover)
@@ -189,6 +198,35 @@ int ps1_name_catalog_match(const char *game_path,const char *index,size_t len,
     }
     return best>=0;
 }
+/* Authentic, separate box art for this Russian ROM hack.
+ * User's "Tekken 3 OT Golden Leon" must NOT receive ordinary Tekken 3 art,
+ * even when the internal disc serial reuses Tekken 3's SLUS code.
+ * LaunchBox's game entry 167364 explicitly identifies the hack and has
+ * its own Russian front box cover, not an ordinary-series image.
+ *
+ * Verified front-cover asset (1190x1168):
+ * https://gamesdb.launchbox-app.com/games/images/167364-tekken-3-ot-golden-leon
+ * We only store its publicly displayed direct image URL, not redistribute
+ * the image itself or connect to ROM-download websites.
+ */
+int ps1_name_special_cover_url(const char *game_path,char *url,size_t cap)
+{
+    static const char known[]=
+        "https://images.launchbox-app.com/817f6c51-f659-4f8f-b0f2-40a486b39b60.png";
+    NameParts p;
+    if(!url||cap==0)return 0;
+    url[0]='\0';
+    if(!game_path)return 0;
+    parts(game_path,&p);
+    if(eq(p.key,"tekken 3 ot golden leon")||
+       eq(p.key,"tekken 3 golden leon")) {
+        if(sizeof(known)>cap)return 0;
+        memcpy(url,known,sizeof(known));
+        return 1;
+    }
+    return 0;
+}
+
 int ps1_name_catalog_url(const char *image_filename,char *url,size_t cap)
 {
     static const char prefix[]=
