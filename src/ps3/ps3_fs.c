@@ -47,6 +47,7 @@ int ps3_fs_cleanup_legacy_diagnostics(void)
 {
     static const char *const names[]={
         "log.txt",
+        "diagnostico.txt", /* previous V15.22 PS2-only report, superseded */
         "diagnostico_portadas.txt",
         "diagnostico_usb_ntfs.txt",
         "cobra_startup_probe.txt",
