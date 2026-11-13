@@ -1133,16 +1133,16 @@ static void test_sleep_and_info(void)
         settings_defaults(&ss);
         memset(&gg, 0, sizeof(gg));
         menu_value_text(ROW_F_SLEEP, 0, &ss, &gg, t, sizeof(t));
-        CHECK_STR(t, "After 5 min");
+        CHECK_STR(t, "Tras 5 min");
         CHECK(menu_change(ROW_F_SLEEP, 0, 1, &ss, &gg) == MENU_FX_CHANGED && ss.sleep_min == 10);
         CHECK(menu_change(ROW_F_SLEEP, 0, -1, &ss, &gg) == MENU_FX_CHANGED && ss.sleep_min == 5);
         menu_change(ROW_F_SLEEP, 0, -1, &ss, &gg); menu_change(ROW_F_SLEEP, 0, -1, &ss, &gg);
         menu_value_text(ROW_F_SLEEP, 0, &ss, &gg, t, sizeof(t));
         CHECK(ss.sleep_min == 0);
-        CHECK_STR(t, "Off");
+        CHECK_STR(t, "No");
         CHECK(menu_change(ROW_F_CASES, 0, 0, &ss, &gg) == MENU_FX_CHANGED && ss.cases == 0);
-        CHECK_STR(menu_label(ROW_F_CASES), "Game Cases");
-        CHECK_STR(menu_label(ROW_F_SLEEP), "Sleep Mode");
+        CHECK_STR(menu_label(ROW_F_CASES), "Estuches de juegos");
+        CHECK_STR(menu_label(ROW_F_SLEEP), "Modo de reposo");
     }
     settings_defaults(&s1);
     CHECK(s1.show_info == 1);
@@ -1156,8 +1156,8 @@ static void test_sleep_and_info(void)
         memset(&g, 0, sizeof(g));
         CHECK(menu_change(ROW_F_INFO, 0, 0, &s1, &g) == MENU_FX_CHANGED && s1.show_info == 1);
         menu_value_text(ROW_F_INFO, 0, &s1, &g, txt, sizeof(txt));
-        CHECK_STR(txt, "On");
-        CHECK_STR(menu_label(ROW_F_INFO), "Show Game Info");
+        CHECK_STR(txt, "Sí");
+        CHECK_STR(menu_label(ROW_F_INFO), "Mostrar info. del juego");
     }
     g_app.settings.show_info = 0;
     ui_draw(&g_app);
@@ -1674,7 +1674,7 @@ static void test_multi_disc_names(void)
         char n0[TITLE_MAX];
         lib_disc_name(&g_lib, lib_game_disc(&g_lib, g, 0), 0, n0, sizeof(n0));
         CHECK(g->ndisc == 2);
-        CHECK_STR(n0, "Disc 1");
+        CHECK_STR(n0, "Disco 1");
         CHECK_STR(lib_path(&g_lib, g), "/p/Grandia CD1.iso");
     }
 }
@@ -1719,7 +1719,7 @@ static void test_bg_and_reflect(void)
     CHECK(s.reflections == 1);
     CHECK(menu_change(ROW_F_REFLECT, 0, 0, &s, &g) == MENU_FX_CHANGED && s.reflections == 0);
     menu_value_text(ROW_F_REFLECT, 0, &s, &g, t, sizeof(t));
-    CHECK_STR(t, "Off");
+    CHECK_STR(t, "No");
     /* Background cycles through the 7 styles (the picture option is gone) */
     CHECK(s.background == BG_STAGE);                            /* fix 13: Stage is the default */
     for (i = 0; i < 6; i++) { menu_change(ROW_F_BACKGROUND, 0, 1, &s, &g); CHECK(s.background != BG_CUSTOM && s.background != BG_STAGE); }
@@ -1745,7 +1745,7 @@ static void test_bg_and_reflect(void)
     ui_set_stage(-1, -1);
     ui_set_stage_fx(-1);
     ui_set_stage_highlight(-1);
-    CHECK_STR(settings_background_name(BG_FIREFLIES), "Fireflies");
+    CHECK_STR(settings_background_name(BG_FIREFLIES), "Luciérnagas");
     /* every background, with and without reflections, draws */
     for (i = 0; i < BG_COUNT; i++) { g_app.settings.background = i; ui_draw(&g_app); }
     g_app.settings.reflections = 0;
