@@ -17,6 +17,7 @@ typedef struct {
     char rev[SF_PS1_MATCH_TAG_MAX];
     unsigned disc;
     unsigned track;
+    unsigned region; /* 1 PAL/Europe, 2 USA, 3 Japan, 0 unknown */
     unsigned has_disc;
     unsigned has_track;
 } SfPs1MatchKey;
