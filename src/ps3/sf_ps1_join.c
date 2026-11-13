@@ -7,6 +7,7 @@
 #include "sf_ps1_join.h"
 #include "sf_ps1_multibin.h"
 #include "sf_ps1_mount.h"
+#include "sf_ps1_resolve.h"
 #include "sf_ps2_largefile.h"
 #include "ps3_platform.h"
 #include "log.h"
@@ -36,6 +37,7 @@ static SfPs1JoinJob s_join;
 static unsigned char s_copy_buffer[PS1_STAGE_BUFFER];
 /* Do not place 32 KiB CUE buffer on the PS3 PPU main-thread stack. */
 static char s_join_text[32769];
+static char s_join_resolved[SF_PS1_IMAGE_MAX];
 
 static uint64_t fnv(const void *data,size_t n,uint64_t h)
 {
@@ -66,8 +68,28 @@ static int inspect_sources(const char *cue,const char *contents,size_t n)
     for(unsigned i=0;i<s_join.plan.count;i++){
         struct stat st;
         const char *p=s_join.plan.part[i].path;
-        if(!allowed(p) || stat(p,&st)!=0 ||
-           !S_ISREG(st.st_mode) || st.st_size<=0){
+        if(!allowed(p)){
+            log_printf("PS1_DIAG STAGE=MULTIBIN_SOURCE RESULT=UNSAFE_ROOT "
+                       "TRACK=%u FILE=%s",i+1,p);
+            return -71;
+        }
+        if(sf_ps1_resolve_existing(p,s_join_resolved,
+                                   sizeof(s_join_resolved))!=0){
+            log_printf("PS1_DIAG STAGE=MULTIBIN_SOURCE RESULT=NO_SAFE_BIN "
+                       "TRACK=%u FILE=%s",i+1,p);
+            return -71;
+        }
+        for(unsigned j=0;j<i;j++){
+            if(!strcasecmp(s_join.plan.part[j].path,s_join_resolved)){
+                log_printf("PS1_DIAG STAGE=MULTIBIN_SOURCE RESULT=DUPLICATE_RESOLVED_BIN "
+                           "TRACK=%u PREVIOUS_TRACK=%u FILE=%s",
+                           i+1,j+1,s_join_resolved);
+                return -71;
+            }
+        }
+        strcpy(s_join.plan.part[i].path,s_join_resolved);
+        p=s_join.plan.part[i].path;
+        if(stat(p,&st)!=0 || !S_ISREG(st.st_mode) || st.st_size<=0){
             log_printf("PS1_DIAG STAGE=MULTIBIN_SOURCE RESULT=NOT_READABLE "
                        "TRACK=%u ERRNO=%d FILE=%s",i+1,errno,p);
             return -71;
@@ -225,7 +247,10 @@ int sf_ps1_join_start(const char *cue)
     n=fread(text,1,sizeof(s_join_text)-1,f);
     if(ferror(f) || (n==sizeof(s_join_text)-1 && !feof(f))){fclose(f);return -70;}
     fclose(f);text[n]=0;
-    if(inspect_sources(cue,text,n)!=0)return -70;
+    {
+        int source_rc=inspect_sources(cue,text,n);
+        if(source_rc!=0)return source_rc;
+    }
     if(stat(s_join.output,&cached)==0 && S_ISREG(cached.st_mode) &&
        (uint64_t)cached.st_size==s_join.expected){
         log_printf("PS1_DIAG STAGE=MULTIBIN_CACHE RESULT=VALID BYTES=%llu",
