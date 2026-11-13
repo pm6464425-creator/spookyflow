@@ -21,7 +21,7 @@ int main(void)
     char data[8192];size_t n;
     CHECK(log_open(p)==0);
     log_printf("PS2_DIAG FIRST_RUN=1");
-    log_printf("render: ordinary frame / not relevant to PS2"); /* omit spam */
+    log_printf("render: ordinary frame and textures"); /* omit spam */
     log_close();
     n=load_file(p,data,sizeof(data));
     CHECK(n>40);
