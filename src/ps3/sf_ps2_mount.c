@@ -37,6 +37,13 @@ static int raw_version(uint32_t *v)
     lv2syscall2(8,0x7000,(uint64_t)v);
     return_to_user_prog(int);
 }
+/* libcobra.a from IRISMAN does not export sys_map_path on this build.
+ * Use the exact LV2 syscall 35 adapter already verified by sf_cobra_mount.c. */
+static int ps2_raw_map(const char *from,const char *to)
+{
+    lv2syscall2(35,(uint64_t)from,(uint64_t)to);
+    return_to_user_prog(int);
+}
 static int raw_ps2_netemu(int setting)
 {
     lv2syscall2(8,0x1ee9,(uint64_t)setting); /* Cobra ENABLE_PS2NETEMU */
@@ -114,9 +121,9 @@ int sf_ps2_mount(const char *path,int emulator)
     /* Clear any old PS3 folder mapping before mounting a PS2 disc, matching
      * the existing Cobra PS3 backend. Never map the user's game files here. */
     if(journal("BEFORE_CLEAR_MAPS",path,0,1)!=0){rc=-46;goto fail;}
-    if(sys_map_path("/dev_bdvd",NULL)!=0 ||
-       sys_map_path("//dev_bdvd",NULL)!=0 ||
-       sys_map_path("/app_home",NULL)!=0){rc=-52;goto fail;}
+    if(ps2_raw_map("/dev_bdvd",NULL)!=0 ||
+       ps2_raw_map("//dev_bdvd",NULL)!=0 ||
+       ps2_raw_map("/app_home",NULL)!=0){rc=-52;goto fail;}
     if(journal("BEFORE_UMOUNT",path,0,1)!=0){rc=-46;goto fail;}
     (void)cobra_umount_disc_image(); /* No previous image is a normal state. */
     if(journal("BEFORE_MOUNT_7028",path,0,1)!=0){rc=-46;goto fail;}
