@@ -83,7 +83,7 @@ void sf_ps1_match_consider(SfPs1FileMatch *m,const char *candidate)
         m->top_score=score;
         m->same_score=1;
         memcpy(m->winner,candidate,n+1);
-    }else if(strcasecmp(m->winner,candidate)!=0){
+    }else if(strcmp(m->winner,candidate)!=0){
         /* Two different names with equal confidence. Refuse guessing. */
         m->same_score++;
     }
