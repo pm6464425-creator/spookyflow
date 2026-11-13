@@ -54,6 +54,15 @@ jobs:
         run: python3 tests/test_ps2_hen_integration.py
       - name: V15.21 PS2 HEN XMB autoplay - 24 safety checks
         run: python3 tests/test_ps2_hen_autoplay.py
+      - name: V15.23 PS1 native Cobra and CUE safety checks
+        run: |
+          mkdir -p build-host
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined \
+             -fno-omit-frame-pointer -Isrc/core \
+             src/core/sf_ps1_native_plan.c tests/test_ps1_native_plan.c \
+             -o build-host/test_ps1_native_plan
+          ./build-host/test_ps1_native_plan
+          python3 tests/test_ps1_native_integration.py
       - name: V15.22 PS2 HEN 64-bit offsets - 32 invariants and sparse 2/4/4.53GiB
         run: |
           python3 tests/test_ps2_largefile_integration.py
@@ -421,6 +430,23 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title "SpookyFlow V15.21 - Inicio PS2 Classics automatico desde XMB (experimental)" \
             --notes "Envía orden local a webMAN tras preparar el PS2 Classics Launcher (PS2U10000); espera al XMB, luego inicia automáticamente. Sin webMAN conserva inicio manual. Mantiene la V15.20, CONFIG, PS1, PS3, BDISO y único diagnóstico. Pruebas automáticas, no validado en PS3 HEN física."
+      - name: Publish V15.23 PS1 native Cobra mount (experimental)
+        if: github.ref == 'refs/heads/feat/v15-23-ps1-cobra-native-experimental'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/feat%2Fv15-23-ps1-cobra-native-experimental" --jq '.commit.sha')
+          if [ "$GITHUB_SHA" != "$current" ]; then
+            echo "Skipping superseded build"
+            exit 0
+          fi
+          short="${GITHUB_SHA:0:8}"
+          cp spookyflow.pkg SPOOKYFLOW_V15_23_MONTADOR_NATIVO_PS1_HEN.pkg
+          gh release create "spookyflow-v15-23-ps1-native-${short}" \
+            SPOOKYFLOW_V15_23_MONTADOR_NATIVO_PS1_HEN.pkg \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "SpookyFlow V15.23 — Montador PS1 Cobra nativo experimental" \
+            --notes "Primer montador PS1 nativo Cobra para PS3 HEN/CFW sin webMAN, admite imagen PSX de 2352 sectores en BIN/IMG/ISO y CUE con varias pistas dentro de un mismo BIN. Fall back de seguridad al montador webMAN existente para multi-BIN, NTFS, emulador netemu seleccionado, CUE no compatible o sectores 2048. No cifra, no altera ISO, y conserva PS2 V15.22, PS3 y BDISO. Montaje del disco PS1 en XMB; inicio directo del juego depende de ajustes del XMB. Verificado en compilacion y pruebas de host, pendiente prueba fisica PS3 HEN."
       - name: Publish V15.22 PS2 HEN large ISO 64-bit fix (experimental)
         if: github.ref == 'refs/heads/fix/v15-22-ps2-largefile-64bit'
         env:
