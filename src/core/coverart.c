@@ -940,7 +940,8 @@ void cover_dl_run(CoverDl *d)
     for (i = 0; i < d->n && !d->cancel; i++) {
         CoverDlItem *it = &d->item[i];
         int nu, u, got = 0, neterr = 0, offline = 1, not_found_only = 1;
-        int ps1_title_url_index=-1,valid_serial=0;
+        int ps1_title_url_index=-1,valid_serial=0,ps1_special=0;
+        char ps1_special_url[COVER_URL_MAX]="";
         char miss_path[COVER_PATH_MAX]="";
         /* Movies have no PS3 game Title ID. Previously they always landed
          * in DL_NOID, so the Download Missing Covers button could NEVER
@@ -977,16 +978,23 @@ void cover_dl_run(CoverDl *d)
                         it->id,sizeof(it->id));
         valid_serial=id_ok(it->id);
         if(it->plat==PLAT_PS1)
+            ps1_special=ps1_name_special_cover_url(it->path,ps1_special_url,
+                                                    sizeof(ps1_special_url));
+        if(it->plat==PLAT_PS1)
             log_printf("covers: ps1 GAME path=%s serial=%s",
                        it->path,valid_serial?it->id:"NONE");
         /* A name-matched manual cover counts even when a CUE has no ID.
          * Do not redownload covers the user already selected. */
-        if (cover_has_art(io,it->plat,it->path,it->is_dir,it->size,it->id)) {
+        /* Golden Leon may reuse vanilla Tekken 3's disc serial. Its
+         * separately published hack cover must win over vanilla ID art.
+         * Filename-matched manual covers still take absolute precedence. */
+        if (cover_has_art(io,it->plat,it->path,it->is_dir,it->size,
+                          ps1_special?"":it->id)) {
             if(it->plat==PLAT_PS1)
                 log_printf("covers: ps1 EXISTING_COVER path=%s",it->path);
             it->state=DL_HAVE;d->n_have++;goto next;
         }
-        if (cover_name_is_custom(it->path)) {
+        if (cover_name_is_custom(it->path) && !ps1_special) {
             it->state=DL_MISSING;d->n_missing++;goto next;
         }
         if(valid_serial)
@@ -1003,11 +1011,23 @@ void cover_dl_run(CoverDl *d)
          * is absent or the serial's cover does not exist, try the exact
          * original CUE filename in Libretro's regional Named_Boxarts.
          * No title guessing and NO effect on PS2, PS3 or BDISO. */
-        nu=valid_serial ? cover_dl_urls(it->plat,it->id,urls,COVER_DL_URLS) : 0;
+        nu=ps1_special ? 0 :
+           (valid_serial ? cover_dl_urls(it->plat,it->id,urls,COVER_DL_URLS) : 0);
         if(it->plat==PLAT_PS1) {
             int matched=0;
             char real_cover_name[256];
-            if(ps1_catalog_len &&
+            if(ps1_special) {
+                /* Exact LaunchBox cover for this ROM hack. Avoid vanilla
+                 * serial and vanilla title matching: both would pick the
+                 * WRONG Tekken 3 image for Golden Leon. */
+                sf_strlcpy(urls[0],ps1_special_url,COVER_URL_MAX);
+                ps1_title_url_index=0;
+                nu=1;
+                matched=1;
+                log_printf("covers: ps1 SPECIAL_EDITION local=%s remote=LaunchBox Tekken 3 OT Golden Leon",
+                           it->path);
+            }
+            if(!ps1_special && ps1_catalog_len &&
                ps1_name_catalog_match(it->path,ps1_catalog,ps1_catalog_len,
                                       real_cover_name,sizeof(real_cover_name)) &&
                nu<COVER_DL_URLS &&
@@ -1017,7 +1037,7 @@ void cover_dl_run(CoverDl *d)
                 log_printf("covers: ps1 NAME_MATCH local=%s remote=%s",
                            it->path,real_cover_name);
             }
-            if(!matched && nu<COVER_DL_URLS &&
+            if(!ps1_special && !matched && nu<COVER_DL_URLS &&
                cover_dl_ps1_title_url(it->path,urls[nu],COVER_URL_MAX)) {
                 ps1_title_url_index=nu++;
                 log_printf("covers: ps1 NAME_NOT_IN_CATALOG exact_file_fallback=%s",
