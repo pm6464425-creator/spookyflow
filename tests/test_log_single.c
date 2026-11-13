@@ -1,44 +1,50 @@
-/* A single SpookyFlow diagnostic TXT must be overwritten, never multiplied.
- * Host regression of src/core/log.c with the exact release feature flags.
- */
+/* One PS1 diagnostic only. Every launch overwrites it and never duplicates
+ * or captures previous PS2/BDISO test traces in the same file. */
 #include "log.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-static int checks=0;
-#define CHECK(x) do {if(!(x)){fprintf(stderr,"V15.18 log FAIL line %d: %s\n",__LINE__,#x);exit(1);}checks++;}while(0)
-static size_t load_file(const char *path,char *dst,size_t cap)
+static int checks;
+#define CHECK(x) do {if(!(x)){fprintf(stderr,"PS1 log FAIL line %d: %s\n",__LINE__,#x);exit(1);}checks++;}while(0)
+static size_t read_report(const char *p,char *buf,size_t cap)
 {
-    FILE *f=fopen(path,"rb");size_t n;
+    FILE *f=fopen(p,"rb");size_t n;
     CHECK(f!=NULL);
-    n=fread(dst,1,cap-1,f);dst[n]=0;
+    n=fread(buf,1,cap-1,f);buf[n]=0;
     CHECK(fclose(f)==0);
     return n;
 }
 int main(void)
 {
-    static const char *p="build-host/spookyflow_single_diagnostic.txt";
-    char data[8192];size_t n;
+    static const char *p="build-host/diagnostico_ps1.txt";
+    char report[8192];size_t n;
     CHECK(log_open(p)==0);
-    log_printf("PS2_DIAG FIRST_RUN=1");
-    log_printf("render: ordinary frame and textures"); /* omit spam */
+    log_printf("PS1_DIAG FIRST_ATTEMPT=1");
+    log_printf("PS1_MOUNT RESULT=ERROR RC=-41");
+    log_printf("PS2_DIAG MUST_NOT_BE_RECORDED=1");
+    log_printf("cobra: PS3 unrelated mount");
+    log_printf("BDISO unrelated movie");
+    log_printf("render: ordinary frame");
     log_close();
-    n=load_file(p,data,sizeof(data));
+    n=read_report(p,report,sizeof(report));
     CHECK(n>40);
-    CHECK(strstr(data,"DIAGNOSTICO UNICO")!=NULL);
-    CHECK(strstr(data,"PS2_DIAG FIRST_RUN=1")!=NULL);
-    CHECK(strstr(data,"ordinary frame")==NULL);
-    CHECK(log_open(p)==0); /* MUST use wb, not ab */
-    log_printf("PS2_DIAG SECOND_RUN=1");
-    log_printf("PS2_DIAG CONFIG_PRESENT=1 CONFIG_ENCRYPTED_VALID=1");
+    CHECK(strstr(report,"DIAGNOSTICO PS1 (V15.24)")!=NULL);
+    CHECK(strstr(report,"FIRST_ATTEMPT=1")!=NULL);
+    CHECK(strstr(report,"PS1_MOUNT RESULT=ERROR")!=NULL);
+    CHECK(strstr(report,"MUST_NOT_BE_RECORDED")==NULL);
+    CHECK(strstr(report,"BDISO unrelated")==NULL);
+    CHECK(strstr(report,"PS3 unrelated")==NULL);
+    CHECK(strstr(report,"ordinary frame")==NULL);
+    CHECK(log_open(p)==0);
+    log_printf("PS1_DIAG SECOND_ATTEMPT=1");
+    log_printf("PS1_DIAG STAGE=MOUNT_PSX_7027 SYS_RC=-1");
     log_close();
-    n=load_file(p,data,sizeof(data));
+    n=read_report(p,report,sizeof(report));
     CHECK(n>40);
-    CHECK(strstr(data,"PS2_DIAG SECOND_RUN=1")!=NULL);
-    CHECK(strstr(data,"PS2_DIAG FIRST_RUN=1")==NULL);
-    CHECK(strstr(data,"CONFIG_ENCRYPTED_VALID=1")!=NULL);
-    CHECK(strstr(data,".txt") == NULL);
+    CHECK(strstr(report,"SECOND_ATTEMPT=1")!=NULL);
+    CHECK(strstr(report,"FIRST_ATTEMPT=1")==NULL);
+    CHECK(strstr(report,"STAGE=MOUNT_PSX_7027 SYS_RC=-1")!=NULL);
     CHECK(remove(p)==0);
-    printf("Single diagnostic log: %d checks passed\n",checks);
+    printf("PS1 single overwritten diagnostic: %d checks passed\n",checks);
     return 0;
 }
