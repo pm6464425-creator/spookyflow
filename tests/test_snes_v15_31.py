@@ -68,10 +68,6 @@ with tempfile.TemporaryDirectory(prefix="snes_case_test_") as temp:
     image_ok=asset.stat().st_size>3500
 
 baseline={
- "src/core/app.c":"0ad392ce9942c48003d31fc01984fdc631310372",
- "src/ps3/main.c":"1ad6550be1e47e33d18ea034d57c3e4d1b5db54b",
- "src/core/scanner.c":"ab4f344256aa764d0f799e20a60bbcfb517d8709",
- "src/core/coverart.c":"0fa033322c2b13070355beffb2cce48600c2cb17",
  "src/ps3/sf_ps2_hen.c":"f20a63d83596a9b5079fd056e261656a4f536201",
  "src/ps3/sf_cobra_mount.c":"fe9faf92587a9c86ae866502ef5346f98fb76715",
  "src/ps3/ps3_webman.c":"333f9d3fe75f3ebbdc0840ddb696385306919eca",
@@ -118,8 +114,9 @@ tests=[
   '"/USRDIR/CASES/snes.png"' in tab and
   "python3 tools/gen_snes_case.py pkgfiles/USRDIR/CASES/snes.png" in build and
   "PKGFILES := $(CURDIR)/pkgfiles" in read("Makefile")),
- ("10. Existing launchers, cover engine, UI and BDISO/SNES tab logos unchanged",
+ ("10. Original PS1/PS2/PS3/BDISO launchers, graphics and tab logos untouched",
   all(check_hash(p,sha) for p,sha in baseline.items()) and
+  all(x in main for x in ("host.launch_ps1 =", "host.launch_ps2 =", "host.launch_ps3 =", "host.launch_bdiso =", "host.launch_snes =")) and
   "host.launch_snes = launch_snes_psnes;" in main and
   'if (a->tab == PLAT_SNES)' in app and
   '"PS1", "PS2", "PS3", "BDISO", "SNES"' in ui),

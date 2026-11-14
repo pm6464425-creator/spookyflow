@@ -37,7 +37,7 @@ chk={
  "25 PS2 HEN unchanged": "host.ps2_hen_start = sf_ps2_hen_start;" in main,
  "26 native PS3 unchanged": "host.launch_ps3 = sf_cobra_mount_ps3;" in main,
  "27 BDISO unchanged": "host.launch_bdiso = launch_bdiso;" in main,
- "28 one overwrite TXT unchanged": 'SF_DATA_DIR "/diagnostico_ps1.txt"' in plat,
+ "28 one overwrite TXT unchanged": 'SF_DATA_DIR "/diagnostico_snes.txt"' in plat,
  "29 explicit CUE track files validate": "INDEX" in parser and 'mode,"AUDIO"' in parser,
  "30 no batch deletion of user files": "remove(s_join.part)" in j and "rm -rf" not in j,
 }

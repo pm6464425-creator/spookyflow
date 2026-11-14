@@ -177,6 +177,14 @@ python3 tools/build_ps1_boxart_catalog.py \
 test -s pkgfiles/USRDIR/ps1_boxart_names.txt
 end
 
+# --- Real SNES Libretro boxart names: indexed at build, not guessed on console.
+# Only PNG filenames, never ROMs or downloaded artwork. Fails closed on stale data.
+say "SNES real boxart catalog (Libretro Super Nintendo)"
+python3 tools/build_snes_boxart_catalog.py \
+  --output pkgfiles/USRDIR/snes_boxart_names.txt --min-count 2500
+test -s pkgfiles/USRDIR/snes_boxart_names.txt
+end
+
 # --- SNES case overlay: own transparent asset, exact window 240x168 -----------
 # Generated deterministically; ships as USRDIR/CASES/snes.png in the same PKG.
 # Original PS1/PS2/PS3/BDISO textures and launch code are untouched.

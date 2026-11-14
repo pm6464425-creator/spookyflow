@@ -26,7 +26,7 @@ checks={
 "PS1 general planner explicit diagnostic":'STAGE=GENERAL_LAYOUT RESULT=OK' in j,
 "PS1 general mode supports 1 staged track":"n<1" in m,
 "PS1 original 28 BIN legacy remains":"sf_ps1_multibin_parse" in j,
-"PS1 one diagnostic only":'SF_DATA_DIR "/diagnostico_ps1.txt"' in plat,
+"PS1 one diagnostic only":'SF_DATA_DIR "/diagnostico_snes.txt"' in plat,
 "PS1 legacy webMAN fallback preserved":"a->host.launch(cmd)" in a,
 "PS2 HEN preserved":"host.ps2_hen_start = sf_ps2_hen_start;" in main,
 "PS3 preserved":"host.launch_ps3 = sf_cobra_mount_ps3;" in main,

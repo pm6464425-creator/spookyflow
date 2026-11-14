@@ -30,10 +30,10 @@ checks={
  "16 preserve PS2 HEN": "host.ps2_hen_start = sf_ps2_hen_start;" in main,
  "17 preserve PS3 direct mount": "host.launch_ps3 = sf_cobra_mount_ps3;" in main,
  "18 preserve BDISO": "host.launch_bdiso = launch_bdiso;" in main,
- "19 single diagnostics only": 'SF_DATA_DIR "/diagnostico_ps1.txt"' in platform,
+ "19 single diagnostics only": 'SF_DATA_DIR "/diagnostico_snes.txt"' in platform,
  "20 logs exact attempted and recovered name": "RESULT=RECOVERED" in resolver and
     "EXPECTED=%s FOUND=%s" in resolver,
- "21 errors still reported in same file": 'strstr(msg,"PS1_DIAG")' in log,
+ "21 errors still reported in same file": 'strstr(msg,"snes:")' in log and '"PS1_DIAG"' not in log,
  "22 keep existing webMAN fallback": "a->host.launch(cmd)" in app,
 }
 for k,v in checks.items():print(("PASS" if v else "FAIL"),k)

@@ -40,7 +40,7 @@ int main(void)
     lookup("/dev_hdd0/SNES/001 - Super Mario World.sfc","Super Mario World (USA).png");
     lookup("/dev_hdd0/SNES/200_Super Mario World (USA) [!].smc","Super Mario World (USA).png");
     lookup("/dev_usb000/SNES/Super Mario World (Europe).zip","Super Mario World (Europe).png");
-    lookup("/dev_usb000/SNES/Super Mario World (USA) (Rev 1).smc","Super Mario World (USA).png");
+    lookup("/dev_usb000/SNES/Super Mario World (USA) (Rev 1).smc","Super Mario World (USA) (Rev 1).png");
     lookup("/dev_hdd0/SNES/Donkey Kong Country 2.sfc","Donkey Kong Country 2 - Diddy's Kong Quest (USA) (En,Fr).png");
     lookup("/dev_hdd0/SNES/Donkey Kong Country 3.zip","Donkey Kong Country 3 - Dixie Kong's Double Trouble! (USA) (En,Fr).png");
     lookup("/dev_hdd0/SNES/Super Mario RPG.sfc","Super Mario RPG - Legend of the Seven Stars (USA).png");

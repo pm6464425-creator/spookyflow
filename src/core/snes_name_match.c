@@ -17,7 +17,6 @@ static int alp(unsigned char c) {return (c>='a'&&c<='z') || (c>='A'&&c<='Z');}
 static int dig(unsigned char c) {return c>='0'&&c<='9';}
 static char low(unsigned char c) {return (char)(c>='A'&&c<='Z'?c+32:c);}
 static int eq(const char *a,const char *b) {return strcmp(a,b)==0;}
-static int prefix(const char *a,const char *b) {return strncmp(a,b,strlen(b))==0;}
 
 static int region_token(const char *t)
 {

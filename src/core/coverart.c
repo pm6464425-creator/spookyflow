@@ -556,7 +556,7 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
     if (cache) {
         cover_cache_stem(L->io.cache_dir, j->plat, j->path, j->size, stem, sizeof(stem));
         snprintf(f, sizeof(f), "%s.cvr", stem);
-        if (read_cache(L, f, j->plat, tw, th, year)) { sf_strlcpy(src, "cache", src_cap); L->n_cache++; return 1; }
+        if (read_cache(L, f, j->plat, tw, th, year)) { if(j->plat==PLAT_SNES)log_printf("snes: CACHE_HIT rom=%s",j->path); sf_strlcpy(src, "cache", src_cap); L->n_cache++; return 1; }
         snprintf(f, sizeof(f), "%s.none", stem);
         if (L->io.is_file && L->io.is_file(L->io.ctx, f)) {
             /* the marker keeps the year: [version, year hi, year lo]; an older marker is looked up again */
@@ -564,6 +564,7 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
             if (L->io.read_at && L->io.read_at(L->io.ctx, f, 0, y, 3) == 3 && y[0] == cvr_version(j->plat)) {
                 *year = 0;
                 sf_strlcpy(src, "none (cached)", src_cap);
+                if(j->plat==PLAT_SNES)log_printf("snes: CACHE_NONE rom=%s (auto-download clears after success)",j->path);
                 return 0;
             }
         }
@@ -571,12 +572,13 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
     if (!L->probed) probe(L);
 
     sf_strlcpy(id, j->id, sizeof(id));
-    if (!id[0]) discid_read(j->plat, j->path, j->is_dir, L->io.read_at, L->io.ctx, id, sizeof(id));
+    if (!id[0] && j->plat != PLAT_SNES) discid_read(j->plat, j->path, j->is_dir, L->io.read_at, L->io.ctx, id, sizeof(id));
     *year = 0;                     /* no release-year source for now (the cache keeps the field) */
 
     cand = (CoverCand *)malloc(sizeof(CoverCand) * COVER_MAX_CANDS);
     if (!cand) return 0;
     nc = cover_candidates(j->plat, j->path, j->is_dir, id, L->dir_ok, cand, COVER_MAX_CANDS);
+    if(j->plat==PLAT_SNES)log_printf("snes: COVER_SEARCH rom=%s locations=%d first=%s",j->path,nc,nc?cand[0].base:"NONE");
     if(j->plat==PLAT_BDISO)
         cover_diag("BUSQUEDA","ISO=%s | rutas_generadas=%d | base0=%s",
                    j->path,nc,nc?cand[0].base:"SIN RUTAS");
@@ -616,8 +618,10 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
                 snprintf(f, sizeof(f), "%s%s", cand[c].base, k_exts[e]);
                 if (!L->io.is_file || !L->io.is_file(L->io.ctx, f)) continue;
                 if(j->plat==PLAT_BDISO)cover_diag("RUTA","Existe y se intenta abrir %s",f);
+                if(j->plat==PLAT_SNES)log_printf("snes: COVER_FILE_FOUND %s",f);
                 if (!png_size_ok(L, f)) {
                     if(j->plat==PLAT_BDISO)cover_diag("DECOD_ERROR","PNG demasiado grande: %s",f);
+                    if(j->plat==PLAT_SNES)log_printf("snes: COVER_PNG_SIZE_ERROR path=%s",f);
                     continue;
                 }
                 {
@@ -627,6 +631,7 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
                             cover_diag("DECOD_ERROR","path=%s rc=%d, ancho=%d alto=%d rgba=%s",
                                        f,decode_rc,w,h,rgba?"SI":"NO");
                         log_printf("covers: could not decode %s", f);
+                        if(j->plat==PLAT_SNES)log_printf("snes: COVER_DECODE_ERROR path=%s rc=%d",f,decode_rc);
                         free(rgba);
                         continue;
                     }
@@ -641,9 +646,11 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
                         cover_process(rgba,w,h,cover_art_aspect(j->plat),
                                       (uint16_t *)L->scratch,tw,th);
                     snprintf(src, src_cap, "%s (%dx%d)", f, w, h);
+                    if(j->plat==PLAT_SNES)log_printf("snes: COVER_READY source=%s input=%dx%d output=%dx%d",f,w,h,tw,th);
                     ok = 1;
                 } else {
                     log_printf("covers: %s is %dx%d, skipped (max %d)", f, w, h, COVER_SRC_MAX_DIM);
+                    if(j->plat==PLAT_SNES)log_printf("snes: COVER_TOO_LARGE image=%s %dx%d",f,w,h);
                 }
                 free(rgba);
             }
@@ -653,6 +660,7 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
     if(j->plat==PLAT_BDISO)
         cover_diag(ok?"CARATULA_OK":"CARATULA_FALLO",
                    "ISO=%s resultado=%d ruta=%s",j->path,ok,ok?src:"SIN_JPG_DECODIFICABLE");
+    if(j->plat==PLAT_SNES && !ok)log_printf("snes: COVER_NOT_LOADED rom=%s",j->path);
     if (ok) L->n_art++; else L->n_none++;
     if (!ok) snprintf(src, src_cap, "none (id %s)", id[0] ? id : "unknown");
     if (cache) {
@@ -708,6 +716,7 @@ int cover_worker_step(CoverLoader *L)
     dst = L->io.pixels ? L->io.pixels(best) : NULL;
     if (ok && !dst) ok = 0;
     if (ok) memcpy(dst, L->scratch, (size_t)tw * (size_t)th * 2u);
+    if(j.plat==PLAT_SNES)log_printf("snes: COVER_GPU slot=%d ok=%d rgba=%s rom=%s",best,ok,dst?"YES":"NO",j.path);
     if (j.plat==PLAT_BDISO)
         cover_diag(ok?"PIXELS_OK":"PIXELS_FALLO",
                    "slot=%d iso=%s result=%d ancho=%d alto=%d gpu_memory=%s",
@@ -1015,7 +1024,7 @@ void cover_dl_run(CoverDl *d)
     for (i = 0; i < d->n && !d->cancel; i++) {
         CoverDlItem *it = &d->item[i];
         int nu, u, got = 0, neterr = 0, offline = 1, not_found_only = 1;
-        int ps1_title_url_index=-1,snes_title_url_index=-1,valid_serial=0,ps1_special=0;
+        int ps1_title_url_index=-1,valid_serial=0,ps1_special=0;
         char ps1_special_url[COVER_URL_MAX]="";
         char miss_path[COVER_PATH_MAX]="";
         /* Movies have no PS3 game Title ID. Previously they always landed
@@ -1068,6 +1077,7 @@ void cover_dl_run(CoverDl *d)
          * Filename-matched manual covers still take absolute precedence. */
         if (cover_has_art(io,it->plat,it->path,it->is_dir,it->size,
                           ps1_special?"":it->id)) {
+            if(it->plat==PLAT_SNES)log_printf("snes: COVER_ALREADY_PRESENT path=%s",it->path);
             if(it->plat==PLAT_PS1)
                 log_printf("covers: ps1 EXISTING_COVER path=%s",it->path);
             it->state=DL_HAVE;d->n_have++;goto next;
@@ -1133,11 +1143,11 @@ void cover_dl_run(CoverDl *d)
                                         real_name,sizeof(real_name));
             if(catalog_match && nu<COVER_DL_URLS &&
                snes_name_catalog_url(real_name,urls[nu],COVER_URL_MAX)) {
-                snes_title_url_index=nu++;
+                nu++;
                 log_printf("snes: CATALOG_MATCH rom=%s cover=%s",it->path,real_name);
             } else if (nu<COVER_DL_URLS &&
                        cover_dl_snes_title_url(it->path,urls[nu],COVER_URL_MAX)) {
-                snes_title_url_index=nu++;
+                nu++;
                 log_printf("snes: CATALOG_NO_MATCH rom=%s; trying exact original filename",
                            it->path);
             } else {

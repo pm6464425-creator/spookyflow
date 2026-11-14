@@ -32,6 +32,14 @@ jobs:
         run: make -f Makefile.host test
       - name: V15.31 SNES realistic case, ROM directory and 10 isolated regression checks
         run: python3 tests/test_snes_v15_31.py
+      - name: V15.32 SNES catalog pack matching, diagnostics and ten independent regressions
+        run: |
+          python3 tests/test_snes_boxart_catalog.py
+          cc -std=c99 -O2 -Wall -Wextra -Werror -Isrc/core \
+            src/core/snes_name_match.c src/core/util.c tests/test_snes_name_match.c \
+            -o build-host/test_snes_name_match
+          ./build-host/test_snes_name_match
+          python3 tests/test_snes_v15_32.py
       - name: V15.12 Spanish Latin America - ten independent visual and compatibility reviews
         run: python3 tests/test_es419_ui.py
       - name: Ensure fourth BDISO cover tab cannot be excluded again
@@ -784,6 +792,28 @@ jobs:
             gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
               --title "SpookyFlow V15.31 - SNES caja realista + carpeta ROMs" \
               --notes "V15.30 base preserved. Adds /dev_hdd0/SNES auto creation, /dev_hdd0/tmp/spookyflow/covers/snes cache, original transparent SNES game case 275x250 / artwork 240x168, user case override and independent texture slot. Includes 10 focused regression tests plus the existing suite. All PS1, PS2, PS3 and BDISO launcher code and existing tab logos unchanged. SNES emulator handoff remains unverified on actual PS3 HEN."
+          fi
+
+      - name: Publish V15.32 SNES boxart fix and SNES-only diagnostic PKG
+        if: github.ref == 'refs/heads/fix/v15-32-snes-boxarts-diagnostico'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="spookyflow-v15-32-snes-caratulas-diagnostico"
+          PKG="SPOOKYFLOW_V15_32_SNES_CARATULAS_DIAGNOSTICO.pkg"
+          cp spookyflow.pkg "$PKG"
+          HEAD_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-32-snes-boxarts-diagnostico" --jq '.commit.sha')"
+          if [ "$GITHUB_SHA" != "$HEAD_SHA" ]; then
+            echo "Old commit: skipping stale release"
+            exit 0
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$PKG" --clobber
+            gh release edit "$TAG" --target "$GITHUB_SHA"
+          else
+            gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
+              --title "SpookyFlow V15.32 - Caratulas SNES + diagnostico unico" \
+              --notes "Based on V15.31. Real 2500+ title Libretro SNES catalog in package with conservative region matching for ROM packs and no fake artwork. Old diagnostico_ps1.txt removed, one overwritten diagnostico_snes.txt tracks ROMs/covers HTTP/cache/GPU/pSNES launch. PS1, PS2, PS3 and BDISO mount backends preserved. Includes dedicated regression tests and full project CI. Actual PS3 HEN and specific 200-ROM pack verification still require user console tests."
           fi
 
   ps3-pkg-docker:

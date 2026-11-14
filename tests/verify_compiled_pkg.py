@@ -96,6 +96,14 @@ def verify(package):
         "Unexpected packaged SNES case resolution")
     print("PASS compiled SNES transparent case", len(snes_case), "bytes")
 
+    # V15.32: the installable PKG MUST contain real verified SNES cover names.
+    snes_names=files.get("USRDIR/snes_boxart_names.txt",b"").decode("utf-8").splitlines()
+    assert len(snes_names)>=2500, ("SNES verified catalog missing/partial",len(snes_names))
+    assert "Super Mario World (USA).png" in snes_names
+    assert "Donkey Kong Country (USA).png" in snes_names
+    assert "Legend of Zelda, The - A Link to the Past (USA).png" in snes_names
+    print("PASS real packaged SNES Libretro index",len(snes_names),"filenames")
+
     rawiso = files["USRDIR/raw_iso.sprx"]
     assert len(rawiso) == 7930 and rawiso[:4] == b"SCE\x00", (
         "Invalid embedded raw_iso.sprx",len(rawiso))
