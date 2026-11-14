@@ -439,6 +439,10 @@ static int snes_test_write(void *ctx,const char *path,const void *a,
     }
     if(strncmp(path,COVER_DL_DIR "/",sizeof(COVER_DL_DIR))==0 &&
        !mem_is_dir(ctx,COVER_DL_DIR))return -1;
+    if(strstr(path,"/Ace o Nerae!")||strstr(path,"/Super Bomberman 5"))
+       printf("DEBUG SNES WRITE %s height=%u bytes=%u\\n",path,
+              alen>=24?((((const unsigned char*)a)[22]<<8)|((const unsigned char*)a)[23]):0u,
+              (unsigned)alen);
     return mem_write(ctx,path,a,alen,b,blen);
 }
 static int snes_test_http(void *ctx,const char *url,uint8_t *buf,
@@ -556,6 +560,7 @@ static int snes_test_http_authentic(void *ctx,const char *url,uint8_t *b,
         *len=128;return 200; /* this must NEVER be used */
     }
     if(!strstr(url,"Named_Boxarts/"))return 404;
+    printf("DEBUG SNES AUTHENTIC URL: %s\\n",url);
     if(strstr(url,"Ace%20o%20Nerae")||
        strstr(url,"Ancient%20Magic%20-%20Bazoe")||
        (strstr(url,"Super%20Bomberman%205") &&
