@@ -40,7 +40,6 @@ static int metadata(const char *t)
         "patch","mod","hackrom","rerelease","reissue"
     };
     int i;
-    if(region_token(t))return 1;
     for(i=0;i<(int)(sizeof(tags)/sizeof(tags[0]));i++)
         if(eq(t,tags[i]))return 1;
     return 0;
@@ -49,7 +48,9 @@ static void token(Parts *p,const char *t,int bracket)
 {
     size_t n;
     if(!t[0])return;
-    if(region_token(t)){
+    /* Region words are metadata only inside () or []; World is part of
+       titles such as Super Mario World and must NEVER be dropped. */
+    if(bracket && region_token(t)){
         if(!p->region)p->region=region_token(t);
         return;
     }

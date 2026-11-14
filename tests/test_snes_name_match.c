@@ -28,7 +28,7 @@ static void lookup(const char *rom,const char *expect)
 {
     char output[256];
     int found=snes_name_catalog_match(rom,index_buf,strlen(index_buf),output,sizeof(output));
-    if(expect){CHECK(found);CHECK(strcmp(output,expect)==0);}
+    if(expect){if(!found||strcmp(output,expect)!=0)fprintf(stderr,"Mismatch ROM=%s\n wanted=%s\n actual=%s found=%d\n",rom,expect,output,found);CHECK(found);CHECK(strcmp(output,expect)==0);}
     else CHECK(!found);
 }
 int main(void)
