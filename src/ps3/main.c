@@ -304,14 +304,15 @@ static int launch_snes_psnes(const char *rom_path)
 {
     static const char exe[] = "/dev_hdd0/game/PSNE00001/USRDIR/EBOOT.BIN";
     const char *args[2];
-    int rc;
     if (!rom_path || !rom_path[0] || !ps3_fs_exists(exe)) return -64;
     args[0] = rom_path;
     args[1] = NULL;
     log_printf("snes: handoff pSNES 7.2 ROM=%s", rom_path);
-    rc = sysProcessExitSpawn2(exe, args, NULL, NULL, 0, 1001, SYS_PROCESS_SPAWN_STACK_SIZE_1M);
-    log_printf("snes: spawn returned rc=%d", rc);
-    return rc;
+    /* PSL1GHT declares sysProcessExitSpawn2 void: on success it never returns.
+     * If this code is reached, the handoff did not complete; keep the UI alive. */
+    sysProcessExitSpawn2(exe, args, NULL, NULL, 0, 1001, SYS_PROCESS_SPAWN_STACK_SIZE_1M);
+    log_printf("snes: spawn returned unexpectedly");
+    return -65;
 }
 
 int main(int argc, const char *argv[])
