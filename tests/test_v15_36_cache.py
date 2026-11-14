@@ -40,8 +40,8 @@ checks=[
 ("09. Main 30 visible covers retain highest scheduling priority",
  "if (!fill(cc, tab, center, count, &loads)) return;" in cache
  and "CC_MAIN_WINDOW" in src("src/core/cover_cache.h")),
-("10. Automatic online scanning limited to SNES; manual check all games remains",
- "if (automatic && t != PLAT_SNES) continue;" in app
+("10. Automatic online scanning limited to PS1/SNES, other consoles unchanged",
+ app.count("if (automatic && t != PLAT_SNES && t != PLAT_PS1) continue;")==2
  and "if (g->flags & GAME_DEMO) continue;" in app
  and "download_start(a, 0)" in app),
 ("11. Host tests exercise PS1 PS2 PS3 restoration, selective purge, all 5 GPU windows",

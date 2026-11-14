@@ -593,11 +593,13 @@ static void download_start(App *a, int automatic)
         log_printf("covers: download not available (no network functions)");
         return;
     }
-    /* Automatic online checks are SNES-only: PS1/PS2/PS3 are recovered
-     * directly from existing local art without background redownloads.
-     * The manually invoked action still checks all five platforms. */
+    /* V15.37: include PS1 in the one-shot background recovery pass.
+     * A game with a LOCAL JPG/PNG is DL_HAVE (zero network requests);
+     * only the last genuinely missing PS1 covers retry their verified
+     * serial / regional Libretro lookups. PS2, PS3 and BDISO stay offline
+     * automatically; manual Download Missing Covers still scans all tabs. */
     for (t = 0; t < PLAT_COUNT; t++) {
-        if (automatic && t != PLAT_SNES) continue;
+        if (automatic && t != PLAT_SNES && t != PLAT_PS1) continue;
         for (i = 0; i < a->lib->tab[t].count; i++)
             if (!(a->lib->tab[t].games[i].flags & GAME_DEMO)) n++;
     }
@@ -610,7 +612,7 @@ static void download_start(App *a, int automatic)
         for (i = 0; i < a->lib->tab[t].count; i++) {
             const Game *g = &a->lib->tab[t].games[i];
             CoverDlItem *it;
-            if (automatic && t != PLAT_SNES) continue;
+            if (automatic && t != PLAT_SNES && t != PLAT_PS1) continue;
             if (g->flags & GAME_DEMO) continue;
             it = &d->item[d->n++];
             it->plat = t;

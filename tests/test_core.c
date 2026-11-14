@@ -1051,6 +1051,7 @@ static void tap(uint32_t b) { app_update(&g_app, b, 1.0f / 60.0f); app_update(&g
 
 #include "test_covers.h"
 #include "test_v15_36_restore_covers.h"
+#include "test_v15_37_ps1_cover_repair.h"
 #include "test_music.h"
 
 static void test_app(void)
@@ -1866,6 +1867,7 @@ int main(void)
     test_cover_process();
     test_cover_loader();
     test_v15_36_restore_existing_covers();
+    test_v15_37_ps1_missing_cover_auto_repair();
     test_v15_36_scoped_rescan_preserves_psx_ps2_ps3();
     test_cover_cache_gpu();
     test_app_covers();

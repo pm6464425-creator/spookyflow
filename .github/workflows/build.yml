@@ -32,6 +32,8 @@ jobs:
         run: make -f Makefile.host test
       - name: V15.31 SNES realistic case, ROM directory and 10 isolated regression checks
         run: python3 tests/test_snes_v15_31.py
+      - name: V15.37 PS1 auto-repair missing cover, protect existing art, 12 checks
+        run: python3 tests/test_v15_37.py
       - name: V15.36 PS1 PS2 PS3 local-cover recovery, scoped rescan, five-tab memory and twelve regressions
         run: python3 tests/test_v15_36_cache.py
       - name: V15.35 SNES authentic box-art only, legacy screen replacement, regional matching and 12 safety checks
@@ -906,6 +908,28 @@ jobs:
             gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
               --title "SpookyFlow V15.36 - Recuperacion caratulas PS1, PS2, PS3" \
               --notes "Built over V15.35 with unmodified ISO/ROM launch code. Black PS1/PS2/PS3 artworks with stale .none are recovered offline when their local JPG/PNG exists: original images preserved and .cvr regenerated. Explicit Rescan Library invalidates only current platform processed .cvr/.none, leaving other consoles intact. Five game tabs share 64 GPU cover slots fairly, reserving main 30 and distributing the remaining 34 across side tabs instead of demanding 90. Automatic background online download limited to SNES; manual Download Missing Covers still checks PS1/PS2/PS3 if actual image is missing. New host tests reproduce the black-cover condition, rescans, five-tab cache. Original other console launchers and SNES boxart source files unchanged. Real PS3/HEN visual verification pending."
+          fi
+
+      - name: Publish verified V15.37 automatic PS1 missing-cover repair PKG
+        if: github.ref == 'refs/heads/fix/v15-37-ps1-missing-cover-auto-repair'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="spookyflow-v15-37-ps1-auto-cover-repair"
+          PKG="SPOOKYFLOW_V15_37_PS1_CARATULA_REPARACION_AUTOMATICA.pkg"
+          cp spookyflow.pkg "$PKG"
+          HEAD_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-37-ps1-missing-cover-auto-repair" --jq '.commit.sha')"
+          if [ "$GITHUB_SHA" != "$HEAD_SHA" ]; then
+            echo "Superseded build: do not publish obsolete PKG"
+            exit 0
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$PKG" --clobber
+            gh release edit "$TAG" --target "$GITHUB_SHA"
+          else
+            gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
+              --title "SpookyFlow V15.37 - Reparacion automatica portada PS1 faltante" \
+              --notes "Fix a V15.36 regression: automatic background cover verification accidentally excluded PS1 altogether. V15.37 checks PS1 alongside SNES (in background only) and downloads art only for PS1 games with NO existing local JPG/PNG. Previous successful PS1/PS2/PS3 covers, .cvr caches, SNES, BDISO, all launchers and the scoped rescan from V15.36 are unchanged. Old PS1 404 markers do not block retry. Host regressions simulate one missing Metal Gear Solid art and one already existing Resident Evil 2 art across two boots; verify one network fetch only and no overwrite. All sources and existing manual Download Missing Covers remain available. Real PS3 HEN confirmation and availability for any particular unidentified PS1 game remain to be checked."
           fi
 
   ps3-pkg-docker:
