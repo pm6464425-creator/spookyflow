@@ -28,10 +28,12 @@ cases=[
 ("04. Exact Libretro fallback if index missing",
  "cover_dl_snes_title_url(it->path" in cover and
  "snes: CATALOG_MISSING" in cover),
-("05. SNES downloaded names saved to the ROM-specific cover path",
- "it->plat==PLAT_SNES) { /* SNES always saves to its ROM's name" in cover and
- "COVER_DL_DIR" in cover and
- 'snprintf(f,sizeof(f),"%s.%s",c[0].base' in cover),
+("05. SNES automatic files saved under managed directory, manual art stays separate",
+ "if(it->plat==PLAT_SNES) {" in cover and
+ 'c[k].base[plen]==\'/\'' in cover and
+ 'snprintf(f,sizeof(f),"%s.%s",c[k].base' in cover and
+ '"snes: SAVE_TARGET %s"' in cover and
+ '"snes: STORAGE_ERROR rom=%s' in cover),
 ("06. Old PS1 forensic TXT removed on boot",
  '"diagnostico_ps1.txt"' in fs and
  'SF_DATA_DIR "/diagnostico_snes.txt"' in plat and
