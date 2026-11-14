@@ -32,6 +32,8 @@ jobs:
         run: make -f Makefile.host test
       - name: V15.31 SNES realistic case, ROM directory and 10 isolated regression checks
         run: python3 tests/test_snes_v15_31.py
+      - name: V15.34 SNES landscape-only PNG, four Libretro sources, clean cache and twelve regressions
+        run: python3 tests/test_snes_v15_34.py
       - name: V15.32 SNES catalog pack matching, diagnostics and ten independent regressions
         run: |
           python3 tests/test_snes_boxart_catalog.py
@@ -836,6 +838,28 @@ jobs:
             gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
               --title "SpookyFlow V15.33 - Caratulas SNES correccion comprobada" \
               --notes "Real PS3 HEN evidence: 471 SNES ROMs detected, catalog 3689 names loaded, HTTP 200 for correct PNGs, 100/100 writes failed to absent /dev_hdd0/SNES/COVERS. Fixed: manual artwork remains optional in SNES/COVERS; automatic PNGs now saved into SpookyFlow-managed /dev_hdd0/tmp/spookyflow/downloaded, with existing cache .none cleared after download and UI refresh. Dedicated host regression simulates that exact failure and checks 3 ROM downloads, manual priority, no PS1/PS2/PS3/BDISO behavior changes. One SNES diagnostic TXT capped at 1 MiB. Compiled PKG validated; real console confirmation pending."
+          fi
+
+      - name: Publish verified V15.34 SNES horizontal and multifuent PKG
+        if: github.ref == 'refs/heads/fix/v15-34-snes-horizontal-multifuente'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="spookyflow-v15-34-snes-horizontal-multifuente"
+          PKG="SPOOKYFLOW_V15_34_SNES_HORIZONTAL_MULTIFUENTE.pkg"
+          cp spookyflow.pkg "$PKG"
+          HEAD_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-34-snes-horizontal-multifuente" --jq '.commit.sha')"
+          if [ "$GITHUB_SHA" != "$HEAD_SHA" ]; then
+            echo "Superseded build: do not publish outdated release"
+            exit 0
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$PKG" --clobber
+            gh release edit "$TAG" --target "$GITHUB_SHA"
+          else
+            gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
+              --title "SpookyFlow V15.34 - SNES caratulas horizontales y cuatro fuentes" \
+              --notes "SNES V15.34 based on working V15.33. Preserve correctly displayed horizontal automatic covers and all manual covers. Detect and retry previously downloaded vertical boxarts automatically; use trusted Libretro Boxarts, Titles, Logos, Snaps in that order; only accept PNG with a verifiable horizontal IHDR before saving; invalidate stale SNES CVR only if affected; add verified alias for Ancient Magic Bazoo/Bazoe and prefer original non-Arcade editions. Original launchers and BDISO untouched. 12 isolated and 64k+ core regressions; installer verified. Actual HEN behavior and completeness for translated ROMs must be validated on console."
           fi
 
   ps3-pkg-docker:

@@ -1086,9 +1086,10 @@ void cover_dl_run(CoverDl *d)
     }
     /* Read the actual provider catalogs ONCE. SNES only; PS1 has its
      * own source and is not changed. Any failed alternate index is skipped. */
-    if(io->read_at && snes_catalog_len) {
-        int kind;
-        for(kind=0;kind<3;kind++) {
+    if(io->read_at) {
+        int kind,has_snes=0;
+        for(i=0;i<d->n;i++)if(d->item[i].plat==PLAT_SNES){has_snes=1;break;}
+        for(kind=0;has_snes && kind<3;kind++) {
             int bytes;
             snes_alts[kind]=(char *)malloc(SNES_BOXART_INDEX_MAX+1u);
             if(!snes_alts[kind])continue;

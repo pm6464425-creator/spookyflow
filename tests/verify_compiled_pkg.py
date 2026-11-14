@@ -103,6 +103,19 @@ def verify(package):
     assert "Donkey Kong Country (USA).png" in snes_names
     assert "Legend of Zelda, The - A Link to the Past (USA).png" in snes_names
     print("PASS real packaged SNES Libretro index",len(snes_names),"filenames")
+    # V15.34: no unverified source URLs. Every alternate file list is bundled
+    # in the EXACT final installable PKG and has known official SNES titles.
+    for filename, source in (
+        ("snes_title_names.txt","Named_Titles"),
+        ("snes_logo_names.txt","Named_Logos"),
+        ("snes_snap_names.txt","Named_Snaps"),
+    ):
+        item = files.get("USRDIR/" + filename)
+        assert item, ("SNES alternative source index missing from PKG", filename)
+        candidates = item.decode("utf-8").splitlines()
+        assert len(candidates)>=1800, (source,len(candidates),"partial")
+        assert "Super Mario World (USA).png" in candidates, source
+        print("PASS packaged SNES",source,len(candidates),"confirmed real filenames")
 
     rawiso = files["USRDIR/raw_iso.sprx"]
     assert len(rawiso) == 7930 and rawiso[:4] == b"SCE\x00", (

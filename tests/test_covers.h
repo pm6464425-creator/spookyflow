@@ -564,10 +564,14 @@ static int snes_test_http_horizontal(void *ctx,const char *url,uint8_t *b,
 }
 static void test_snes_recover_vertical_and_alias(void)
 {
-    static const char boxnames[]="Ace o Nerae! (Japan).png\n";
+    static const char boxnames[]=
+        "Ace o Nerae! (Japan).png\n"
+        "Super Mario World (USA).png\n"
+        "Donkey Kong Country (USA).png\n"
+        "Legend of Zelda, The - A Link to the Past (USA).png\n";
     static const char titlenames[]=
         "Ace o Nerae! (Japan).png\n"
-        "Ancient Magic - Bazoe! Mahou Sekai (Japan).png\n";
+        "Ancient Magic - Bazoe! Mahou Sekai (Japan).png\n"\n        "Super Mario World (USA).png\n"\n        "Donkey Kong Country (USA).png\n";
     static const char *const roms[]={
         "/dev_hdd0/SNES/Ace o Nerae! (ESP).sfc",
         "/dev_hdd0/SNES/Ancient Magic - Bazoo! Mahou Sekai (ESP).smc"

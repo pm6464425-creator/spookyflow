@@ -46,7 +46,7 @@ checks=[
  'snprintf(cached,sizeof(cached),"%s.cvr",stem)' in src),
 ("09. Exact manual SNES/COVERS art remains higher priority and cannot be overwritten",
  'if (plat == PLAT_SNES && slash)' in src and
- '"SNES/COVERS/"' in tests and
+ '/SNES/COVERS/' in tests and
  'if(it->plat==PLAT_SNES) {' in src and
  "COVER_DL_DIR" in src),
 ("10. Known official spelling alias from real 404 log is corrected",
