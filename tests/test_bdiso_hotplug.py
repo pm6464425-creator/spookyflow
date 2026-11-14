@@ -30,7 +30,9 @@ checks=[
  ("Attach/detach/reattach exercised in portable tests", "test_usb_movie_hotplug();" in tests),
  ("Empty BDISO after disconnection regression", "CHECK(g_lib.tab[PLAT_BDISO].count==0); /* no ghost entries */" in tests),
  ("Existing PS3 games unchanged in test", "CHECK(g_lib.tab[PLAT_PS3].count==ps3_before);" in tests),
- ("BDISO only, no pop-up demos", "if (gl->count == 0 && t != PLAT_BDISO)" in app)
+ ("BDISO and SNES never show fake demo games",
+  ("if (gl->count == 0 && t != PLAT_BDISO)" in app or
+   "if (gl->count == 0 && t != PLAT_BDISO && t != PLAT_SNES)" in app))
 ]
 for label,passed in checks: print(("PASS" if passed else "FAIL"),label)
 print("BDISO hotplug regression:",sum(ok for _,ok in checks),"/",len(checks))
