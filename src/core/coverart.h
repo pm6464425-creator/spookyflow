@@ -169,6 +169,9 @@ void cover_set_focus(CoverLoader *L, int tab, int index);
 void cover_poll(CoverLoader *L, CoverCache *cc);
 /* Delete the disk cache (worker does it before its next job). */
 void cover_wipe_cache(CoverLoader *L);
+/* Rebuild only the selected platform's .cvr/.none files on library rescan.
+ * Preserves other consoles' positive caches and all original JPG/PNG. */
+void cover_wipe_cache_platform(CoverLoader *L,int plat);
 /* Ask the worker to stop and wait for it (up to ~2 s). */
 void cover_loader_stop(CoverLoader *L);
 

@@ -593,8 +593,14 @@ static void download_start(App *a, int automatic)
         log_printf("covers: download not available (no network functions)");
         return;
     }
-    for (t = 0; t < PLAT_COUNT; t++)
-        for (i = 0; i < a->lib->tab[t].count; i++) if (!(a->lib->tab[t].games[i].flags & GAME_DEMO)) n++;
+    /* Automatic online checks are SNES-only: PS1/PS2/PS3 are recovered
+     * directly from existing local art without background redownloads.
+     * The manually invoked action still checks all five platforms. */
+    for (t = 0; t < PLAT_COUNT; t++) {
+        if (automatic && t != PLAT_SNES) continue;
+        for (i = 0; i < a->lib->tab[t].count; i++)
+            if (!(a->lib->tab[t].games[i].flags & GAME_DEMO)) n++;
+    }
     a->dl_total = n;
     if (n == 0) { sf_strlcpy(a->dl_note, "No hay juegos (solo biblioteca de prueba)", sizeof(a->dl_note)); return; }
     d = (CoverDl *)calloc(1, sizeof(CoverDl));
@@ -604,6 +610,7 @@ static void download_start(App *a, int automatic)
         for (i = 0; i < a->lib->tab[t].count; i++) {
             const Game *g = &a->lib->tab[t].games[i];
             CoverDlItem *it;
+            if (automatic && t != PLAT_SNES) continue;
             if (g->flags & GAME_DEMO) continue;
             it = &d->item[d->n++];
             it->plat = t;
@@ -708,7 +715,7 @@ static void loading_update(App *a, float dt)
             drop_covers(a);
             /* "Rescan Library" also looks again for covers of games that had none (0.9.3: made covers are kept) */
             if (a->host.covers && !a->usb_auto_rescan)
-                cover_wipe_cache(a->host.covers);
+                cover_wipe_cache_platform(a->host.covers,a->tab);
         }
         sf_strlcpy(a->load_status, a->rescan ? "Reescaneando juegos\xE2\x80\xA6" : "Cargando ajustes\xE2\x80\xA6", sizeof(a->load_status));
         a->load_target = 0.06f;

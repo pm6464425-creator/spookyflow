@@ -32,6 +32,8 @@ jobs:
         run: make -f Makefile.host test
       - name: V15.31 SNES realistic case, ROM directory and 10 isolated regression checks
         run: python3 tests/test_snes_v15_31.py
+      - name: V15.36 PS1 PS2 PS3 local-cover recovery, scoped rescan, five-tab memory and twelve regressions
+        run: python3 tests/test_v15_36_cache.py
       - name: V15.35 SNES authentic box-art only, legacy screen replacement, regional matching and 12 safety checks
         run: python3 tests/test_snes_v15_35.py
       - name: V15.32 SNES catalog pack matching, diagnostics and ten independent regressions
@@ -882,6 +884,28 @@ jobs:
             gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
               --title "SpookyFlow V15.35 - Caratulas reales SNES, sin pantallas de juego" \
               --notes "Fix diagnosed on physical PS3 with 476 ROMs in diagnostico_snes(2).txt. SNES automatically uses ONLY verified authentic Libretro Named_Boxarts (never title, logo, or gameplay screen). Prior 256x224 / 256x239 auto title-screen images are detected and replaced on next missing-cover scan; their processed caches invalidated for SNES only. Multiple verified region and original-vs-special-edition variants are tried. Horizontal authentic box is preferred; original Japanese portrait box art is letterboxed to landscape without distortion rather than substituted with a game screen. Official title aliases repaired (Bastard, Captain Tsubasa III/V, Carmen Sandiego, DoReMi Fantasy, Final Fantasy Mystic Quest, Mega Man 7, etc.). Existing good auto art and manual SNES/COVERS art are retained. PS1, PS2, PS3, BDISO and pSNES launches unchanged. Fully compiled and host-tested; final presentation on user's HEN console remains to be confirmed."
+          fi
+
+      - name: Publish verified V15.36 PS1 PS2 PS3 restored cover cache PKG
+        if: github.ref == 'refs/heads/fix/v15-36-restore-ps1-ps2-ps3-covers'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="spookyflow-v15-36-ps1-ps2-ps3-covers-cache-repair"
+          PKG="SPOOKYFLOW_V15_36_PS1_PS2_PS3_CARATULAS_RECUPERADAS.pkg"
+          cp spookyflow.pkg "$PKG"
+          HEAD_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-36-restore-ps1-ps2-ps3-covers" --jq '.commit.sha')"
+          if [ "$GITHUB_SHA" != "$HEAD_SHA" ]; then
+            echo "Superseded build: no stale release"
+            exit 0
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$PKG" --clobber
+            gh release edit "$TAG" --target "$GITHUB_SHA"
+          else
+            gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
+              --title "SpookyFlow V15.36 - Recuperacion caratulas PS1, PS2, PS3" \
+              --notes "Built over V15.35 with unmodified ISO/ROM launch code. Black PS1/PS2/PS3 artworks with stale .none are recovered offline when their local JPG/PNG exists: original images preserved and .cvr regenerated. Explicit Rescan Library invalidates only current platform processed .cvr/.none, leaving other consoles intact. Five game tabs share 64 GPU cover slots fairly, reserving main 30 and distributing the remaining 34 across side tabs instead of demanding 90. Automatic background online download limited to SNES; manual Download Missing Covers still checks PS1/PS2/PS3 if actual image is missing. New host tests reproduce the black-cover condition, rescans, five-tab cache. Original other console launchers and SNES boxart source files unchanged. Real PS3/HEN visual verification pending."
           fi
 
   ps3-pkg-docker:

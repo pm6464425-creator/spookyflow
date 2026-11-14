@@ -144,14 +144,28 @@ void cc_update(CoverCache *cc, int tab, int center, int count)
     if (center < 0) center = 0;
     if (center >= count) center = count - 1;
     window_of(center, count, cc->window, &cc->lo[tab], &cc->hi[tab]);
-    /* other tabs keep a smaller window, if there is room for it */
-    if (cc->budget >= cc->window + CC_SIDE_WINDOW) {
-        for (t = 0; t < CC_TABS; t++) {
-            int sc = cc->side_center[t], n = cc->side_count[t];
-            if (t == tab || n <= 0) continue;
-            if (sc < 0) sc = 0;
-            if (sc >= n) sc = n - 1;
-            window_of(sc, n, CC_SIDE_WINDOW, &cc->lo[t], &cc->hi[t]);
+    /* Five platforms previously reserved 30 + 4*15 = 90 "wanted" cover
+     * textures with only 64 physical slots. No victim could be evicted.
+     * Distribute the spare slots across active side tabs so their TOTAL
+     * reserved ranges never exceed the GPU budget. */
+    {
+        int remaining=cc->budget-(cc->hi[tab]-cc->lo[tab]+1);
+        int active=0;
+        for(t=0;t<CC_TABS;t++)
+            if(t!=tab && cc->side_count[t]>0)active++;
+        for(t=0;t<CC_TABS && active>0;t++) {
+            int sc=cc->side_center[t],n=cc->side_count[t],span;
+            if(t==tab || n<=0)continue;
+            span=(remaining+active-1)/active;
+            if(span>CC_SIDE_WINDOW)span=CC_SIDE_WINDOW;
+            if(span>n)span=n;
+            if(span>0){
+                if(sc<0)sc=0;
+                if(sc>=n)sc=n-1;
+                window_of(sc,n,span,&cc->lo[t],&cc->hi[t]);
+                remaining-=span;
+            }
+            active--;
         }
     }
     if (!fill(cc, tab, center, count, &loads)) return;

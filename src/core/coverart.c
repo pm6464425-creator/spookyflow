@@ -424,6 +424,11 @@ void cover_poll(CoverLoader *L, CoverCache *cc)
 }
 
 void cover_wipe_cache(CoverLoader *L) { L->wipe = 1; }
+/* 1=legacy global flush; platform + 2 = scoped flush. JPG/PNG untouched. */
+void cover_wipe_cache_platform(CoverLoader *L,int plat)
+{
+    if(L && plat>=0 && plat<PLAT_COUNT)L->wipe=plat+2;
+}
 
 void cover_loader_stop(CoverLoader *L)
 {
@@ -455,7 +460,7 @@ static void probe(CoverLoader *L)
     }
 }
 
-static void wipe(CoverLoader *L)
+static void wipe(CoverLoader *L,int only_plat)
 {
     int p, removed = 0;
     FsEntry *ent;
@@ -464,6 +469,7 @@ static void wipe(CoverLoader *L)
     if (!ent) return;
     for (p = 0; p < PLAT_COUNT; p++) {
         char dir[COVER_PATH_MAX], f[COVER_PATH_MAX + FS_NAME_MAX + 2];
+        if(only_plat>=0 && p!=only_plat)continue;
         int rounds;
         snprintf(dir, sizeof(dir), "%s/%s", L->io.cache_dir, k_plat_dir[p]);
         for (rounds = 0; rounds < 64; rounds++) {   /* 256 per listing, up to 16k files */
@@ -482,7 +488,8 @@ static void wipe(CoverLoader *L)
         }
     }
     free(ent);
-    log_printf("covers: explicit rescan invalidated %d processed images/markers", removed);
+    log_printf("covers: explicit rescan platform=%s invalidated=%d processed files (JPG/PNG kept)",
+               only_plat<0?"ALL":k_plat_dir[only_plat],removed);
 }
 
 static int read_cache(CoverLoader *L, const char *cvr, int plat, int tw, int th, int *year)
@@ -629,10 +636,26 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
             /* the marker keeps the year: [version, year hi, year lo]; an older marker is looked up again */
             unsigned char y[3];
             if (L->io.read_at && L->io.read_at(L->io.ctx, f, 0, y, 3) == 3 && y[0] == cvr_version(j->plat)) {
-                *year = 0;
-                sf_strlcpy(src, "none (cached)", src_cap);
-                if(j->plat==PLAT_SNES)log_printf("snes: CACHE_NONE rom=%s (auto-download clears after success)",j->path);
-                return 0;
+                /* A stale negative-cache result must NEVER conceal a newer
+                 * downloaded or manually added JPG/PNG. Resolve disc serial
+                 * only when a negative marker would otherwise prevent load. */
+                char checkid[16];
+                sf_strlcpy(checkid,j->id,sizeof(checkid));
+                if(!checkid[0] && j->plat!=PLAT_SNES)
+                    (void)discid_read(j->plat,j->path,j->is_dir,
+                                      L->io.read_at,L->io.ctx,checkid,sizeof(checkid));
+                if(cover_has_art(&L->io,j->plat,j->path,j->is_dir,
+                                 j->size,checkid)) {
+                    if(L->io.remove)(void)L->io.remove(L->io.ctx,f);
+                    log_printf("covers: stale .none bypassed: local JPG/PNG exists plat=%s game=%s",
+                               k_plat_dir[j->plat],j->path);
+                }else{
+                    *year = 0;
+                    sf_strlcpy(src, "none (cached)", src_cap);
+                    if(j->plat==PLAT_SNES)
+                        log_printf("snes: CACHE_NONE rom=%s (no usable art)",j->path);
+                    return 0;
+                }
             }
         }
     }
@@ -758,8 +781,9 @@ int cover_worker_step(CoverLoader *L)
     uint16_t *dst;
 
     if (L->wipe) {
+        int mode=L->wipe;
         L->wipe = 0;
-        wipe(L);
+        wipe(L,mode==1?-1:mode-2);
         L->probed = 0;      /* a cover pack may have been added too */
         return 1;
     }

@@ -55,7 +55,7 @@ checks=[
   ("src/ps3/sf_cobra_mount.c","fe9faf92587a9c86ae866502ef5346f98fb76715"),
   ("src/ps3/ps3_webman.c","333f9d3fe75f3ebbdc0840ddb696385306919eca"),
   ("src/core/ps1_name_match.c","b5ea816d0c4d978db13a0a1c89452f56b7f78e9c"),
-  ("src/core/snes_name_match.c","2af5c2a0d62319dd66a5e72e670ab718bc758b94"),
+  ("src/core/snes_name_match.c","b0b76d977053f7153b19d9a5ff562c8c4704d5f5"),
   ("src/core/ui.c","0da4dccbaef66846b3dcc15779e0363e10be431c")
  )))
 ]

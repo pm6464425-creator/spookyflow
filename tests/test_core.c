@@ -1050,6 +1050,7 @@ static void run_frames(uint32_t held, float secs)
 static void tap(uint32_t b) { app_update(&g_app, b, 1.0f / 60.0f); app_update(&g_app, 0, 1.0f / 60.0f); }
 
 #include "test_covers.h"
+#include "test_v15_36_restore_covers.h"
 #include "test_music.h"
 
 static void test_app(void)
@@ -1864,10 +1865,13 @@ int main(void)
     test_bdiso_cinema_crop_fill();
     test_cover_process();
     test_cover_loader();
+    test_v15_36_restore_existing_covers();
+    test_v15_36_scoped_rescan_preserves_psx_ps2_ps3();
     test_cover_cache_gpu();
     test_app_covers();
     test_sleep_and_info();
     test_cover_cache_tabs();
+    test_v15_36_five_tab_gpu_budget();
     test_case_images();
     test_multi_disc();
     test_multi_disc_names();
