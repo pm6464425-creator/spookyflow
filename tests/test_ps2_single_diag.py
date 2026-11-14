@@ -35,7 +35,7 @@ checks={
  "11 SNES events captured and PS1 TXT excluded": 'strstr(msg,"snes:")' in log and 'strstr(msg,"SNES_DIAG")' in log and 'strstr(msg,"PS1_DIAG")' not in log,
  "12 PS2 lines excluded": 'strstr(msg,"PS2")' not in log and 'strstr(msg,"ps2")' not in log,
  "13 BDISO lines excluded": 'strstr(msg,"BDISO")' not in log and 'strstr(msg,"bdiso")' not in log,
- "14 bounded diagnostic": '#define SF_DIAG_MAX_BYTES (256u*1024u)' in log,
+ "14 bounded diagnostic": '#define SF_DIAG_MAX_BYTES (1024u*1024u)' in log,
  "15 PS2 boot report removed": 'sf_ps2_hen_report_state(); /* Read-only inspection' not in main,
  "16 PS2 encryption code retained": 'if(rc==0)sf_ps2_hen_report_state();' in hen,
  "17 PS1 specific entry stages": 'STAGE=SELECTION' in ps1 and 'STAGE=COBRA_VERSION' in ps1,

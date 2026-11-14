@@ -1848,6 +1848,7 @@ int main(void)
     test_ps1_libretro_filename_download();
     test_ps1_covers_serial_and_sources();
     test_ps1_cover_download_retry();
+    test_snes_download_no_rom_covers_directory();
     test_cover_lookup();
     test_bdiso_real_download();
     test_bdiso_flowmovie_manual_cover_paths();

@@ -816,6 +816,28 @@ jobs:
               --notes "Based on V15.31. Real 2500+ title Libretro SNES catalog in package with conservative region matching for ROM packs and no fake artwork. Old diagnostico_ps1.txt removed, one overwritten diagnostico_snes.txt tracks ROMs/covers HTTP/cache/GPU/pSNES launch. PS1, PS2, PS3 and BDISO mount backends preserved. Includes dedicated regression tests and full project CI. Actual PS3 HEN and specific 200-ROM pack verification still require user console tests."
           fi
 
+      - name: Publish V15.33 real SNES cover save fix (PS3 HEN diagnostic)
+        if: github.ref == 'refs/heads/fix/v15-33-snes-caratulas-write'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="spookyflow-v15-33-snes-caratulas-write-fix"
+          PKG="SPOOKYFLOW_V15_33_SNES_CARATULAS_WRITE_FIX.pkg"
+          cp spookyflow.pkg "$PKG"
+          HEAD_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-33-snes-caratulas-write" --jq '.commit.sha')"
+          if [ "$GITHUB_SHA" != "$HEAD_SHA" ]; then
+            echo "Superseded build: do not publish old code"
+            exit 0
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$PKG" --clobber
+            gh release edit "$TAG" --target "$GITHUB_SHA"
+          else
+            gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
+              --title "SpookyFlow V15.33 - Caratulas SNES correccion comprobada" \
+              --notes "Real PS3 HEN evidence: 471 SNES ROMs detected, catalog 3689 names loaded, HTTP 200 for correct PNGs, 100/100 writes failed to absent /dev_hdd0/SNES/COVERS. Fixed: manual artwork remains optional in SNES/COVERS; automatic PNGs now saved into SpookyFlow-managed /dev_hdd0/tmp/spookyflow/downloaded, with existing cache .none cleared after download and UI refresh. Dedicated host regression simulates that exact failure and checks 3 ROM downloads, manual priority, no PS1/PS2/PS3/BDISO behavior changes. One SNES diagnostic TXT capped at 1 MiB. Compiled PKG validated; real console confirmation pending."
+          fi
+
   ps3-pkg-docker:
     needs: host-tests
     runs-on: ubuntu-latest

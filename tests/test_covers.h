@@ -2,6 +2,7 @@
  * cache, worker). Included by test_core.c (shares CHECK and g_app). */
 #include "coverart.h"
 #include "ps1_name_match.h"
+#include "snes_name_match.h"
 #include "discid.h"
 #include "render.h"
 
@@ -421,6 +422,104 @@ static void test_ps1_cover_download_retry(void)
     CHECK(g_ps1_http_calls==1); /* no guessed serial; only an exact title request */
     CHECK(memfs_find(COVER_DL_DIR "/Unknown Game.png")==NULL);
     CHECK(memfs_find(COVER_DL_DIR "/.missing")==NULL);
+    memfs_reset();
+}
+
+/* V15.33 reproduces the real PS3 HEN log: catalog 200, ROM detected,
+ * but every downloaded image fails in missing /dev_hdd0/SNES/COVERS/.
+ * Automatic cover downloads must select the existing SpookyFlow-managed
+ * folder while manual ROM/COVERS keeps highest LOAD priority. */
+static int g_snes_write_to_missing_dir,g_snes_http_hits;
+static int snes_test_write(void *ctx,const char *path,const void *a,
+                           uint32_t alen,const void *b,uint32_t blen)
+{
+    if(strstr(path,"/SNES/COVERS/")) {
+        g_snes_write_to_missing_dir++;
+        return -1; /* this is exactly what happened on the physical PS3 */
+    }
+    if(strncmp(path,COVER_DL_DIR "/",sizeof(COVER_DL_DIR))==0 &&
+       !mem_is_dir(ctx,COVER_DL_DIR))return -1;
+    return mem_write(ctx,path,a,alen,b,blen);
+}
+static int snes_test_http(void *ctx,const char *url,uint8_t *buf,
+                           uint32_t cap,uint32_t *len,char *loc,size_t loc_cap)
+{
+    (void)ctx;
+    if(loc_cap)loc[0]=0;
+    *len=0;
+    if(!strstr(url,"Nintendo%20-%20Super%20Nintendo%20Entertainment%20System/Named_Boxarts/"))
+        return 404;
+    if(!strstr(url,"3%20Ninjas%20Kick%20Back%20(USA).png") &&
+       !strstr(url,"Super%20Mario%20World%20(USA).png") &&
+       !strstr(url,"Chrono%20Trigger%20(USA).png"))return 404;
+    if(cap<128)return COVER_HTTP_BIG;
+    memset(buf,0,128);
+    memcpy(buf,"\x89PNG\r\n\x1a\n",8);
+    *len=128;
+    g_snes_http_hits++;
+    return 200;
+}
+static void test_snes_download_no_rom_covers_directory(void)
+{
+    static const char names[]=
+        "3 Ninjas Kick Back (USA).png\n"
+        "Super Mario World (USA).png\n"
+        "Chrono Trigger (USA).png\n"
+        "ActRaiser 2 (USA).png\n"
+        "Legend of Zelda, The - A Link to the Past (USA).png\n";
+    static const char *const roms[]={
+        "/dev_hdd0/SNES/3 Ninjas Kick Back (ESP).sfc",
+        "/dev_hdd0/SNES/Super Mario World (ESP).smc",
+        "/dev_hdd0/SNES/Chrono Trigger (ESP).smc"
+    };
+    CoverIO io;
+    CoverDl d;
+    CoverDlItem items[3];
+    char stem[COVER_PATH_MAX], none[COVER_PATH_MAX+8];
+    CoverCand c[COVER_MAX_CANDS];
+    int n,i;
+    printf("SNES V15.33: real PS3 HTTP 200 + nonexistent manual COVERS write regression\n");
+    memfs_reset();
+    mem_io(&io,"/cache");
+    memfs_dir(COVER_DL_DIR);
+    io.write_file=snes_test_write;
+    CHECK(memfs_put(SNES_BOXART_INDEX,names,(uint32_t)strlen(names))!=NULL);
+    memset(items,0,sizeof(items));
+    for(i=0;i<3;i++){
+        items[i].plat=PLAT_SNES;
+        items[i].size=1048576;
+        sf_strlcpy(items[i].path,roms[i],sizeof(items[i].path));
+    }
+    cover_cache_stem("/cache",PLAT_SNES,roms[0],items[0].size,stem,sizeof(stem));
+    snprintf(none,sizeof(none),"%s.none",stem);
+    CHECK(memfs_put(none,"\\x06",1)!=NULL);
+    memset(&d,0,sizeof(d));
+    d.item=items; d.n=3; d.io=&io;
+    d.http=snes_test_http; d.auto_mode=1;
+    g_snes_write_to_missing_dir=g_snes_http_hits=0;
+    cover_dl_run(&d);
+    CHECK(d.finished && d.n_got==3 && d.n_error==0 && d.n_missing==0);
+    CHECK(g_snes_http_hits==3);
+    CHECK(g_snes_write_to_missing_dir==0);
+    CHECK(memfs_find(COVER_DL_DIR "/3 Ninjas Kick Back (ESP).png")!=NULL);
+    CHECK(memfs_find(COVER_DL_DIR "/Super Mario World (ESP).png")!=NULL);
+    CHECK(memfs_find(COVER_DL_DIR "/Chrono Trigger (ESP).png")!=NULL);
+    CHECK(memfs_find(none)==NULL); /* previously cached failed cover discarded */
+    CHECK(memfs_find("/dev_hdd0/SNES/COVERS/3 Ninjas Kick Back (ESP).png")==NULL);
+    for(i=0;i<3;i++)
+        CHECK(cover_has_art(&io,PLAT_SNES,roms[i],0,items[i].size,""));
+    n=cover_candidates(PLAT_SNES,roms[0],0,"",NULL,c,COVER_MAX_CANDS);
+    CHECK(n==2);
+    CHECK_STR(c[0].base,"/dev_hdd0/SNES/COVERS/3 Ninjas Kick Back (ESP)");
+    CHECK_STR(c[1].base,COVER_DL_DIR "/3 Ninjas Kick Back (ESP)");
+    /* Manual overrides remain preferred even after an automatic download. */
+    CHECK(memfs_put("/dev_hdd0/SNES/COVERS/3 Ninjas Kick Back (ESP).png",
+                    "IMG 64 44 8 0 40 255",20)!=NULL);
+    memset(&d,0,sizeof(d));
+    d.item=items; d.n=3; d.io=&io;
+    d.http=snes_test_http; d.auto_mode=1;
+    cover_dl_run(&d);
+    CHECK(d.n_have==3 && d.n_got==0 && g_snes_http_hits==3);
     memfs_reset();
 }
 

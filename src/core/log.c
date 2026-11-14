@@ -8,7 +8,7 @@ static FILE *g_log;
 static double g_time;
 static int g_echo;
 #ifdef SF_SINGLE_DIAG_FILE
-#define SF_DIAG_MAX_BYTES (256u*1024u)
+#define SF_DIAG_MAX_BYTES (1024u*1024u) /* SNES: single bounded 1 MiB report */
 static size_t s_file_bytes;
 #endif
 

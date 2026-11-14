@@ -38,7 +38,7 @@ cases=[
  'SF_DATA_DIR "/diagnostico_ps1.txt"' not in plat),
 ("07. A single SNES TXT is overwritten, capped, and excludes PS1/PS2/BDISO",
  'fopen(path,"wb")' in log and
- 'SF_DIAG_MAX_BYTES (256u*1024u)' in log and
+ 'SF_DIAG_MAX_BYTES (1024u*1024u)' in log and
  'strstr(msg,"snes:")' in log and
  'strstr(msg,"PS1_DIAG")' not in log),
 ("08. SNES log includes scan, HTTP, downloaded files, decode, cache, and emulator",

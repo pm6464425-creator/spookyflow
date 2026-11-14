@@ -1023,7 +1023,7 @@ void cover_dl_run(CoverDl *d)
     }
     for (i = 0; i < d->n && !d->cancel; i++) {
         CoverDlItem *it = &d->item[i];
-        int nu, u, got = 0, neterr = 0, offline = 1, not_found_only = 1;
+        int nu, u, got = 0, neterr = 0, writeerr = 0, offline = 1, not_found_only = 1;
         int ps1_title_url_index=-1,valid_serial=0,ps1_special=0;
         char ps1_special_url[COVER_URL_MAX]="";
         char miss_path[COVER_PATH_MAX]="";
@@ -1191,14 +1191,35 @@ void cover_dl_run(CoverDl *d)
             if (st < 0) { neterr = 1; log_printf("covers: %s: %s", url, st == COVER_HTTP_DNS ? "name not found (no internet?)" : st == COVER_HTTP_BIG ? "too big" : "no connection"); continue; }
             if (st == 200 && len > 64 && is_image(buf, len, &png)) {
                 char f[COVER_PATH_MAX];
-                if((it->plat==PLAT_PS1 && u==ps1_title_url_index) ||
-                   it->plat==PLAT_SNES) { /* SNES always saves to its ROM's name, even with multiple source attempts */
+                if(it->plat==PLAT_SNES) {
+                    /* V15.33 (confirmed on PS3 HEN by diagnostico_snes.txt):
+                     * Libretro HTTPS returned 200 and matched the correct
+                     * filename, but c[0] was the manual ROM/COVERS path.
+                     * That folder is optional and is NOT created by scanning,
+                     * so every automatic write failed. Save to our owned,
+                     * already-created COVER_DL_DIR instead. Preserve the
+                     * ROM/COVERS candidate as the higher-priority MANUAL art. */
+                    CoverCand c[4];
+                    int k, nc=cover_candidates(it->plat,it->path,it->is_dir,
+                                              "",NULL,c,4);
+                    const size_t plen=sizeof(COVER_DL_DIR)-1u;
+                    for(k=0;k<nc;k++)
+                        if(strncmp(c[k].base,COVER_DL_DIR,plen)==0 &&
+                           c[k].base[plen]=='/')break;
+                    if(k==nc){
+                        log_printf("snes: SAVE_TARGET_MISSING rom=%s",it->path);
+                        writeerr=1;
+                        continue;
+                    }
+                    snprintf(f,sizeof(f),"%s.%s",c[k].base,png?"png":"jpg");
+                    log_printf("snes: SAVE_TARGET %s",f);
+                } else if(it->plat==PLAT_PS1 && u==ps1_title_url_index) {
                     CoverCand c[1];
                     if(cover_candidates(it->plat,it->path,it->is_dir,"",
                                         NULL,c,1)!=1)
                         continue;
                     snprintf(f,sizeof(f),"%s.%s",c[0].base,png?"png":"jpg");
-                }else{
+                } else {
                     snprintf(f,sizeof(f),"%s/%s.%s",
                              COVER_DL_DIR,it->id,png?"png":"jpg");
                 }
@@ -1209,8 +1230,10 @@ void cover_dl_run(CoverDl *d)
                         log_printf("snes: SAVED_COVER path=%s bytes=%u",f,(unsigned)len);
                 } else {
                     log_printf("covers: could not write %s", f);
-                    if(it->plat==PLAT_SNES)
+                    if(it->plat==PLAT_SNES) {
+                        writeerr=1;
                         log_printf("snes: WRITE_ERROR path=%s rom=%s",f,it->path);
+                    }
                 }
             } else if (st != 404 && odd++ < 5) {          /* a few, not one per game */
                 log_printf("covers: %s: HTTP %d%s", url, st, st == 200 ? " (not an image)" : "");
@@ -1226,6 +1249,12 @@ void cover_dl_run(CoverDl *d)
                 snprintf(f, sizeof(f), "%s.none", stem);
                 io->remove(io->ctx, f);
             }
+        } else if (writeerr && it->plat==PLAT_SNES) {
+            /* A 200 OK body with failed disk write is a storage error, NOT a
+             * missing online cover. Do not poison 404 cache or retry falsely. */
+            it->state=DL_ERROR; d->n_error++;
+            log_printf("snes: STORAGE_ERROR rom=%s (download OK, save failed)",
+                       it->path);
         } else if (neterr) {
             if(it->plat==PLAT_SNES)
                 log_printf("snes: NETWORK_ERROR rom=%s",it->path);
