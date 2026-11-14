@@ -6,6 +6,7 @@
 static const char *const k_exts[] = {
     ".iso", ".bin", ".cue", ".img", ".mdf", ".mds", ".ccd", ".sub", ".chd",
     ".pbp", ".ecm", ".cso", ".zso", ".nrg", ".gz",
+    ".sfc", ".smc", ".zip", /* SNES ROM names only: old extensions stay unchanged */
     ".dec", ".enc"   /* decrypted PS3 ISOs (Game.dec.iso), PS2 Classics (.BIN.ENC) */
 };
 

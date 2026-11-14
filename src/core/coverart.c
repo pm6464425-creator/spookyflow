@@ -82,7 +82,7 @@ static int cover_name_is_custom(const char *path)
 
 static int strip_one_ext(char *s)
 {
-    static const char *const exts[] = { ".iso", ".bin", ".cue", ".img", ".mdf", ".enc", ".dec", ".chd", ".pbp" };
+    static const char *const exts[] = { ".iso", ".bin", ".cue", ".img", ".mdf", ".enc", ".dec", ".chd", ".pbp", ".sfc", ".smc", ".zip" };
     size_t n = strlen(s), k = n;
     int i;
     {   /* webMAN's NTFS pointer files: "Name.ntfs[PS3ISO]" (cover: Name.PNG next to it) */
@@ -844,6 +844,44 @@ int cover_dl_ps1_title_url(const char *game_path,char *out,size_t cap)
     return 1;
 }
 
+/* SNES title-based Libretro boxarts: use the real ROM stem, never a PS1/PS2 serial.
+ * Exact filename matching avoids attaching the wrong game's art. */
+static int cover_dl_snes_title_url(const char *path, char *out, size_t cap)
+{
+    static const char base[] =
+        "https://thumbnails.libretro.com/Nintendo%20-%20Super%20Nintendo%20Entertainment%20System/Named_Boxarts/";
+    static const char hex[] = "0123456789ABCDEF";
+    const char *stem;
+    char title[256];
+    size_t i, pos, n;
+    if (!out || !cap || !path) return 0;
+    out[0]='\0';
+    stem=strrchr(path,'/');
+    stem=stem?stem+1:path;
+    sf_strlcpy(title,stem,sizeof(title));
+    while(strip_one_ext(title)){}
+    n=strlen(title);
+    if(n<2 || n>=sizeof(title)-1 || strlen(base)+n+5>=cap) return 0;
+    sf_strlcpy(out,base,cap);
+    pos=strlen(out);
+    for(i=0;i<n;i++) {
+        unsigned char c=(unsigned char)title[i];
+        if(c=='&'||c=='*'||c=='/'||c==':'||c=='<'||c=='>'||
+           c=='?'||c=='\\'||c=='|'||c=='"') c='_';
+        if(sf_isalpha((char)c)||sf_isdigit((char)c)||c=='-'||c=='_'||
+           c=='.'||c=='('||c==')') {
+            if(pos+6>=cap)return 0;
+            out[pos++]=(char)c;
+        }else {
+            if(pos+8>=cap)return 0;
+            out[pos++]='%';out[pos++]=hex[c>>4];out[pos++]=hex[c&15];
+        }
+    }
+    if(pos+5>cap)return 0;
+    strcpy(out+pos,".png");
+    return 1;
+}
+
 /* Only manually provided artwork and NEW theatrical posters count.
  * The V11-13 edition photographs contain plastic Blu-ray cases; never
  * consider them completed artwork for this version. */
@@ -941,7 +979,7 @@ void cover_dl_run(CoverDl *d)
     for (i = 0; i < d->n && !d->cancel; i++) {
         CoverDlItem *it = &d->item[i];
         int nu, u, got = 0, neterr = 0, offline = 1, not_found_only = 1;
-        int ps1_title_url_index=-1,valid_serial=0,ps1_special=0;
+        int ps1_title_url_index=-1,snes_title_url_index=-1,valid_serial=0,ps1_special=0;
         char ps1_special_url[COVER_URL_MAX]="";
         char miss_path[COVER_PATH_MAX]="";
         /* Movies have no PS3 game Title ID. Previously they always landed
@@ -974,7 +1012,7 @@ void cover_dl_run(CoverDl *d)
             }
             goto next;
         }
-        if (!it->id[0])
+        if (!it->id[0] && it->plat != PLAT_SNES)
             discid_read(it->plat,it->path,it->is_dir,io->read_at,io->ctx,
                         it->id,sizeof(it->id));
         valid_serial=id_ok(it->id);
@@ -1001,7 +1039,7 @@ void cover_dl_run(CoverDl *d)
         if(valid_serial)
             snprintf(miss_path,sizeof(miss_path),"%s/%s.missing",
                      COVER_DL_DIR,it->id);
-        if (!valid_serial && it->plat!=PLAT_PS1) {
+        if (!valid_serial && it->plat!=PLAT_PS1 && it->plat!=PLAT_SNES) {
             it->state=DL_NOID;d->n_noid++;goto next;
         }
         if (d->auto_mode && it->plat!=PLAT_PS1 &&
@@ -1047,6 +1085,11 @@ void cover_dl_run(CoverDl *d)
             log_printf("covers: ps1 SEARCH serial=%s title_catalog=%d sources=%d path=%s",
                        valid_serial?it->id:"NONE",matched,nu,it->path);
         }
+        if(it->plat==PLAT_SNES && nu<COVER_DL_URLS &&
+           cover_dl_snes_title_url(it->path,urls[nu],COVER_DL_URLS ? COVER_URL_MAX : 0)) {
+            snes_title_url_index=nu++;
+            log_printf("snes: BOXART exact Libretro filename=%s",it->path);
+        }
         if(nu<=0) {
             it->state=DL_NOID;d->n_noid++;
             if(it->plat==PLAT_PS1)
@@ -1079,9 +1122,10 @@ void cover_dl_run(CoverDl *d)
             if (st < 0) { neterr = 1; log_printf("covers: %s: %s", url, st == COVER_HTTP_DNS ? "name not found (no internet?)" : st == COVER_HTTP_BIG ? "too big" : "no connection"); continue; }
             if (st == 200 && len > 64 && is_image(buf, len, &png)) {
                 char f[COVER_PATH_MAX];
-                if(it->plat==PLAT_PS1 && u==ps1_title_url_index) {
+                if((it->plat==PLAT_PS1 && u==ps1_title_url_index) ||
+                   (it->plat==PLAT_SNES && u==snes_title_url_index)) {
                     CoverCand c[1];
-                    if(cover_candidates(PLAT_PS1,it->path,it->is_dir,"",
+                    if(cover_candidates(it->plat,it->path,it->is_dir,"",
                                         NULL,c,1)!=1)
                         continue;
                     snprintf(f,sizeof(f),"%s.%s",c[0].base,png?"png":"jpg");

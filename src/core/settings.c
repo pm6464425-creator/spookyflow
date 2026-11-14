@@ -78,7 +78,7 @@ static int parse_int(const char *v, int lo, int hi, int def)
     return (int)n;
 }
 
-static const char *const k_plat_suffix[PLAT_COUNT] = { "ps1", "ps2", "ps3", "bdiso" };
+static const char *const k_plat_suffix[PLAT_COUNT] = { "ps1", "ps2", "ps3", "bdiso", "snes" };
 
 void settings_parse_line(Settings *s, const char *line_in)
 {
