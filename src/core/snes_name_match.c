@@ -220,7 +220,9 @@ int snes_name_catalog_matches(const char *rom_path,const char *index,size_t len,
                 for(pos=0;sc>=0 && pos<max;pos++)
                     if(sc>scores[pos] || (sc==scores[pos] &&
                        strcmp(line,out[pos])<0))break;
-                if(pos<max){
+                /* Invalid title score -1 must NEVER enter a region list:
+                 * otherwise an unrelated game's box can overwrite this ROM. */
+                if(sc>=0 && pos<max){
                     int j;
                     for(j=max-1;j>pos;j--){
                         scores[j]=scores[j-1];

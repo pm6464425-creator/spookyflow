@@ -439,10 +439,6 @@ static int snes_test_write(void *ctx,const char *path,const void *a,
     }
     if(strncmp(path,COVER_DL_DIR "/",sizeof(COVER_DL_DIR))==0 &&
        !mem_is_dir(ctx,COVER_DL_DIR))return -1;
-    if(strstr(path,"/Ace o Nerae!")||strstr(path,"/Super Bomberman 5"))
-       printf("DEBUG SNES WRITE %s height=%u bytes=%u\\n",path,
-              alen>=24?((((const unsigned char*)a)[22]<<8)|((const unsigned char*)a)[23]):0u,
-              (unsigned)alen);
     return mem_write(ctx,path,a,alen,b,blen);
 }
 static int snes_test_http(void *ctx,const char *url,uint8_t *buf,
@@ -560,7 +556,6 @@ static int snes_test_http_authentic(void *ctx,const char *url,uint8_t *b,
         *len=128;return 200; /* this must NEVER be used */
     }
     if(!strstr(url,"Named_Boxarts/"))return 404;
-    printf("DEBUG SNES AUTHENTIC URL: %s\\n",url);
     if(strstr(url,"Ace%20o%20Nerae")||
        strstr(url,"Ancient%20Magic%20-%20Bazoe")||
        (strstr(url,"Super%20Bomberman%205") &&
@@ -633,13 +628,11 @@ static void test_snes_recover_vertical_and_alias(void)
     CHECK(snes_bad_sources==0);
     CHECK(snes_real_portrait>=2 && snes_real_horizontal>=1);
     f=memfs_find(COVER_DL_DIR "/Ace o Nerae! (ESP).png");
-    printf("TEST ACE wrote %s bytes=%u w=%u h=%u (%u,%u)\\n",f?"yes":"no",f?f->len:0u,f?(f->data[18]*256+f->data[19]):0u,f?(f->data[22]*256+f->data[23]):0u,f?f->data[22]:0u,f?f->data[23]:0u);
     CHECK(f && f->len==128 && f->data[19]==0 && f->data[22]==3 && f->data[23]==110);
     CHECK(memfs_find(cacheFile)==NULL); /* old processed title screen invalidated */
     CHECK(memfs_find("/dev_hdd0/SNES/COVERS/Ace o Nerae! (ESP).png")==NULL);
     CHECK(memfs_find(COVER_DL_DIR "/Ancient Magic - Bazoo! Mahou Sekai (ESP).png")!=NULL);
     f=memfs_find(COVER_DL_DIR "/Super Bomberman 5 (Japan) (T-En by Psyklax Beta) (Add by Svambo v1.0) (i).png");
-    printf("TEST BOMBER wrote %s bytes=%u h=%u (%u,%u)\\n",f?"yes":"no",f?f->len:0u,f?(f->data[22]*256+f->data[23]):0u,f?f->data[22]:0u,f?f->data[23]:0u);
     CHECK(f && f->len==128 && f->data[22]==1 && f->data[23]==108);
     for(i=0;i<4;i++)
         CHECK(cover_has_art(&io,PLAT_SNES,roms[i],0,items[i].size,""));
