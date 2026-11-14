@@ -740,15 +740,15 @@ jobs:
               --notes "Edicion exclusiva de los textos de SpookyFlow V15.11: menus, opciones, ayuda, avisos, mensajes de carga y tarjetas en espanol latinoamericano. MISMAS tipografias DejaVu originales, tamanos, colores, posiciones, controles, iconos, fondos, animaciones, PS1 CUE BIN, caratulas, PS2, PS3 y BDISO. Los ajustes guardados siguen compatibles, el nombre en XMB se mantiene MIS JUEGOS PS3 PS2 PS1. Diez auditorias de inmutabilidad comparan los blobs exactos de los modulos protegidos con la V15.11; tests del nucleo y paquete real de PS3 verificados. No se ha efectuado validacion visual en una consola fisica."
           fi
 
-      - name: Publish direct V15.29 SNES/BDISO no-shadow PKG
-        if: github.ref == 'refs/heads/feature/v15-29-snes-bdiso-sin-sombras'
+      - name: Publish V15.30 BDISO disc enlarged 15pct PKG
+        if: github.ref == 'refs/heads/fix/v15-30-bdiso-disco-115'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          TAG="spookyflow-v15-29-snes-bdiso-sin-sombras"
-          PKG="SPOOKYFLOW_V15_29_SNES_BDISO_SIN_SOMBRAS.pkg"
+          TAG="spookyflow-v15-30-bdiso-disco-15pct"
+          PKG="SPOOKYFLOW_V15_30_BDISO_DISCO_15PCT.pkg"
           cp spookyflow.pkg "$PKG"
-          HEAD_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/feature%2Fv15-29-snes-bdiso-sin-sombras" --jq '.commit.sha')"
+          HEAD_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-30-bdiso-disco-115" --jq '.commit.sha')"
           if [ "$GITHUB_SHA" != "$HEAD_SHA" ]; then
             echo "Older run: not publishing stale PKG"
             exit 0
@@ -758,8 +758,8 @@ jobs:
             gh release edit "$TAG" --target "$GITHUB_SHA"
           else
             gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
-              --title "SpookyFlow V15.29 SNES + BDISO sin sombras" \
-              --notes "Based directly on V15.28. Adds SNES ROM tab, new no-shadow BDISO/SNES logo tabs, SNES .sfc/.smc/.zip scanning, Libretro exact-name boxarts and optional pSNES 7.2 launcher handoff. All original PS1/PS2/PS3/BDISO launch backends preserved. Requires pSNES 7.2 installed for SNES; HEN start still requires a console test. Built and checked by CI."
+              --title "SpookyFlow V15.30 - Disco BDISO 15% mas grande" \
+              --notes "Based on the V15.29 PKG. The only application asset change is the BDISO logo: Blu-ray disc approximately 15% larger within its existing 127x54 PNG canvas; white text and SNES logo unchanged. No PS1, PS2, PS3, BDISO or SNES launch code modified. HEN game launch behavior still requires console verification."
           fi
 
   ps3-pkg-docker:
