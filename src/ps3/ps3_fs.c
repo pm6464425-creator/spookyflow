@@ -38,6 +38,15 @@ void ps3_fs_mkdirs(void)
     sysFsMkdir(SF_COVERS_DIR "/ps1", 0777);
     sysFsMkdir(SF_COVERS_DIR "/ps2", 0777);
     sysFsMkdir(SF_COVERS_DIR "/ps3", 0777);
+    /* V15.31: create the ROM root once; never touch USB, ROMs or other games. */
+    if (sysFsMkdir("/dev_hdd0/SNES", 0777) != 0) {
+        sysFSStat st;
+        if (sysFsStat("/dev_hdd0/SNES", &st) != 0 ||
+            (st.st_mode & SF_S_IFMT) != SF_S_IFDIR)
+            log_printf("snes: failed to create ROM directory /dev_hdd0/SNES");
+    }
+    /* Dedicated processed SNES covers, alongside the existing cache folders. */
+    sysFsMkdir(SF_COVERS_DIR "/snes", 0777);
 }
 
 /* V15.18 one-time cleanup on each app start. Strict allowlist from our own

@@ -177,6 +177,14 @@ python3 tools/build_ps1_boxart_catalog.py \
 test -s pkgfiles/USRDIR/ps1_boxart_names.txt
 end
 
+# --- SNES case overlay: own transparent asset, exact window 240x168 -----------
+# Generated deterministically; ships as USRDIR/CASES/snes.png in the same PKG.
+# Original PS1/PS2/PS3/BDISO textures and launch code are untouched.
+say "SNES 3D case PNG 275x250 with transparent 240x168 aperture"
+python3 tools/gen_snes_case.py pkgfiles/USRDIR/CASES/snes.png
+test -s pkgfiles/USRDIR/CASES/snes.png
+end
+
 # --- build ----------------------------------------------------------------------
 say "make pkg (SF_TLS=1, PS2 Classics mandatory)"
 make clean >/dev/null 2>&1 || true

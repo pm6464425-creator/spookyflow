@@ -158,6 +158,8 @@ static const float k_case_geo[PLAT_COUNT][6] = {
     { 275.0f, 250.0f, 30.0f,  5.0f, 240.0f, 240.0f },
     { 270.0f, 390.0f,  0.0f, 10.0f, 260.0f, 370.0f },
     { 270.0f, 340.0f,  0.0f, 30.0f, 260.0f, 300.0f },
+    { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f }, /* BDISO keeps its independent PS3-derived case */
+    { 275.0f, 250.0f, 18.0f, 42.0f, 240.0f, 168.0f }, /* SNES physical case + exact window */
 };
 
 static int load_case(int plat, const char *path)
@@ -166,7 +168,11 @@ static int load_case(int plat, const char *path)
     unsigned char *rgba;
     u32 x, y, w, h;
     const float *g = k_case_geo[plat];
+    const int texid = plat == PLAT_SNES ? TEX_CASE_SNES : TEX_CASE_PS1 + plat;
     memset(&png, 0, sizeof(png));
+    /* SNES packaged default, user custom case in SF_CASES_DIR always wins. */
+    if (plat == PLAT_SNES && !ps3_fs_exists(path))
+        path = "/dev_hdd0/game/" SF_APPID "/USRDIR/CASES/snes.png";
     if (ps3_fs_exists(path)) {
         ps3_decode_lock();
         if (pngLoadFromFile(path, &png) != 0 || !png.bmp_out) {
@@ -204,7 +210,7 @@ static int load_case(int plat, const char *path)
         }
     }
     free(png.bmp_out);
-    if (r_texture_upload_rgba(TEX_CASE_PS1 + plat, (int)w, (int)h, rgba) != 0) {
+    if (r_texture_upload_rgba(texid, (int)w, (int)h, rgba) != 0) {
         log_printf("cases: no texture memory for %s", path);
         free(rgba);
         return 0;
@@ -212,7 +218,7 @@ static int load_case(int plat, const char *path)
     free(rgba);
     layout_set_case_image(plat, (float)w, (float)h,
                           g[2] / g[0] * (float)w, g[3] / g[1] * (float)h, g[4] / g[0] * (float)w, g[5] / g[1] * (float)h);
-    ui_set_case_image(plat, TEX_CASE_PS1 + plat);
+    ui_set_case_image(plat, texid);
     if (plat == PLAT_PS3) {
         /* The same transparent plastic case image is used by both tabs,
          * but BDISO gets a NARROWER virtual case box so the cover WINDOW
@@ -241,6 +247,9 @@ static void load_case_images(void)
     for (p = 0; p < PLAT_BDISO; p++)
         if (!load_case(p, mine[p]))
             log_printf("cases: %s not found, %s covers are shown without a case", mine[p], p == 0 ? "PS1" : p == 1 ? "PS2" : "PS3");
+    /* Load SNES alone using its own texture slot and horizontal case window. */
+    if (!load_case(PLAT_SNES, SF_CASES_DIR "/snes.png"))
+        log_printf("snes: plastic box unavailable; using flat cover fallback");
 }
 
 /* ---- built-in Stage background (src/core/stage_data.c) ---- */

@@ -30,6 +30,8 @@ jobs:
         run: python3 tests/probe_sensacine.py
       - name: Unit tests (portable core, ASan + UBSan)
         run: make -f Makefile.host test
+      - name: V15.31 SNES realistic case, ROM directory and 10 isolated regression checks
+        run: python3 tests/test_snes_v15_31.py
       - name: V15.12 Spanish Latin America - ten independent visual and compatibility reviews
         run: python3 tests/test_es419_ui.py
       - name: Ensure fourth BDISO cover tab cannot be excluded again
@@ -760,6 +762,28 @@ jobs:
             gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
               --title "SpookyFlow V15.30 - Disco BDISO 15% mas grande" \
               --notes "Based on the V15.29 PKG. The only application asset change is the BDISO logo: Blu-ray disc approximately 15% larger within its existing 127x54 PNG canvas; white text and SNES logo unchanged. No PS1, PS2, PS3, BDISO or SNES launch code modified. HEN game launch behavior still requires console verification."
+          fi
+
+      - name: Publish verified V15.31 SNES realistic case and ROM folder PKG
+        if: github.ref == 'refs/heads/feature/v15-31-snes-real-case-auto-folder'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="spookyflow-v15-31-snes-caja-realista"
+          PKG="SPOOKYFLOW_V15_31_SNES_CAJA_REALISTA_CARPETA.pkg"
+          cp spookyflow.pkg "$PKG"
+          HEAD_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/feature%2Fv15-31-snes-real-case-auto-folder" --jq '.commit.sha')"
+          if [ "$GITHUB_SHA" != "$HEAD_SHA" ]; then
+            echo "Superseded commit, not releasing stale artifact"
+            exit 0
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$PKG" --clobber
+            gh release edit "$TAG" --target "$GITHUB_SHA"
+          else
+            gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
+              --title "SpookyFlow V15.31 - SNES caja realista + carpeta ROMs" \
+              --notes "V15.30 base preserved. Adds /dev_hdd0/SNES auto creation, /dev_hdd0/tmp/spookyflow/covers/snes cache, original transparent SNES game case 275x250 / artwork 240x168, user case override and independent texture slot. Includes 10 focused regression tests plus the existing suite. All PS1, PS2, PS3 and BDISO launcher code and existing tab logos unchanged. SNES emulator handoff remains unverified on actual PS3 HEN."
           fi
 
   ps3-pkg-docker:
