@@ -57,10 +57,10 @@ static void token(Parts *p,const char *t,int bracket)
     if(eq(t,"rev")||eq(t,"revision"))p->rev=1;
     if(eq(t,"beta")||eq(t,"proto")||eq(t,"prototype")||eq(t,"sample"))p->beta=1;
     if(eq(t,"demo"))p->demo=1;
-    if(eq(t,"virtual")||eq(t,"switch")||eq(t,"classic"))p->extra=1;
+    if(eq(t,"virtual")||eq(t,"switch")||eq(t,"arcade")||eq(t,"classic"))p->extra=1;
     if(eq(t,"hack")||eq(t,"mod")||eq(t,"patch")||eq(t,"patched"))p->hack=1;
     if(eq(t,"the"))return; /* allow "The Legend" vs "Legend, The" without fuzzy guesses */
-    if(metadata(t))return;
+    if(bracket && metadata(t))return;
     /* No-Intro tags such as (Rev 1), (En,Fr), [!], [T-En] do not form title.
        Bracketed words are metadata except an explicit (AKA title), which is
        not automatically trusted because it can refer to unrelated editions. */
@@ -133,6 +133,11 @@ static int aliases(const char *game,const char *cover)
     if(eq(game,"donkey kong country 3")&&eq(cover,"donkey kong country 3 dixie kong s double trouble"))return 1;
     if(eq(game,"legend of zelda link to past")&&eq(cover,"legend of zelda a link to past"))return 1;
     if(eq(game,"yoshi s island")&&eq(cover,"super mario world 2 yoshi s island"))return 1;
+    if(eq(game,"ancient magic bazoo mahou sekai")&&eq(cover,"ancient magic bazoe mahou sekai"))return 1;
+    if(eq(game,"bio metal")&&eq(cover,"biometal"))return 1;
+    if(eq(game,"black thorne")&&eq(cover,"blackthorne"))return 1;
+    if(eq(game,"ilusion of time")&&eq(cover,"illusion of time"))return 1;
+    if(eq(game,"dino city")&&eq(cover,"dinocity"))return 1;
     return 0;
 }
 static int ranking(const Parts *g,const Parts *c)
@@ -187,16 +192,27 @@ int snes_name_catalog_match(const char *rom_path,const char *index,size_t len,
     }
     return best>=0;
 }
-int snes_name_catalog_url(const char *image_filename,char *url,size_t cap)
+int snes_name_catalog_url_kind(const char *image_filename,int kind,char *url,size_t cap)
 {
-    static const char prefix_url[]="https://thumbnails.libretro.com/Nintendo%20-%20Super%20Nintendo%20Entertainment%20System/Named_Boxarts/";
+    static const char *const prefixes[SNES_ART_KINDS] = {
+        "https://thumbnails.libretro.com/Nintendo%20-%20Super%20Nintendo%20Entertainment%20System/Named_Boxarts/",
+        "https://thumbnails.libretro.com/Nintendo%20-%20Super%20Nintendo%20Entertainment%20System/Named_Titles/",
+        "https://thumbnails.libretro.com/Nintendo%20-%20Super%20Nintendo%20Entertainment%20System/Named_Logos/",
+        "https://thumbnails.libretro.com/Nintendo%20-%20Super%20Nintendo%20Entertainment%20System/Named_Snaps/"
+    };
+    const char *prefix_url;
+    size_t plen;
     static const char hex[]="0123456789ABCDEF";
     size_t i,pos;
-    if(!url||cap<=sizeof(prefix_url))return 0;
+    if(!url||!cap)return 0;
     url[0]=0;
+    if(kind<0||kind>=SNES_ART_KINDS)return 0;
+    prefix_url=prefixes[kind];
+    plen=strlen(prefix_url);
+    if(cap<=plen)return 0;
     if(!image_filename||!sf_ends_with_i(image_filename,".png")||
        strchr(image_filename,'/')||strchr(image_filename,'\\'))return 0;
-    memcpy(url,prefix_url,sizeof(prefix_url));pos=sizeof(prefix_url)-1;
+    memcpy(url,prefix_url,plen+1);pos=plen;
     for(i=0;image_filename[i];i++){
         unsigned char c=(unsigned char)image_filename[i];
         if(alp(c)||dig(c)||c=='-'||c=='_'||c=='.'||c=='('||c==')'){
@@ -209,4 +225,9 @@ int snes_name_catalog_url(const char *image_filename,char *url,size_t cap)
     }
     url[pos]=0;
     return 1;
+}
+
+int snes_name_catalog_url(const char *image_filename,char *url,size_t cap)
+{
+    return snes_name_catalog_url_kind(image_filename,SNES_ART_BOX,url,cap);
 }

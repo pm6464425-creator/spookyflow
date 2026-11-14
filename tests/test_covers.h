@@ -455,6 +455,9 @@ static int snes_test_http(void *ctx,const char *url,uint8_t *buf,
     if(cap<128)return COVER_HTTP_BIG;
     memset(buf,0,128);
     memcpy(buf,"\x89PNG\r\n\x1a\n",8);
+    memcpy(buf+12,"IHDR",4);
+    buf[16]=0;buf[17]=0;buf[18]=2;buf[19]=0; /* 512 wide */
+    buf[20]=0;buf[21]=0;buf[22]=1;buf[23]=108; /* 364 tall */
     *len=128;
     g_snes_http_hits++;
     return 200;
@@ -520,6 +523,103 @@ static void test_snes_download_no_rom_covers_directory(void)
     d.http=snes_test_http; d.auto_mode=1;
     cover_dl_run(&d);
     CHECK(d.n_have==3 && d.n_got==0 && g_snes_http_hits==3);
+    memfs_reset();
+}
+
+/* V15.34 reproduces vertical Ace o Nerae from user's real SNES log.
+ * A portrait PNG already downloaded must be treated as replaceable, not
+ * as completed art. Try official horizontal title screen and preserve all
+ * manual covers, region matching, source ranking, and every PS1 backend. */
+static int snes_vertical_requests,snes_landscape_requests;
+static void snes_fixture_png(unsigned char *b,int w,int h)
+{
+    memset(b,0,128);
+    memcpy(b,"\x89PNG\r\n\x1a\n",8);
+    memcpy(b+12,"IHDR",4);
+    b[16]=(unsigned char)(w>>24); b[17]=(unsigned char)(w>>16);
+    b[18]=(unsigned char)(w>>8); b[19]=(unsigned char)w;
+    b[20]=(unsigned char)(h>>24); b[21]=(unsigned char)(h>>16);
+    b[22]=(unsigned char)(h>>8); b[23]=(unsigned char)h;
+}
+static int snes_test_http_horizontal(void *ctx,const char *url,uint8_t *b,
+                                     uint32_t cap,uint32_t *len,char *loc,size_t lc)
+{
+    (void)ctx;
+    if(lc)loc[0]=0;
+    *len=0;
+    if(cap<128)return COVER_HTTP_BIG;
+    if(strstr(url,"Named_Boxarts/") && strstr(url,"Ace%20o%20Nerae")) {
+        snes_fixture_png(b,512,878);
+        snes_vertical_requests++;
+        *len=128;return 200;
+    }
+    if(strstr(url,"Named_Titles/") &&
+       (strstr(url,"Ace%20o%20Nerae") ||
+        strstr(url,"Ancient%20Magic%20-%20Bazoe"))) {
+        snes_fixture_png(b,512,224);
+        snes_landscape_requests++;
+        *len=128;return 200;
+    }
+    return 404;
+}
+static void test_snes_recover_vertical_and_alias(void)
+{
+    static const char boxnames[]="Ace o Nerae! (Japan).png\n";
+    static const char titlenames[]=
+        "Ace o Nerae! (Japan).png\n"
+        "Ancient Magic - Bazoe! Mahou Sekai (Japan).png\n";
+    static const char *const roms[]={
+        "/dev_hdd0/SNES/Ace o Nerae! (ESP).sfc",
+        "/dev_hdd0/SNES/Ancient Magic - Bazoo! Mahou Sekai (ESP).smc"
+    };
+    CoverIO io;
+    CoverDl d,second;
+    CoverDlItem items[2];
+    unsigned char portrait[128];
+    char cacheStem[COVER_PATH_MAX],cacheFile[COVER_PATH_MAX+8];
+    MemFile *f;
+    int i;
+    printf("SNES V15.34: replace existing vertical PNG, detect title-screen fallback and alias\n");
+    memfs_reset();
+    mem_io(&io,"/cache");
+    memfs_dir(COVER_DL_DIR);
+    CHECK(memfs_put(SNES_BOXART_INDEX,boxnames,sizeof(boxnames)-1)!=NULL);
+    CHECK(memfs_put(SNES_TITLES_INDEX,titlenames,sizeof(titlenames)-1)!=NULL);
+    memset(items,0,sizeof(items));
+    for(i=0;i<2;i++){
+        items[i].plat=PLAT_SNES;
+        items[i].size=1048576;
+        sf_strlcpy(items[i].path,roms[i],sizeof(items[i].path));
+    }
+    /* Old cached AUTO portrait and stale processed .cvr from V15.33 */
+    snes_fixture_png(portrait,512,878);
+    CHECK(memfs_put(COVER_DL_DIR "/Ace o Nerae! (ESP).png",portrait,128)!=NULL);
+    cover_cache_stem("/cache",PLAT_SNES,roms[0],items[0].size,
+                     cacheStem,sizeof(cacheStem));
+    snprintf(cacheFile,sizeof(cacheFile),"%s.cvr",cacheStem);
+    CHECK(memfs_put(cacheFile,"stale",5)!=NULL);
+    CHECK(!cover_has_art(&io,PLAT_SNES,roms[0],0,items[0].size,""));
+    CHECK(!cover_has_art(&io,PLAT_SNES,roms[1],0,items[1].size,""));
+    memset(&d,0,sizeof(d));
+    d.item=items; d.n=2;d.io=&io;d.http=snes_test_http_horizontal;d.auto_mode=1;
+    io.write_file=snes_test_write;
+    snes_vertical_requests=snes_landscape_requests=0;
+    cover_dl_run(&d);
+    CHECK(d.finished && d.n_got==2 && d.n_error==0);
+    CHECK(snes_vertical_requests==1 && snes_landscape_requests==2);
+    f=memfs_find(COVER_DL_DIR "/Ace o Nerae! (ESP).png");
+    CHECK(f && f->len==128 && f->data[19]==0 && f->data[22]==0 && f->data[23]==224);
+    CHECK(memfs_find(cacheFile)==NULL); /* stale processed portrait discarded */
+    CHECK(memfs_find("/dev_hdd0/SNES/COVERS/Ace o Nerae! (ESP).png")==NULL);
+    CHECK(memfs_find(COVER_DL_DIR "/Ancient Magic - Bazoo! Mahou Sekai (ESP).png")!=NULL);
+    for(i=0;i<2;i++)
+        CHECK(cover_has_art(&io,PLAT_SNES,roms[i],0,items[i].size,""));
+    memset(&second,0,sizeof(second));
+    second.item=items;second.n=2;second.io=&io;
+    second.http=snes_test_http_horizontal;second.auto_mode=1;
+    cover_dl_run(&second);
+    CHECK(second.n_have==2 && second.n_got==0);
+    CHECK(snes_vertical_requests==1 && snes_landscape_requests==2);
     memfs_reset();
 }
 

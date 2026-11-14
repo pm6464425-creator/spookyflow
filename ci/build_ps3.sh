@@ -185,6 +185,21 @@ python3 tools/build_snes_boxart_catalog.py \
 test -s pkgfiles/USRDIR/snes_boxart_names.txt
 end
 
+# SNES landscape fallback image sources: verified per-provider filenames only.
+# Order in runtime: horizontal Boxart -> Title -> Logo -> Screenshot.
+for KIND in Named_Titles Named_Logos Named_Snaps; do
+  case "$KIND" in
+    Named_Titles) DEST="snes_title_names.txt";;
+    Named_Logos)  DEST="snes_logo_names.txt";;
+    Named_Snaps)  DEST="snes_snap_names.txt";;
+  esac
+  say "SNES verified $KIND"
+  python3 tools/build_snes_boxart_catalog.py --kind "$KIND" \
+    --output "pkgfiles/USRDIR/$DEST" --min-count 1800
+  test -s "pkgfiles/USRDIR/$DEST"
+  end
+done
+
 # --- SNES case overlay: own transparent asset, exact window 240x168 -----------
 # Generated deterministically; ships as USRDIR/CASES/snes.png in the same PKG.
 # Original PS1/PS2/PS3/BDISO textures and launch code are untouched.

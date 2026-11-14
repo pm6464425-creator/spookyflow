@@ -12,7 +12,9 @@ from urllib.parse import unquote
 from urllib.request import Request, urlopen
 from pathlib import Path
 
-URL = "https://thumbnails.libretro.com/Nintendo%20-%20Super%20Nintendo%20Entertainment%20System/Named_Boxarts/"
+ROOT = "https://thumbnails.libretro.com/Nintendo%20-%20Super%20Nintendo%20Entertainment%20System/"
+KINDS = ("Named_Boxarts", "Named_Titles", "Named_Logos", "Named_Snaps")
+URL = ROOT + KINDS[0] + "/"
 OUTPUT = Path("pkgfiles/USRDIR/snes_boxart_names.txt")
 
 class CoverNames(HTMLParser):
@@ -37,11 +39,12 @@ def parse(html: bytes) -> list[str]:
     p.feed(html.decode("utf-8", "replace"))
     return sorted(p.names, key=str.casefold)
 
-def write(names: list[str], path: Path, min_count: int) -> None:
+def write(names: list[str], path: Path, min_count: int, kind: str = "Named_Boxarts") -> None:
     assert len(names) >= min_count, "Partial SNES catalog: only %s covers" % len(names)
-    assert "Super Mario World (USA).png" in names, "SNES Super Mario World missing"
-    assert "Donkey Kong Country (USA).png" in names, "SNES Donkey Kong Country missing"
-    assert "Legend of Zelda, The - A Link to the Past (USA).png" in names, "SNES Zelda missing"
+    assert "Super Mario World (USA).png" in names, "SNES Mario missing"
+    if kind == "Named_Boxarts":
+        assert "Donkey Kong Country (USA).png" in names, "SNES Donkey Kong Country missing"
+        assert "Legend of Zelda, The - A Link to the Past (USA).png" in names, "SNES Zelda missing"
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("".join(n + "\n" for n in names), encoding="utf-8", newline="\n")
     assert path.stat().st_size < 512000, "SNES catalog exceeds PS3 memory budget"
@@ -53,14 +56,15 @@ def main():
     ap.add_argument("--output", type=Path, default=OUTPUT)
     ap.add_argument("--fixture", type=Path)
     ap.add_argument("--min-count", type=int, default=2500)
+    ap.add_argument("--kind", choices=KINDS, default="Named_Boxarts")
     args = ap.parse_args()
     if args.fixture:
         html = args.fixture.read_bytes()
     else:
-        req = Request(URL, headers={"User-Agent": "SpookyFlow-SNES-cover-catalog/1.0"})
+        req = Request(ROOT + args.kind + "/", headers={"User-Agent": "SpookyFlow-SNES-cover-catalog/1.0"})
         with urlopen(req, timeout=45) as response:
             html = response.read(3 * 1024 * 1024)
-    write(parse(html), args.output, args.min_count)
+    write(parse(html), args.output, args.min_count, args.kind)
 
 if __name__ == "__main__":
     main()
