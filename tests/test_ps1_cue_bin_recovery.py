@@ -33,8 +33,8 @@ checks=[
   'strncmp(path,COVER_DL_DIR "/",sizeof(COVER_DL_DIR))==0' in ps3),
  ("NTFS BDISO decode pathway kept untouched",
   "sf_bdntfs_load(path,&data,&nbytes" in ps3),
- ("PS1-only processed/negative cache invalidation",
-  "plat==PLAT_PS1 ? 7 : CVR_VERSION" in art and
+ ("PS1 version 7 retained; SNES version 8 invalidates only legacy title screens",
+  "plat==PLAT_PS1 ? 7 : plat==PLAT_SNES ? 8 : CVR_VERSION" in art and
   "y[0] == cvr_version(j->plat)" in art),
  ("Other platform cache version remains 6",
   "#define CVR_VERSION 6" in art),
