@@ -94,6 +94,13 @@ static void parts(const char *path,Parts *p)
     n=strlen(s);
     if(n>=4 && (sf_ends_with_i(s,".sfc")||sf_ends_with_i(s,".smc")||
                  sf_ends_with_i(s,".zip")||sf_ends_with_i(s,".png")))n-=4;
+    /* Strip explicit translation-team / uncensored badges from the
+     * provided ROM pack while keeping the game's actual name intact. */
+    {
+        const char *cut=strstr(s," - Sin Censura -");
+        if(!cut)cut=strstr(s," -SirYoink -");
+        if(cut && (size_t)(cut-s)<n)n=(size_t)(cut-s);
+    }
     /* Many ROM packs prefix a library position like 001_, 002 - ... .
        Exclude only 3-digit counters; keep real game titles such as "7th Saga". */
     if(n>5 && dig((unsigned char)s[0])&&dig((unsigned char)s[1])&&
@@ -157,13 +164,28 @@ static int aliases(const char *game,const char *cover)
     if(eq(game,"carmen sandiego where in time")&&
        eq(cover,"where in time is carmen sandiego"))return 1;
     if(eq(game,"sky blazer")&&eq(cover,"skyblazer"))return 1;
-    if(eq(game,"secret of the stars")&&eq(cover,"tecmo secret of the stars"))return 1;
+    if(eq(game,"secret of stars")&&eq(cover,"tecmo secret of stars"))return 1;
     if(eq(game,"final fantasy magic quest")&&eq(cover,"final fantasy mystic quest"))return 1;
     if(eq(game,"mega man vii")&&eq(cover,"mega man 7"))return 1;
     if(eq(game,"gourmet squadron barayarou")&&eq(cover,"gourmet sentai barayarou"))return 1;
     if(eq(game,"super nova darius force")&&
        (eq(cover,"super nova")||eq(cover,"darius force")))return 1;
     if(eq(game,"smurfs 2")&&eq(cover,"smurfs travel world"))return 1;
+    if(eq(game,"fifa 96")&&eq(cover,"fifa soccer 96"))return 1;
+    if(eq(game,"dragon ball z super butoden")&&
+       eq(cover,"dragon ball z super butouden"))return 1;
+    if(eq(game,"dragon ball z super butouden 3 ultime menace")&&
+       (eq(cover,"dragon ball z ultime menace")||
+        eq(cover,"dragon ball z super butouden 3")))return 1;
+    if(eq(game,"sim city 2000")&&
+       eq(cover,"simcity 2000 ultimate city simulator"))return 1;
+    if(eq(game,"spawn")&&eq(cover,"todd mcfarlane s spawn video game"))return 1;
+    if(eq(game,"street fighter 2 new challengers")&&
+       eq(cover,"super street fighter ii new challengers"))return 1;
+    if(eq(game,"adventures of tintin prisoners of sun")&&
+       eq(cover,"tintin prisoners of sun"))return 1;
+    if(eq(game,"super shell monsters story")&&
+       eq(cover,"daikaijuu monogatari"))return 1;
     return 0;
 }
 static int ranking(const Parts *g,const Parts *c)

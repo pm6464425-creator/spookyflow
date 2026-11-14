@@ -71,7 +71,16 @@ int main(void)
           "Final Fantasy - Mystic Quest (USA).png\n"
           "Mega Man 7 (USA).png\n"
           "Gourmet Sentai Barayarou (Japan).png\n"
-          "Super Nova (USA).png\n";
+          "Super Nova (USA).png\n"
+          "FIFA Soccer 96 (USA).png\n"
+          "Dragon Ball Z - Super Butouden (Japan).png\n"
+          "Dragon Ball Z - Super Butouden 3 (Japan).png\n"
+          "SimCity 2000 - The Ultimate City Simulator (USA).png\n"
+          "Todd McFarlane's Spawn - The Video Game (USA).png\n"
+          "Super Street Fighter II - The New Challengers (Japan).png\n"
+          "Tintin - Prisoners of the Sun (Europe).png\n"
+          "Daikaijuu Monogatari (Japan).png\n"
+          "Final Fight (USA).png\n";
         char chosen[5][256];
         int n=snes_name_catalog_matches(
           "/dev_hdd0/SNES/Super Bomberman 5 (Japan) (T-En by Psyklax Beta) (Add by Svambo v1.0) (i).zip",
@@ -101,6 +110,24 @@ int main(void)
         CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Gourmet Squadron Barayarou (ESP).smc",
                 expanded,strlen(expanded),chosen[0],256));
         CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Super Nova - Darius Force (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/FIFA 96 (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Dragon Ball Z Super Butoden (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Dragon Ball Z - Super Butouden 3 Ultime Menace (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Sim City 2000 (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Spawn (ESP).sfc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Street Fighter 2 - The New Challengers (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/The Adventures of Tintin - Prisoners of the Sun (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Super Shell Monsters Story (ESP).sfc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Final Fight (ESP) - Sin Censura -.sfc",
                 expanded,strlen(expanded),chosen[0],256));
         CHECK(!snes_name_catalog_match("/dev_hdd0/SNES/Classic Kong.smc",
                 expanded,strlen(expanded),chosen[0],256));
