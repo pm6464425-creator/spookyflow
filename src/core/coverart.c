@@ -31,7 +31,7 @@ static const char *const k_plat_dir[PLAT_COUNT] = { "ps1", "ps2", "ps3", "bdiso"
  * Preserve PS2/PS3 cache version 6 and the separately managed BDISO art. */
 static uint8_t cvr_version(int plat)
 {
-    return (uint8_t)(plat==PLAT_PS1 ? 7 : CVR_VERSION);
+    return (uint8_t)(plat==PLAT_PS1 ? 7 : plat==PLAT_SNES ? 8 : CVR_VERSION);
 }
 
 int cover_folder_count(void) { return F_COUNT; }
@@ -557,7 +557,25 @@ static int snes_png_orientation_bytes(const unsigned char *p, uint32_t n)
     if(!w || !h || w>COVER_SRC_MAX_DIM || h>COVER_SRC_MAX_DIM)return 0;
     return w>h ? 1 : -1;
 }
-static int snes_auto_png_portrait(const CoverIO *io,const char *path)
+/* V15.34 stored its Named_Titles game-start screens as authoritative
+ * SNES covers. Nintendo SNES native title screens in the real console log
+ * have precisely 256x224 or 256x239 pixels (sometimes 2x). Identify ONLY
+ * auto files in SpookyFlow's owned downloaded folder. Manual ROM/COVERS
+ * art is never classified/rewritten. Real boxart can be vertical and MUST
+ * remain eligible; orientation alone is not proof of bad cover art. */
+static int snes_png_legacy_title_screen(const unsigned char *p,uint32_t n)
+{
+    uint32_t w,h;
+    if(!p || n<24 || memcmp(p,"\\x89PNG\\r\\n\\x1a\\n",8)!=0 ||
+       memcmp(p+12,"IHDR",4)!=0)return 0;
+    w=((uint32_t)p[16]<<24)|((uint32_t)p[17]<<16)|
+      ((uint32_t)p[18]<<8)|p[19];
+    h=((uint32_t)p[20]<<24)|((uint32_t)p[21]<<16)|
+      ((uint32_t)p[22]<<8)|p[23];
+    return (w==256 && (h==224||h==239||h==240)) ||
+           (w==512 && (h==448||h==478||h==480));
+}
+static int snes_auto_legacy_screen(const CoverIO *io,const char *path)
 {
     unsigned char head[24];
     if(!io || !io->read_at || !path ||
@@ -565,7 +583,7 @@ static int snes_auto_png_portrait(const CoverIO *io,const char *path)
        !sf_ends_with_i(path,".png"))return 0;
     if(io->read_at(io->ctx,path,0,head,sizeof(head))!=(int)sizeof(head))
         return 0;
-    return snes_png_orientation_bytes(head,sizeof(head))<0;
+    return snes_png_legacy_title_screen(head,sizeof(head));
 }
 
 /* Manual ROM/COVERS images are never altered or blocked. The path checker
@@ -593,9 +611,9 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
                 if(strncmp(scands[ci].base,COVER_DL_DIR "/",sizeof(COVER_DL_DIR))!=0)continue;
                 sf_strlcpy(check,scands[ci].base,sizeof(check));
                 sf_strlcat(check,".png",sizeof(check));
-                if(snes_auto_png_portrait(&L->io,check)) {
+                if(snes_auto_legacy_screen(&L->io,check)) {
                     if(L->io.remove)L->io.remove(L->io.ctx,f);
-                    log_printf("snes: STALE_VERTICAL_CACHE_INVALIDATED rom=%s",j->path);
+                    log_printf("snes: OLD_TITLE_SCREEN_CACHE_INVALIDATED rom=%s",j->path);
                     break;
                 }
             }
@@ -668,8 +686,8 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
                 if (!L->io.is_file || !L->io.is_file(L->io.ctx, f)) continue;
                 if(j->plat==PLAT_BDISO)cover_diag("RUTA","Existe y se intenta abrir %s",f);
                 if(j->plat==PLAT_SNES)log_printf("snes: COVER_FILE_FOUND %s",f);
-                if(j->plat==PLAT_SNES && snes_auto_png_portrait(&L->io,f)) {
-                    log_printf("snes: REJECT_EXISTING_VERTICAL path=%s",f);
+                if(j->plat==PLAT_SNES && snes_auto_legacy_screen(&L->io,f)) {
+                    log_printf("snes: REJECT_OLD_GAME_TITLE_SCREEN path=%s",f);
                     continue;
                 }
                 if (!png_size_ok(L, f)) {
@@ -991,8 +1009,8 @@ int cover_has_art(const CoverIO *io, int plat, const char *path, int is_dir, uin
         for (e = 0; e < SF_ARRAY_LEN(k_exts) && !found; e++) {
             snprintf(f, sizeof(f), "%s%s", cand[c].base, k_exts[e]);
             if (io->is_file(io->ctx, f)) {
-                if(plat==PLAT_SNES && snes_auto_png_portrait(io,f)) {
-                    log_printf("snes: VERTICAL_REPLACE_REQUIRED path=%s",f);
+                if(plat==PLAT_SNES && snes_auto_legacy_screen(io,f)) {
+                    log_printf("snes: LEGACY_GAME_SCREEN_REPLACE_REQUIRED path=%s",f);
                     continue;
                 }
                 found=1;

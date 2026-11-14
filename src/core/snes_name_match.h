@@ -10,6 +10,10 @@
 enum { SNES_ART_BOX=0, SNES_ART_TITLE=1, SNES_ART_LOGO=2, SNES_ART_SNAP=3, SNES_ART_KINDS=4 };
 int snes_name_catalog_match(const char *rom_path,const char *index,size_t len,
                             char *filename,size_t cap);
+/* Return up to 8 verified BOXART names ranked for the same game.
+ * Never returns title screens, logos or screenshots. */
+int snes_name_catalog_matches(const char *rom_path,const char *index,size_t len,
+                              char out[][256],int max);
 int snes_name_catalog_url(const char *image_filename,char *url,size_t cap);
 int snes_name_catalog_url_kind(const char *image_filename,int kind,char *url,size_t cap);
 #endif

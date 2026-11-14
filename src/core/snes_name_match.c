@@ -10,7 +10,7 @@
 enum { KEY_MAX = 210, NAME_MAX = 256 };
 typedef struct {
     char key[KEY_MAX];
-    int region, rev, beta, demo, extra, hack;
+    int region, rev, beta, demo, extra, hack, edition;
 } Parts;
 
 static int alp(unsigned char c) {return (c>='a'&&c<='z') || (c>='A'&&c<='Z');}
@@ -61,6 +61,12 @@ static void token(Parts *p,const char *t,int bracket)
     if(eq(t,"hack")||eq(t,"mod")||eq(t,"patch")||eq(t,"patched"))p->hack=1;
     if(eq(t,"the"))return; /* allow "The Legend" vs "Legend, The" without fuzzy guesses */
     if(bracket && metadata(t))return;
+    /* Unknown parenthetical qualifiers such as (Caravan Event Ban) mean
+     * SPECIAL editions, not the retail game. Never prefer one over the
+     * standard (Japan) or (USA) release for a translation ROM. */
+    if(bracket && !eq(t,"by") && !eq(t,"t") && !eq(t,"add") &&
+       !eq(t,"i") && !eq(t,"v") && !dig((unsigned char)t[0]))
+        p->edition++;
     /* No-Intro tags such as (Rev 1), (En,Fr), [!], [T-En] do not form title.
        Bracketed words are metadata except an explicit (AKA title), which is
        not automatically trusted because it can refer to unrelated editions. */
@@ -138,6 +144,26 @@ static int aliases(const char *game,const char *cover)
     if(eq(game,"black thorne")&&eq(cover,"blackthorne"))return 1;
     if(eq(game,"ilusion of time")&&eq(cover,"illusion of time"))return 1;
     if(eq(game,"dino city")&&eq(cover,"dinocity"))return 1;
+    /* Every alias below points to a different spelling or official subtitle
+     * of the SAME SNES game, verified against Libretro Named_Boxarts.
+     * These are exact two-sided title identities, never substring guesses. */
+    if(eq(game,"bastard ankoku no hakai shin")&&eq(cover,"bastard ankoku no hakaishin"))return 1;
+    if(eq(game,"do re mi fantasy milon no dokidoki daibouken")&&
+       eq(cover,"doremi fantasy milon no dokidoki daibouken"))return 1;
+    if(eq(game,"captain tsubasa iii challenge of kaiser")&&
+       eq(cover,"captain tsubasa iii koutei no chousen"))return 1;
+    if(eq(game,"captain tsubasa v hasha no shougou canpione")&&
+       eq(cover,"captain tsubasa v hasha no shougou campione"))return 1;
+    if(eq(game,"carmen sandiego where in time")&&
+       eq(cover,"where in time is carmen sandiego"))return 1;
+    if(eq(game,"sky blazer")&&eq(cover,"skyblazer"))return 1;
+    if(eq(game,"secret of the stars")&&eq(cover,"tecmo secret of the stars"))return 1;
+    if(eq(game,"final fantasy magic quest")&&eq(cover,"final fantasy mystic quest"))return 1;
+    if(eq(game,"mega man vii")&&eq(cover,"mega man 7"))return 1;
+    if(eq(game,"gourmet squadron barayarou")&&eq(cover,"gourmet sentai barayarou"))return 1;
+    if(eq(game,"super nova darius force")&&
+       (eq(cover,"super nova")||eq(cover,"darius force")))return 1;
+    if(eq(game,"smurfs 2")&&eq(cover,"smurfs travel world"))return 1;
     return 0;
 }
 static int ranking(const Parts *g,const Parts *c)
@@ -146,6 +172,9 @@ static int ranking(const Parts *g,const Parts *c)
     if(!g->key[0]||!aliases(g->key,c->key))return -1;
     if(g->demo!=c->demo)return -1;
     if(g->hack!=c->hack)return -1; /* cannot replace a custom hack with the vanilla game */
+    /* Prefer authentic standard editions to promotion/demo/reissue
+     * cover variants, even if the ROM has an informal translation tag. */
+    score -= c->edition * 30;
     if(!g->beta && c->beta)score-=30;
     if(!g->rev && c->rev)score-=15;
     if(!g->extra && c->extra)score-=20;
@@ -162,35 +191,62 @@ static int ranking(const Parts *g,const Parts *c)
     }
     return score;
 }
-int snes_name_catalog_match(const char *rom_path,const char *index,size_t len,
-                            char *filename,size_t cap)
+/* V15.35: enumerate multiple real verified box-art files for the SAME
+ * title. Prefer retail / same-region, but try other official regions if the
+ * first image is missing or portrait. Never return unrelated games. */
+int snes_name_catalog_matches(const char *rom_path,const char *index,size_t len,
+                              char out[][256],int max)
 {
     Parts game,cand;
     char line[NAME_MAX];
+    int scores[8],found=0,k;
     size_t at=0,end,sz;
-    int best=-1;
-    if(!filename||!cap)return 0;
-    filename[0]=0;
-    if(!rom_path||!index||len==0)return 0;
+    if(!out || max<1 || max>8 || !rom_path || !index || !len)return 0;
+    for(k=0;k<max;k++){out[k][0]=0;scores[k]=-1;}
     parts(rom_path,&game);
     if(!game.key[0])return 0;
-    while(at<len) {
-        int sc;
+    while(at<len){
+        int sc,pos;
         end=at;
         while(end<len&&index[end]!='\n'&&index[end]!='\r')end++;
         sz=end-at;
-        if(sz>4&&sz<sizeof(line)&&sz+1<=cap){
+        if(sz>4&&sz<sizeof(line)){
             memcpy(line,index+at,sz);line[sz]=0;
             if(sf_ends_with_i(line,".png")){
                 parts(line,&cand);
                 sc=ranking(&game,&cand);
-                if(sc>best){best=sc;memcpy(filename,line,sz+1);}
+                /* Stable score then lexicographic filename order. Do not
+                 * let a special "(Caravan...)" title replace a retail one. */
+                for(pos=0;sc>=0 && pos<max;pos++)
+                    if(sc>scores[pos] || (sc==scores[pos] &&
+                       strcmp(line,out[pos])<0))break;
+                if(pos<max){
+                    int j;
+                    for(j=max-1;j>pos;j--){
+                        scores[j]=scores[j-1];
+                        memcpy(out[j],out[j-1],256);
+                    }
+                    scores[pos]=sc;
+                    sf_strlcpy(out[pos],line,256);
+                    if(found<max)found++;
+                }
             }
         }
         at=end;
         while(at<len&&(index[at]=='\n'||index[at]=='\r'))at++;
     }
-    return best>=0;
+    return found;
+}
+int snes_name_catalog_match(const char *rom_path,const char *index,size_t len,
+                            char *filename,size_t cap)
+{
+    char picked[1][256];
+    if(!filename || !cap)return 0;
+    filename[0]=0;
+    if(snes_name_catalog_matches(rom_path,index,len,picked,1)!=1)return 0;
+    if(strlen(picked[0])+1>cap)return 0;
+    sf_strlcpy(filename,picked[0],cap);
+    return 1;
 }
 int snes_name_catalog_url_kind(const char *image_filename,int kind,char *url,size_t cap)
 {
