@@ -46,7 +46,9 @@ checks=[
  ("Libretro official live thumbnail root",
   "https://thumbnails.libretro.com/Sony%20-%20PlayStation/Named_Boxarts/" in art),
  ("PS1 fallback saves under exact game filename rather than blank ID",
-  "cover_candidates(PLAT_PS1,it->path,it->is_dir,\"\"" in art),
+  ("cover_candidates(PLAT_PS1,it->path,it->is_dir,\"\"" in art or
+   ("cover_candidates(it->plat,it->path,it->is_dir,\"\"" in art and
+    "(it->plat==PLAT_PS1 && u==ps1_title_url_index)" in art))),
  ("No blank .missing file",
   "if (not_found_only && miss_path[0] && io->write_file)" in art),
  ("No guessing from custom modified games",
