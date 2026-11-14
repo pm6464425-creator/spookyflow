@@ -3,6 +3,8 @@
 from pathlib import Path
 art=Path("src/ps3/sf_bdiso_art.c").read_text()
 covers=Path("src/core/coverart.c").read_text()
+# Isolate BDISO candidate paths; SNES has its own new COVERS artwork folder.
+bdiso_candidates=covers.split("if (plat == PLAT_BDISO) {",1)[1].split("return n;",1)[0]
 ui=Path("src/core/ui.c").read_text()
 cc=Path("src/core/cover_cache.c").read_text()
 ntfs=Path("src/ps3/sf_bdiso_ntfs.c").read_text()
@@ -36,9 +38,9 @@ checks=[
  ("COVERS/MANUAL is explicitly supported",
    '"%s/MANUAL"' in covers),
  ("New SensaCine poster file path preferred over legacy artwork",
-   '"%s/POSTERS"' in covers and
-   'n=add(out,n,max,covers,"/",name)' not in covers and
-   '"%s/NORMAL"' not in covers),
+   '"%s/POSTERS"' in bdiso_candidates and
+   'n=add(out,n,max,covers,"/",name)' not in bdiso_candidates and
+   '"%s/NORMAL"' not in bdiso_candidates),
  ("Old Blu-ray JPGs are not deleted",
    'movie_usb_write(cover,port,jpeg,bytes)' in art and
    '"%s/%s.jpg",normaldir,stem' in art),
