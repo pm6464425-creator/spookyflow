@@ -27,6 +27,7 @@
 #include "cover_diag.h"
 #include "sound.h"
 #include "ps3_platform.h"
+#include "snes_name_match.h"
 #include "sf_cobra_mount.h"
 #include "sf_ps2_mount.h"
 #include "sf_ps1_mount.h"
@@ -329,9 +330,10 @@ int main(int argc, const char *argv[])
     {int removed=ps3_fs_cleanup_legacy_diagnostics();
      int diag_rc=log_open(SF_DIAG_SINGLE_PATH);
      if(diag_rc==0) {
-         log_printf("==== SPOOKYFLOW V15.24 - PS1 diagnostic started ====");
-         log_printf("PS1_DIAG CLEANUP_LEGACY_REPORTS_REMOVED=%d",removed);
-         log_printf("PS1_DIAG FILE=" SF_DIAG_SINGLE_PATH " MODE=OVERWRITE_ON_START");
+         log_printf("snes: DIAGNOSTIC_START V15.32 legacy_reports_removed=%d",removed);
+         log_printf("snes: REPORT_PATH=" SF_DIAG_SINGLE_PATH " MODE=OVERWRITE_ON_START");
+         log_printf("snes: ROM_DIRECTORY=/dev_hdd0/SNES");
+         log_printf("snes: CATALOG_PATH=" SNES_BOXART_INDEX);
      }
     }
 #endif

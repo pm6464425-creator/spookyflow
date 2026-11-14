@@ -20,10 +20,10 @@ int log_open(const char *path)
     g_log=(path && path[0])?fopen(path,"wb"):NULL;
     if (!g_log) return -1;
     {const char *header =
-        "SPOOKYFLOW - DIAGNOSTICO PS1 (V15.24)\n"
-        "Un unico archivo diagnostico_ps1.txt, reemplazado en cada inicio.\n"
-        "Incluye montaje Cobra PS1, pistas CUE y errores de respaldo webMAN.\n"
-        "No altera juegos, ISO, ajustes ni el cifrado PS2 Classics.\n"
+        "SPOOKYFLOW - DIAGNOSTICO SNES (V15.32)\n"
+        "Un unico archivo diagnostico_snes.txt, reemplazado en cada inicio.\n"
+        "ROMs, catalogo Libretro, HTTP, portada, cache y pSNES.\n"
+        "No altera PS1, PS2, PS3, BDISO ni los archivos ROM.\n"
         "--------------------------------------------------------------\n";
      size_t n=strlen(header);
      if(fwrite(header,1,n,g_log)!=n) { fclose(g_log);g_log=NULL;return -1; }
@@ -67,11 +67,8 @@ void log_printf(const char *fmt, ...)
 #ifdef SF_SINGLE_DIAG_FILE
     if(g_log) {
         const char *msg=line+n;
-        /* PS1 only: avoid the old PS2/PS3/BDISO chatter. All PS1 mounts
-         * and fallback decisions have explicit PS1_DIAG/PS1_MOUNT tags. */
-        int important =
-            strstr(msg,"PS1_DIAG") || strstr(msg,"PS1_MOUNT") ||
-            strstr(msg,"ps1:") || strstr(msg,"====");
+        /* SNES only, no PS1 forensics and no unrelated console spam. */
+        int important = strstr(msg,"snes:") || strstr(msg,"SNES_DIAG");
         size_t len=strlen(line);
         if(important && s_file_bytes+len+1<SF_DIAG_MAX_BYTES) {
             fputs(line,g_log);fputc('\n',g_log);(void)fflush(g_log);

@@ -1555,7 +1555,7 @@ static void launch_disc(App *a, int disc)
         }
         if(result!=-41){
             log_printf("ps1: native mount failed rc=%d for %s",result,path);
-            app_show_toast(a,"Error montando PS1: ver diagnostico_ps1.txt");
+            app_show_toast(a,"Error montando PS1");
             return;
         }
         /* Native 0x7027 expects exactly ONE image, but standard Redump
@@ -1582,7 +1582,7 @@ static void launch_disc(App *a, int disc)
                     a->launched=1;
                     app_request_exit(a,"ps1 multi-bin Cobra cache mount");
                 }else
-                    app_show_toast(a,"Error montaje PS1: ver diagnostico_ps1.txt");
+                    app_show_toast(a,"Error de montaje PS1");
                 return;
             }
             if(prep!=-70){
@@ -1590,7 +1590,7 @@ static void launch_disc(App *a, int disc)
                  * tracks is NOT a webMAN failure. Show the real reason. */
                 log_printf("PS1_DIAG STAGE=MULTIBIN_PREPARE RESULT=ERROR RC=%d",prep);
                 if(prep==-73)app_show_toast(a,"PS1: espacio insuficiente en HDD");
-                else app_show_toast(a,"PS1: error de pistas. Ver diagnostico_ps1.txt");
+                else app_show_toast(a,"PS1: error de pistas BIN/CUE");
                 return;
             }
         }
@@ -1642,7 +1642,7 @@ static void launch_disc(App *a, int disc)
             if(a->tab==PLAT_PS1) {
                 log_printf("PS1_DIAG STAGE=FINAL RESULT=NOT_MOUNTED "
                            "CAUSE=NATIVE_UNSUPPORTED_AND_WEBMAN_UNAVAILABLE");
-                app_show_toast(a,"PS1: no montado. Ver diagnostico_ps1.txt");
+                app_show_toast(a,"PS1: no se pudo montar el juego");
             }else
                 app_show_toast(a,"Para iniciar necesitas webMAN MOD activo");
             return;
@@ -1958,10 +1958,10 @@ void app_update(App *a, uint32_t held, float dt)
                 sound_play(SND_CONFIRM);
                 app_request_exit(a,"ps1 multi-bin Cobra mount");
             }else
-                app_show_toast(a,"PS1 montaje fallo: ver diagnostico_ps1.txt");
+                app_show_toast(a,"PS1: montaje fallido");
         }else{
             log_printf("PS1_DIAG STAGE=MULTIBIN_CONVERT ERROR_RC=%d",status);
-            app_show_toast(a,"Error preparando PS1: ver diagnostico_ps1.txt");
+            app_show_toast(a,"Error al preparar PS1");
         }
         return;
     }

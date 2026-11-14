@@ -318,8 +318,11 @@ static void scan_iso_dir(Scanner *s, Library *lib, int plat, const char *dir, in
             /* Separate ROM formats, never touch ISO/CUE handling. */
             if ((sf_ends_with_i(e->name, ".sfc") || sf_ends_with_i(e->name, ".smc") || sf_ends_with_i(e->name, ".zip")) &&
                 join(path, sizeof(path), dir, e->name) &&
-                lib_add(lib, plat, path, e->name, e->size, NULL, 1, 2, 0) >= 0)
+                lib_add(lib, plat, path, e->name, e->size, NULL, 1, 2, 0) >= 0) {
                 s->found[plat]++;
+                log_printf("snes: ROM_FOUND path=%s bytes=%llu",
+                           path,(unsigned long long)e->size);
+            }
             continue;
         }
         if (plat == PLAT_PS1) {

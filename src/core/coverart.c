@@ -1,6 +1,7 @@
 /* coverart.c - find, decode, fit, cache and stream cover art (coverart.h). */
 #include "coverart.h"
 #include "ps1_name_match.h"
+#include "snes_name_match.h"
 #include "layout.h"
 #include "log.h"
 #include "cover_diag.h"
@@ -163,6 +164,17 @@ int cover_candidates(int plat, const char *game_path, int is_dir, const char *id
             }
         }
         return n;
+    }
+    /* SNES: accept user-supplied ROM-pack artwork from its COVERS folder,
+       without changing the strict PS1/PS2/PS3/BDISO artwork policy. */
+    if (plat == PLAT_SNES && slash) {
+        char covers[COVER_PATH_MAX];
+        size_t dir_len=(size_t)(slash-game_path);
+        if (dir_len+8<sizeof(covers)) {
+            memcpy(covers,game_path,dir_len);covers[dir_len]=0;
+            sf_strlcat(covers,"/COVERS",sizeof(covers));
+            if(name[0])n=add(out,n,max,covers,"/",name);
+        }
     }
     if (name[0]) n = add(out, n, max, COVER_DL_DIR, "/", name);
     if (id && id[0] && !cover_name_is_custom(game_path) &&
@@ -936,6 +948,8 @@ void cover_dl_run(CoverDl *d)
     int i, streak = 0, logged_tls = 0, odd = 0;
     char *ps1_catalog=NULL;
     size_t ps1_catalog_len=0;
+    char *snes_catalog=NULL;
+    size_t snes_catalog_len=0;
     char (*urls)[COVER_URL_MAX] = (char (*)[COVER_URL_MAX])malloc((size_t)COVER_DL_URLS * COVER_URL_MAX);
     if (!buf || !urls || !io || !d->http) {
         sf_strlcpy(d->note, "Not enough memory to download", sizeof(d->note));
@@ -974,6 +988,28 @@ void cover_dl_run(CoverDl *d)
                     free(ps1_catalog);ps1_catalog=NULL;
                 }
             }else log_printf("covers: ps1 CATALOG_NO_MEMORY");
+        }
+    }
+    /* V15.32: load verified SNES cover names once per pass. This solves
+       numbered, tag-suffixed and region-labelled 200-ROM packs. Never infer
+       an unverified URL for a different game. Missing index is diagnosed. */
+    if (io->read_at) {
+        for (i=0;i<d->n;i++) if (d->item[i].plat==PLAT_SNES) break;
+        if (i<d->n) {
+            snes_catalog=(char *)malloc(SNES_BOXART_INDEX_MAX+1u);
+            if (snes_catalog) {
+                int nr=io->read_at(io->ctx,SNES_BOXART_INDEX,0,snes_catalog,
+                                   SNES_BOXART_INDEX_MAX);
+                if (nr>100 && nr<(int)SNES_BOXART_INDEX_MAX) {
+                    snes_catalog[nr]=0;
+                    snes_catalog_len=(size_t)nr;
+                    log_printf("snes: CATALOG_LOADED bytes=%d",nr);
+                } else {
+                    log_printf("snes: CATALOG_MISSING path=%s rc=%d",
+                               SNES_BOXART_INDEX,nr);
+                    free(snes_catalog);snes_catalog=NULL;
+                }
+            } else log_printf("snes: CATALOG_MEMORY_ERROR");
         }
     }
     for (i = 0; i < d->n && !d->cancel; i++) {
@@ -1016,6 +1052,9 @@ void cover_dl_run(CoverDl *d)
             discid_read(it->plat,it->path,it->is_dir,io->read_at,io->ctx,
                         it->id,sizeof(it->id));
         valid_serial=id_ok(it->id);
+        if (it->plat==PLAT_SNES)
+            log_printf("snes: SCAN_ROM path=%s size=%llu",
+                       it->path,(unsigned long long)it->size);
         if(it->plat==PLAT_PS1)
             ps1_special=ps1_name_special_cover_url(it->path,ps1_special_url,
                                                     sizeof(ps1_special_url));
@@ -1034,6 +1073,8 @@ void cover_dl_run(CoverDl *d)
             it->state=DL_HAVE;d->n_have++;goto next;
         }
         if (cover_name_is_custom(it->path) && !ps1_special) {
+            if (it->plat==PLAT_SNES)
+                log_printf("snes: CUSTOM_ROM_SKIP path=%s; provide matching manual cover",it->path);
             it->state=DL_MISSING;d->n_missing++;goto next;
         }
         if(valid_serial)
@@ -1085,12 +1126,27 @@ void cover_dl_run(CoverDl *d)
             log_printf("covers: ps1 SEARCH serial=%s title_catalog=%d sources=%d path=%s",
                        valid_serial?it->id:"NONE",matched,nu,it->path);
         }
-        if(it->plat==PLAT_SNES && nu<COVER_DL_URLS &&
-           cover_dl_snes_title_url(it->path,urls[nu],COVER_DL_URLS ? COVER_URL_MAX : 0)) {
-            snes_title_url_index=nu++;
-            log_printf("snes: BOXART exact Libretro filename=%s",it->path);
+        if(it->plat==PLAT_SNES) {
+            char real_name[256]="";
+            int catalog_match = snes_catalog_len &&
+                snes_name_catalog_match(it->path,snes_catalog,snes_catalog_len,
+                                        real_name,sizeof(real_name));
+            if(catalog_match && nu<COVER_DL_URLS &&
+               snes_name_catalog_url(real_name,urls[nu],COVER_URL_MAX)) {
+                snes_title_url_index=nu++;
+                log_printf("snes: CATALOG_MATCH rom=%s cover=%s",it->path,real_name);
+            } else if (nu<COVER_DL_URLS &&
+                       cover_dl_snes_title_url(it->path,urls[nu],COVER_URL_MAX)) {
+                snes_title_url_index=nu++;
+                log_printf("snes: CATALOG_NO_MATCH rom=%s; trying exact original filename",
+                           it->path);
+            } else {
+                log_printf("snes: NO_USABLE_COVER_TITLE path=%s",it->path);
+            }
         }
         if(nu<=0) {
+            if(it->plat==PLAT_SNES)
+                log_printf("snes: NO_COVER_URL path=%s",it->path);
             it->state=DL_NOID;d->n_noid++;
             if(it->plat==PLAT_PS1)
                 log_printf("covers: ps1 NO_SERIAL_OR_USABLE_FILENAME path=%s",it->path);
@@ -1107,6 +1163,9 @@ void cover_dl_run(CoverDl *d)
                 if ((st == 301 || st == 302 || st == 303 || st == 307 || st == 308) && loc[0]) { sf_strlcpy(url, loc, sizeof(url)); continue; }
                 break;
             }
+            if(it->plat==PLAT_SNES)
+                log_printf("snes: HTTP status=%d bytes=%u attempt=%d/%d rom=%s url=%s",
+                           st,(unsigned)len,u+1,nu,it->path,url);
             if(it->plat==PLAT_PS1)
                 log_printf("covers: ps1 SOURCE serial=%s mode=%s provider=%d/%d status=%d bytes=%u",
                            valid_serial?it->id:"NONE",
@@ -1123,7 +1182,7 @@ void cover_dl_run(CoverDl *d)
             if (st == 200 && len > 64 && is_image(buf, len, &png)) {
                 char f[COVER_PATH_MAX];
                 if((it->plat==PLAT_PS1 && u==ps1_title_url_index) ||
-                   (it->plat==PLAT_SNES && u==snes_title_url_index)) {
+                   it->plat==PLAT_SNES) { /* SNES always saves to its ROM's name, even with multiple source attempts */
                     CoverCand c[1];
                     if(cover_candidates(it->plat,it->path,it->is_dir,"",
                                         NULL,c,1)!=1)
@@ -1136,8 +1195,12 @@ void cover_dl_run(CoverDl *d)
                 if (io->write_file && io->write_file(io->ctx, f, buf, len, "", 0) == 0) {
                     got = 1;
                     log_printf("covers: downloaded %s <- %s (%u bytes)", f, url, (unsigned)len);
+                    if(it->plat==PLAT_SNES)
+                        log_printf("snes: SAVED_COVER path=%s bytes=%u",f,(unsigned)len);
                 } else {
                     log_printf("covers: could not write %s", f);
+                    if(it->plat==PLAT_SNES)
+                        log_printf("snes: WRITE_ERROR path=%s rom=%s",f,it->path);
                 }
             } else if (st != 404 && odd++ < 5) {          /* a few, not one per game */
                 log_printf("covers: %s: HTTP %d%s", url, st, st == 200 ? " (not an image)" : "");
@@ -1154,6 +1217,8 @@ void cover_dl_run(CoverDl *d)
                 io->remove(io->ctx, f);
             }
         } else if (neterr) {
+            if(it->plat==PLAT_SNES)
+                log_printf("snes: NETWORK_ERROR rom=%s",it->path);
             if(it->plat==PLAT_PS1)
                 log_printf("covers: ps1 NETWORK_ERROR serial=%s path=%s",it->id,it->path);
             it->state = DL_ERROR; d->n_error++;
@@ -1168,6 +1233,8 @@ void cover_dl_run(CoverDl *d)
                 break;
             }
         } else {
+            if(it->plat==PLAT_SNES)
+                log_printf("snes: COVER_NOT_FOUND rom=%s (check catalog, region, filenames)",it->path);
             if(it->plat==PLAT_PS1)
                 log_printf("covers: ps1 NO_ART_ON_SOURCES serial=%s path=%s",it->id,it->path);
             it->state = DL_MISSING; d->n_missing++; streak = 0;
@@ -1190,6 +1257,9 @@ void cover_dl_run(CoverDl *d)
     log_printf("covers: download done: %d added, %d not found online, %d already had one, %d with no title ID, %d failed%s%s",
                d->n_got, d->n_missing, d->n_have, d->n_noid, d->n_error, d->tls_needed ? " (some sources need HTTPS)" : "",
                d->cancel ? " (stopped)" : "");
+    log_printf("snes: DOWNLOAD_SUMMARY inspected=%d added=%d missing=%d already=%d failed=%d",
+               d->n,d->n_got,d->n_missing,d->n_have,d->n_error);
+    free(snes_catalog);
     free(ps1_catalog);
     free(buf); free(urls);
     __sync_synchronize();
