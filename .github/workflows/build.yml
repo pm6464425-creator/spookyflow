@@ -740,6 +740,28 @@ jobs:
               --notes "Edicion exclusiva de los textos de SpookyFlow V15.11: menus, opciones, ayuda, avisos, mensajes de carga y tarjetas en espanol latinoamericano. MISMAS tipografias DejaVu originales, tamanos, colores, posiciones, controles, iconos, fondos, animaciones, PS1 CUE BIN, caratulas, PS2, PS3 y BDISO. Los ajustes guardados siguen compatibles, el nombre en XMB se mantiene MIS JUEGOS PS3 PS2 PS1. Diez auditorias de inmutabilidad comparan los blobs exactos de los modulos protegidos con la V15.11; tests del nucleo y paquete real de PS3 verificados. No se ha efectuado validacion visual en una consola fisica."
           fi
 
+      - name: Publish direct V15.29 SNES/BDISO no-shadow PKG
+        if: github.ref == 'refs/heads/feature/v15-29-snes-bdiso-sin-sombras'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="spookyflow-v15-29-snes-bdiso-sin-sombras"
+          PKG="SPOOKYFLOW_V15_29_SNES_BDISO_SIN_SOMBRAS.pkg"
+          cp spookyflow.pkg "$PKG"
+          HEAD_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/feature%2Fv15-29-snes-bdiso-sin-sombras" --jq '.commit.sha')"
+          if [ "$GITHUB_SHA" != "$HEAD_SHA" ]; then
+            echo "Older run: not publishing stale PKG"
+            exit 0
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$PKG" --clobber
+            gh release edit "$TAG" --target "$GITHUB_SHA"
+          else
+            gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
+              --title "SpookyFlow V15.29 SNES + BDISO sin sombras" \
+              --notes "Based directly on V15.28. Adds SNES ROM tab, new no-shadow BDISO/SNES logo tabs, SNES .sfc/.smc/.zip scanning, Libretro exact-name boxarts and optional pSNES 7.2 launcher handoff. All original PS1/PS2/PS3/BDISO launch backends preserved. Requires pSNES 7.2 installed for SNES; HEN start still requires a console test. Built and checked by CI."
+          fi
+
   ps3-pkg-docker:
     needs: host-tests
     runs-on: ubuntu-latest

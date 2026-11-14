@@ -1481,11 +1481,13 @@ static void test_usb_drives(void)
     memfs_put("/dev_usb001/PSXISO/Spyro (USA).iso", "iso", 3);
     memfs_put("/dev_usb006/note.txt", "x", 1);
     r = scanner_roots_with_usb(base, nb, mem_list, NULL, &n, &nd);
-    CHECK(nd == 2 && n == nb + 14);
+    CHECK(nd == 2 && n == nb + 16);
     CHECK_STR(r[nb].path, "/dev_usb001/PS3ISO");
     CHECK(r[nb].plat == PLAT_PS3 && r[nb + 4].plat == PLAT_PS1 && r[nb + 3].plat == PLAT_PS2);
     CHECK_STR(r[nb + 6].path, "/dev_usb001/BDISO");
-    CHECK_STR(r[nb + 7].path, "/dev_usb006/PS3ISO");
+    CHECK_STR(r[nb + 7].path, "/dev_usb001/SNES");
+    CHECK(r[nb + 7].plat == PLAT_SNES); /* New root, original USB root order preserved. */
+    CHECK_STR(r[nb + 8].path, "/dev_usb006/PS3ISO");
     memset(&host, 0, sizeof(host));
     host.fs_list = mem_list;
     host.read_at = mem_read_at;

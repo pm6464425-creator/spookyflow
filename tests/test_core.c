@@ -1128,8 +1128,11 @@ static void test_app(void)
     CHECK(g_app.tab == PLAT_BDISO); /* Fourth tab is now BDISO. */
     CHECK(g_lib.tab[PLAT_BDISO].count == 0 && !g_lib.tab[PLAT_BDISO].demo);
     tap(SFB_R1); run_frames(0, 0.5f);
-    CHECK(g_app.tab == PLAT_BDISO && g_app.tab_anim >= 1.0f); /* Last tab: no wrap. */
-    tap(SFB_L1); tap(SFB_L1); run_frames(0, 0.5f);
+    CHECK(g_app.tab == PLAT_SNES); /* Newly appended fifth tab, after BDISO. */
+    CHECK(g_lib.tab[PLAT_SNES].count == 0 && !g_lib.tab[PLAT_SNES].demo);
+    tap(SFB_R1); run_frames(0, 0.5f);
+    CHECK(g_app.tab == PLAT_SNES && g_app.tab_anim >= 1.0f); /* Last tab: no wrap. */
+    tap(SFB_L1); tap(SFB_L1); tap(SFB_L1); run_frames(0, 0.5f);
     CHECK(g_app.tab == PLAT_PS2);
 
     /* holding right moves exactly one game (no auto-repeat in the flow) */
