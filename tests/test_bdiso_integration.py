@@ -31,7 +31,8 @@ testcase = read("tests/test_core.c")
 
 checks = [
     ("1. Fourth tab follows PS1 PS2 PS3",
-     "PLAT_BDISO = 3, PLAT_COUNT = 4" in layout and
+     ("PLAT_BDISO = 3, PLAT_COUNT = 4" in layout or
+      "PLAT_BDISO = 3, PLAT_SNES = 4, PLAT_COUNT = 5" in layout) and
      '"Blu-ray"' in ui),
     ("2. BDISO scanned from HDD and external USB",
      '"/dev_hdd0/BDISO"' in scan and

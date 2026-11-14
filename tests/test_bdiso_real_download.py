@@ -13,7 +13,7 @@ http=rd("src/ps3/ps3_webman.c")
 test=rd("tests/test_core.c")
 checks=[
  ("BDISO manual download handled directly", "if (it->plat == PLAT_BDISO) {" in cover),
- ("BDISO branch precedes game ID rejection", cover.index("if (it->plat == PLAT_BDISO) {",cover.index("void cover_dl_run(")) < cover.index("if (!valid_serial && it->plat!=PLAT_PS1)",cover.index("void cover_dl_run("))),
+ ("BDISO branch precedes game ID rejection", cover.index("if (it->plat == PLAT_BDISO) {",cover.index("void cover_dl_run(")) < cover.index("if (!valid_serial && it->plat!=PLAT_PS1",cover.index("void cover_dl_run("))),
  ("BDISO fetch uses dedicated movie callback", "io->ensure_movie_art(io->ctx, it->path)" in cover),
  ("Movie download counts as downloaded", "it->state = DL_GOT; d->n_got++;" in cover),
  ("Movie download errors are separate from no game ID", "movie cover download failed" in cover),

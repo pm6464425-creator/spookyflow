@@ -18,7 +18,9 @@ flow = src("src/core/app.c")
 layout = src("src/core/layout.h")
 makefile = src("Makefile")
 checks = [
-    ("four categories retained", "PLAT_BDISO = 3, PLAT_COUNT = 4" in layout),
+    ("original four indices retained and SNES appended",
+     "PLAT_BDISO = 3, PLAT_COUNT = 4" in layout or
+     "PLAT_BDISO = 3, PLAT_SNES = 4, PLAT_COUNT = 5" in layout),
     ("USB NTFS ports enumerated", all(f"__io_ntfs_usb{i:03d}" in ntfs for i in range(8))),
     ("physical insert detector used", "PS3_NTFS_IsInserted(u)" in ntfs),
     ("native NTFS mounting retained", "ntfsMountDevice(" in ntfs),
