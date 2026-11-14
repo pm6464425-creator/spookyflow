@@ -18,7 +18,10 @@ art = src("src/ps3/sf_bdiso_art.c")
 before_overlay, after_overlay = ui.split('/* Preserve the original case: two SMALL translucent watermarks at', 1)
 checks = [
     ("BDISO remains the fourth tab", '"BDISO"' in ui),
-    ("PS3 case texture remains loaded normally", "ui_set_case_image(plat, TEX_CASE_PS1 + plat);" in tabimg),
+    ("PS3 case texture remains loaded normally",
+     ("ui_set_case_image(plat, TEX_CASE_PS1 + plat);" in tabimg) or
+     ("ui_set_case_image(plat, texid);" in tabimg and
+      "plat == PLAT_SNES ? TEX_CASE_SNES : TEX_CASE_PS1 + plat" in tabimg)),
     ("PS3 case texture shared with BDISO", "ui_set_case_image(PLAT_BDISO, TEX_CASE_PS3)" in tabimg),
     ("PS3 case geometry copied to BDISO", "layout_set_case_image(PLAT_BDISO" in tabimg),
     ("case image shared, not loaded twice", "for (p = 0; p < PLAT_BDISO; p++)" in tabimg),
