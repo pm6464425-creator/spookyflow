@@ -54,6 +54,60 @@ int main(void)
     lookup("/dev_hdd0/SNES/Super Mario World - Kaizo Hack.smc",NULL);
     lookup("/dev_hdd0/SNES/Doom Troopers.smc","Doom Troopers (USA).png");
     lookup("/dev_hdd0/SNES/Not in the catalog.sfc",NULL);
+    /* V15.35 real Super Bomberman 5 from user's photo: avoid Caravan
+     * event edition; try regular Japan then proper USA boxfront only. */
+    {
+        static const char expanded[]=
+          "Super Bomberman 5 (Japan) (Caravan Event Ban).png\n"
+          "Super Bomberman 5 (Japan).png\n"
+          "Super Bomberman 5 (USA).png\n"
+          "Bastard!! - Ankoku no Hakaishin (Japan).png\n"
+          "DoReMi Fantasy - Milon no Dokidoki Daibouken (Japan).png\n"
+          "Captain Tsubasa III - Koutei no Chousen (Japan).png\n"
+          "Captain Tsubasa V - Hasha no Shougou Campione (Japan).png\n"
+          "Where in Time Is Carmen Sandiego (USA) (En,Fr,De,Es,It).png\n"
+          "Skyblazer (USA).png\n"
+          "Tecmo Secret of the Stars (USA).png\n"
+          "Final Fantasy - Mystic Quest (USA).png\n"
+          "Mega Man 7 (USA).png\n"
+          "Gourmet Sentai Barayarou (Japan).png\n"
+          "Super Nova (USA).png\n";
+        char chosen[5][256];
+        int n=snes_name_catalog_matches(
+          "/dev_hdd0/SNES/Super Bomberman 5 (Japan) (T-En by Psyklax Beta) (Add by Svambo v1.0) (i).zip",
+          expanded,strlen(expanded),chosen,5);
+        CHECK(n>=3);
+        CHECK(strcmp(chosen[0],"Super Bomberman 5 (Japan).png")==0);
+        CHECK(strcmp(chosen[0],"Super Bomberman 5 (Japan) (Caravan Event Ban).png")!=0);
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Bastard!! - Ankoku no Hakai-shin (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(strcmp(chosen[0],"Bastard!! - Ankoku no Hakaishin (Japan).png")==0);
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Do-Re-Mi Fantasy - Milon no Dokidoki Daibouken (ESP).sfc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Captain Tsubasa III - Challenge of Kaiser (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Captain Tsubasa V - Hasha no Shougou Canpione (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Carmen Sandiego - Where in Time (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Sky Blazer (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Secret of the Stars (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Final Fantasy - Magic Quest (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Mega Man VII (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Gourmet Squadron Barayarou (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(snes_name_catalog_match("/dev_hdd0/SNES/Super Nova - Darius Force (ESP).smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(!snes_name_catalog_match("/dev_hdd0/SNES/Classic Kong.smc",
+                expanded,strlen(expanded),chosen[0],256));
+        CHECK(!snes_name_catalog_match("/dev_hdd0/SNES/Super Bomberman 6.sfc",
+                expanded,strlen(expanded),chosen[0],256));
+    }
+
     CHECK(!snes_name_catalog_url("../../unverified.png",url,sizeof(url)));
     CHECK(!snes_name_catalog_url("unknown.sfc",url,sizeof(url)));
     CHECK(snes_name_catalog_url("Donkey Kong Country 2 - Diddy's Kong Quest (USA) (En,Fr).png",url,sizeof(url)));

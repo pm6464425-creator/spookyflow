@@ -22,8 +22,8 @@ cases=[
  'files.get("USRDIR/snes_boxart_names.txt"' in pkgverify and
  'len(snes_names)>=2500' in pkgverify),
 ("03. Indexed matching handles numbered ROM packs without guessing game IDs",
- 'snes_name_catalog_match(it->path' in cover and
- 'snes_name_catalog_url(real_name' in cover and
+ 'snes_name_catalog_matches(it->path' in cover and
+ 'snes_name_catalog_url(real_names[ci]' in cover and
  'dig((unsigned char)s[0])' in match),
 ("04. Exact Libretro fallback if index missing",
  "cover_dl_snes_title_url(it->path" in cover and

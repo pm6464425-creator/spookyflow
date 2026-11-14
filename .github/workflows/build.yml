@@ -32,8 +32,8 @@ jobs:
         run: make -f Makefile.host test
       - name: V15.31 SNES realistic case, ROM directory and 10 isolated regression checks
         run: python3 tests/test_snes_v15_31.py
-      - name: V15.34 SNES landscape-only PNG, four Libretro sources, clean cache and twelve regressions
-        run: python3 tests/test_snes_v15_34.py
+      - name: V15.35 SNES authentic box-art only, legacy screen replacement, regional matching and 12 safety checks
+        run: python3 tests/test_snes_v15_35.py
       - name: V15.32 SNES catalog pack matching, diagnostics and ten independent regressions
         run: |
           python3 tests/test_snes_boxart_catalog.py
@@ -860,6 +860,28 @@ jobs:
             gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
               --title "SpookyFlow V15.34 - SNES caratulas horizontales y cuatro fuentes" \
               --notes "SNES V15.34 based on working V15.33. Preserve correctly displayed horizontal automatic covers and all manual covers. Detect and retry previously downloaded vertical boxarts automatically; use trusted Libretro Boxarts, Titles, Logos, Snaps in that order; only accept PNG with a verifiable horizontal IHDR before saving; invalidate stale SNES CVR only if affected; add verified alias for Ancient Magic Bazoo/Bazoe and prefer original non-Arcade editions. Original launchers and BDISO untouched. 12 isolated and 64k+ core regressions; installer verified. Actual HEN behavior and completeness for translated ROMs must be validated on console."
+          fi
+
+      - name: Publish verified V15.35 authentic SNES cover-art PKG
+        if: github.ref == 'refs/heads/fix/v15-35-snes-authentic-boxart-only'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="spookyflow-v15-35-snes-authentic-boxart"
+          PKG="SPOOKYFLOW_V15_35_SNES_CARATULAS_REALES.pkg"
+          cp spookyflow.pkg "$PKG"
+          HEAD_SHA="$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-35-snes-authentic-boxart-only" --jq '.commit.sha')"
+          if [ "$GITHUB_SHA" != "$HEAD_SHA" ]; then
+            echo "Superseded build: never publish obsolete code"
+            exit 0
+          fi
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$PKG" --clobber
+            gh release edit "$TAG" --target "$GITHUB_SHA"
+          else
+            gh release create "$TAG" "$PKG" --target "$GITHUB_SHA" \
+              --title "SpookyFlow V15.35 - Caratulas reales SNES, sin pantallas de juego" \
+              --notes "Fix diagnosed on physical PS3 with 476 ROMs in diagnostico_snes(2).txt. SNES automatically uses ONLY verified authentic Libretro Named_Boxarts (never title, logo, or gameplay screen). Prior 256x224 / 256x239 auto title-screen images are detected and replaced on next missing-cover scan; their processed caches invalidated for SNES only. Multiple verified region and original-vs-special-edition variants are tried. Horizontal authentic box is preferred; original Japanese portrait box art is letterboxed to landscape without distortion rather than substituted with a game screen. Official title aliases repaired (Bastard, Captain Tsubasa III/V, Carmen Sandiego, DoReMi Fantasy, Final Fantasy Mystic Quest, Mega Man 7, etc.). Existing good auto art and manual SNES/COVERS art are retained. PS1, PS2, PS3, BDISO and pSNES launches unchanged. Fully compiled and host-tested; final presentation on user's HEN console remains to be confirmed."
           fi
 
   ps3-pkg-docker:

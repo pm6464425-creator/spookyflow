@@ -566,7 +566,7 @@ static int snes_png_orientation_bytes(const unsigned char *p, uint32_t n)
 static int snes_png_legacy_title_screen(const unsigned char *p,uint32_t n)
 {
     uint32_t w,h;
-    if(!p || n<24 || memcmp(p,"\\x89PNG\\r\\n\\x1a\\n",8)!=0 ||
+    if(!p || n<24 || memcmp(p,"\x89PNG\r\n\x1a\n",8)!=0 ||
        memcmp(p+12,"IHDR",4)!=0)return 0;
     w=((uint32_t)p[16]<<24)|((uint32_t)p[17]<<16)|
       ((uint32_t)p[18]<<8)|p[19];
@@ -1036,11 +1036,6 @@ void cover_dl_run(CoverDl *d)
     size_t ps1_catalog_len=0;
     char *snes_catalog=NULL;
     size_t snes_catalog_len=0;
-    char *snes_alts[3]={NULL,NULL,NULL};
-    size_t snes_alt_lengths[3]={0,0,0};
-    static const char *const snes_alt_paths[3]={
-        SNES_TITLES_INDEX,SNES_LOGOS_INDEX,SNES_SNAPS_INDEX
-    };
     char (*urls)[COVER_URL_MAX] = (char (*)[COVER_URL_MAX])malloc((size_t)COVER_DL_URLS * COVER_URL_MAX);
     if (!buf || !urls || !io || !d->http) {
         sf_strlcpy(d->note, "Not enough memory to download", sizeof(d->note));
@@ -1103,30 +1098,10 @@ void cover_dl_run(CoverDl *d)
             } else log_printf("snes: CATALOG_MEMORY_ERROR");
         }
     }
-    /* Read the actual provider catalogs ONCE. SNES only; PS1 has its
-     * own source and is not changed. Any failed alternate index is skipped. */
-    if(io->read_at) {
-        int kind,has_snes=0;
-        for(i=0;i<d->n;i++)if(d->item[i].plat==PLAT_SNES){has_snes=1;break;}
-        for(kind=0;has_snes && kind<3;kind++) {
-            int bytes;
-            snes_alts[kind]=(char *)malloc(SNES_BOXART_INDEX_MAX+1u);
-            if(!snes_alts[kind])continue;
-            bytes=io->read_at(io->ctx,snes_alt_paths[kind],0,
-                              snes_alts[kind],SNES_BOXART_INDEX_MAX);
-            if(bytes>100 && bytes<(int)SNES_BOXART_INDEX_MAX) {
-                snes_alts[kind][bytes]=0;
-                snes_alt_lengths[kind]=(size_t)bytes;
-                log_printf("snes: FALLBACK_INDEX kind=%d bytes=%d",kind+1,bytes);
-            }else{
-                free(snes_alts[kind]);snes_alts[kind]=NULL;
-                log_printf("snes: FALLBACK_INDEX_UNAVAILABLE kind=%d rc=%d",kind+1,bytes);
-            }
-        }
-    }
     for (i = 0; i < d->n && !d->cancel; i++) {
         CoverDlItem *it = &d->item[i];
         int nu, u, got = 0, neterr = 0, writeerr = 0, offline = 1, not_found_only = 1;
+        int snes_landscape_saved=0, snes_portrait_saved=0;
         int ps1_title_url_index=-1,valid_serial=0,ps1_special=0;
         char ps1_special_url[COVER_URL_MAX]="";
         char miss_path[COVER_PATH_MAX]="";
@@ -1240,39 +1215,29 @@ void cover_dl_run(CoverDl *d)
                        valid_serial?it->id:"NONE",matched,nu,it->path);
         }
         if(it->plat==PLAT_SNES) {
-            char real_name[256]="";
-            int kind;
-            int catalog_match=snes_catalog_len &&
-                snes_name_catalog_match(it->path,snes_catalog,snes_catalog_len,
-                                        real_name,sizeof(real_name));
-            if(catalog_match && nu<COVER_DL_URLS &&
-               snes_name_catalog_url(real_name,urls[nu],COVER_URL_MAX)) {
-                nu++;
-                log_printf("snes: CATALOG_MATCH rom=%s cover=%s",it->path,real_name);
-            }
-            /* If boxart is vertical or missing, next provider is a true
-             * title screen, then an official logo, then an in-game screenshot.
-             * Each candidate was proven to exist in that source index. */
-            for(kind=0;kind<3;kind++) {
-                if(snes_alt_lengths[kind] && nu<COVER_DL_URLS &&
-                   snes_name_catalog_match(it->path,snes_alts[kind],
-                                            snes_alt_lengths[kind],
-                                            real_name,sizeof(real_name)) &&
-                   snes_name_catalog_url_kind(real_name,kind+1,
-                                               urls[nu],COVER_URL_MAX)) {
+            char real_names[5][256];
+            int ci,nmatch=snes_catalog_len ?
+                snes_name_catalog_matches(it->path,snes_catalog,snes_catalog_len,
+                                           real_names,5) : 0;
+            /* Genuine box scans only. Try several correctly identified
+             * official editions/regions to obtain the best horizontal box.
+             * Named_Titles / Named_Logos / Named_Snaps are NOT box art and
+             * must never appear in the 3D SNES case. */
+            for(ci=0;ci<nmatch && nu<COVER_DL_URLS;ci++) {
+                if(snes_name_catalog_url(real_names[ci],urls[nu],COVER_URL_MAX)){
+                    log_printf("snes: BOXART_MATCH option=%d rom=%s box=%s",
+                               nu+1,it->path,real_names[ci]);
                     nu++;
-                    log_printf("snes: FALLBACK_MATCH kind=%d rom=%s image=%s",
-                               kind+1,it->path,real_name);
                 }
             }
             if(nu==0 && nu<COVER_DL_URLS &&
                cover_dl_snes_title_url(it->path,urls[nu],COVER_URL_MAX)) {
                 nu++;
-                log_printf("snes: CATALOG_NO_MATCH rom=%s; exact name last resort",
+                log_printf("snes: BOXART_NO_MATCH rom=%s; exact image name last resort",
                            it->path);
             }
             if(nu==0)
-                log_printf("snes: NO_USABLE_COVER_TITLE path=%s",it->path);
+                log_printf("snes: NO_VERIFIED_BOXART_NAME rom=%s",it->path);
         }
         if(nu<=0) {
             if(it->plat==PLAT_SNES)
@@ -1282,7 +1247,8 @@ void cover_dl_run(CoverDl *d)
                 log_printf("covers: ps1 NO_SERIAL_OR_USABLE_FILENAME path=%s",it->path);
             goto next;
         }
-        for (u = 0; u < nu && !got && !d->cancel; u++) {
+        for (u = 0; u < nu && !d->cancel &&
+             (it->plat==PLAT_SNES ? !snes_landscape_saved : !got); u++) {
             char url[COVER_URL_MAX], loc[COVER_URL_MAX];
             uint32_t len = 0;
             int st = 0, hops, png = 0;
@@ -1313,11 +1279,16 @@ void cover_dl_run(CoverDl *d)
                 char f[COVER_PATH_MAX];
                 if(it->plat==PLAT_SNES) {
                     int orient=png ? snes_png_orientation_bytes(buf,len) : 0;
-                    if(orient!=1) {
-                        log_printf("snes: REJECT_VERTICAL_OR_INVALID rom=%s source=%s orientation=%d",
-                                   it->path,url,orient);
+                    if(orient==0) {
+                        log_printf("snes: REJECT_INVALID_BOXART rom=%s source=%s",
+                                   it->path,url);
                         continue;
                     }
+                    if(orient<0 && snes_portrait_saved)continue;
+                    /* A real Japanese Super Famicom cover is usually
+                     * vertical. Keep its intact original artwork rather
+                     * than displaying a game screenshot. Continue only
+                     * until a real horizontal regional box is found. */
                 }
                 if(it->plat==PLAT_SNES) {
                     /* V15.33 (confirmed on PS3 HEN by diagnostico_snes.txt):
@@ -1356,9 +1327,12 @@ void cover_dl_run(CoverDl *d)
                     log_printf("covers: downloaded %s <- %s (%u bytes)", f, url, (unsigned)len);
                     if(it->plat==PLAT_SNES) {
                         char stem[COVER_PATH_MAX],cached[COVER_PATH_MAX+8];
+                        int orient=snes_png_orientation_bytes(buf,len);
+                        snes_landscape_saved=(orient>0);
+                        snes_portrait_saved=(orient<0);
                         log_printf("snes: SAVED_COVER path=%s bytes=%u",f,(unsigned)len);
-                        log_printf("snes: SAVED_COVER_HORIZONTAL path=%s bytes=%u",
-                                   f,(unsigned)len);
+                        log_printf("snes: AUTHENTIC_BOXART orientation=%s rom=%s source=%s",
+                                   orient>0?"HORIZONTAL":"PORTRAIT_FITTED",it->path,url);
                         if(io->cache_dir && io->remove) {
                             cover_cache_stem(io->cache_dir,it->plat,it->path,
                                              it->size,stem,sizeof(stem));
@@ -1437,7 +1411,6 @@ void cover_dl_run(CoverDl *d)
                d->cancel ? " (stopped)" : "");
     log_printf("snes: DOWNLOAD_SUMMARY inspected=%d added=%d missing=%d already=%d failed=%d",
                d->n,d->n_got,d->n_missing,d->n_have,d->n_error);
-    for(i=0;i<3;i++)free(snes_alts[i]);
     free(snes_catalog);
     free(ps1_catalog);
     free(buf); free(urls);
