@@ -1152,7 +1152,7 @@ static void test_cover_loader(void)
     g_reads = 0;
     cover_worker_step(&L);
     cover_poll(&L, &cc);
-    CHECK(cc.slot[2].state == CC_FAILED && g_reads <= 4 && g_decodes == decodes);   /* .cvr header + .none + at most a bounded disc-ID probe; never decode */
+    CHECK(cc.slot[2].state == CC_FAILED && g_reads <= 5 && g_decodes == decodes);   /* .cvr header + .none + 3 sector layouts checked for a missing serial; zero decodes */
 
     /* second run: straight from the cache, no decoding, even if the art is gone */
     mem_remove(NULL, COVER_DL_DIR "/SLUS20914.JPG");
