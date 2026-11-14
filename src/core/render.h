@@ -26,7 +26,8 @@ enum {
     TEX_BG_BLUR = 22,                         /* 0.8.5: a small, blurred copy of the user's picture */
     TEX_STAGE_BLUR_B = 23,                    /* 0.9.5: the blurred copy in the new colour, while they crossfade */
     TEX_LIVE0 = 24, TEX_LIVE1 = 25,           /* 0.9.6: r_snapshot: what is on screen, small and blurred */
-    TEX_COUNT_FIXED = 26
+    TEX_TAB_BDISO = 26, TEX_TAB_SNES = 27, /* isolated images, original 0..25 unchanged */
+    TEX_COUNT_FIXED = 28
 };
 
 /* Cover art: R_COVER_SLOTS textures TEX_COVER0 + slot, one per cover cache

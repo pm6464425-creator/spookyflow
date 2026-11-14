@@ -28,7 +28,7 @@ extern const unsigned int g_case_png_size[PLAT_COUNT];
 
 static void load_one(int plat)
 {
-    static const char *const names[PLAT_COUNT] = { "ps1.png", "ps2.png", "ps3.png", "bdiso.png" };
+    static const char *const names[PLAT_COUNT] = { "ps1.png", "ps2.png", "ps3.png", "bdiso.png", "snes.png" };
     char path[160];
     pngData png;
     unsigned char *rgba = NULL;
@@ -38,6 +38,9 @@ static void load_one(int plat)
 
     snprintf(path, sizeof(path), "%s/%s", SF_TABS_DIR, names[plat]);
     memset(&png, 0, sizeof(png));
+    /* Existing user override wins. Packaged assets used only for the two new tabs. */
+    if (plat >= PLAT_BDISO && !ps3_fs_exists(path))
+        snprintf(path, sizeof(path), "/dev_hdd0/game/" SF_APPID "/USRDIR/TABS/%s", names[plat]);
     if (ps3_fs_exists(path)) {
         ps3_decode_lock();
         if (pngLoadFromFile(path, &png) != 0 || !png.bmp_out) {
@@ -127,14 +130,15 @@ static void load_one(int plat)
             w += 4; h += 4;
         }
     }
+    const int texid = plat == PLAT_BDISO ? TEX_TAB_BDISO : plat == PLAT_SNES ? TEX_TAB_SNES : TEX_TAB_PS1 + plat;
     if (tintable) {
         /* single-color logo: keep only alpha so the UI can tint it (dark on the white pill) */
         size_t i, n = (size_t)w * h;
         for (i = 0; i < n; i++) rgba[i] = rgba[i * 4u + 3u];
-        if (r_texture_upload_alpha(TEX_TAB_PS1 + plat, (int)w, (int)h, rgba) == 0)
-            ui_set_tab_image(plat, TEX_TAB_PS1 + plat, (int)w, (int)h, 1);
-    } else if (r_texture_upload_rgba(TEX_TAB_PS1 + plat, (int)w, (int)h, rgba) == 0) {
-        ui_set_tab_image(plat, TEX_TAB_PS1 + plat, (int)w, (int)h, 0);
+        if (r_texture_upload_alpha(texid, (int)w, (int)h, rgba) == 0)
+            ui_set_tab_image(plat, texid, (int)w, (int)h, 1);
+    } else if (r_texture_upload_rgba(texid, (int)w, (int)h, rgba) == 0) {
+        ui_set_tab_image(plat, texid, (int)w, (int)h, 0);
     }
     log_printf("tabs: loaded %s (%ux%u, %s)", path, (unsigned)w, (unsigned)h, tintable ? "single color, tinted" : "full color");
     free(rgba);
@@ -374,7 +378,7 @@ void ps3_load_tab_images(void)
         log_printf("tabs: PNG decoder module failed to load");
         return;
     }
-    for (p = 0; p < PLAT_BDISO; p++) load_one(p);
+    for (p = 0; p < PLAT_COUNT; p++) load_one(p);
     load_case_images();
     load_stage();
 }

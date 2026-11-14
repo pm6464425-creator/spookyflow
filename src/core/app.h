@@ -91,6 +91,8 @@ typedef struct {
     int (*launch_ps3)(const char *path, int is_folder, const char *title_id);
     /* Blu-ray movies use Cobra BD opcode 0x7026, not PS3 game opcode 0x7024. */
     int (*launch_bdiso)(const char *path);
+    /* Dedicated SNES handoff; existing callbacks unchanged. */
+    int (*launch_snes)(const char *rom_path);
     /* Optional early checkpoint, before reading the per-game settings and
      * before invoking any PS3 mounting backend. Must return 0 to proceed. */
     int (*diag_ps3_select)(const char *path, int is_folder);

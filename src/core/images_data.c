@@ -1235,8 +1235,8 @@ static const unsigned char k_tab_ps3[9300] = {
   255,255,172,136,25,164,0,0,0,6,73,68,65,84,3,0,182,39,240,124,254,118,246,231,
   0,0,0,0,73,69,78,68,174,66,96,130,
 };
-const unsigned char *const g_tab_png[4] = { k_tab_ps1, k_tab_ps2, k_tab_ps3 };
-const unsigned int g_tab_png_size[4] = { 12743, 7369, 9300 };
+const unsigned char *const g_tab_png[5] = { k_tab_ps1, k_tab_ps2, k_tab_ps3 };
+const unsigned int g_tab_png_size[5] = { 12743, 7369, 9300 };
 static const unsigned char k_case_ps1[10572] = {
   137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82,0,0,1,19,0,0,0,250,
   8,6,0,0,0,130,149,163,70,0,0,0,9,112,72,89,115,0,0,11,19,0,0,11,
@@ -3375,5 +3375,5 @@ static const unsigned char k_case_ps3[18375] = {
   126,9,108,44,220,3,230,253,117,89,89,89,243,209,213,2,4,24,0,79,99,226,163,33,
   99,113,109,0,0,0,0,73,69,78,68,174,66,96,130,
 };
-const unsigned char *const g_case_png[4] = { k_case_ps1, k_case_ps2, k_case_ps3 };
-const unsigned int g_case_png_size[4] = { 10572, 22184, 18375 };
+const unsigned char *const g_case_png[5] = { k_case_ps1, k_case_ps2, k_case_ps3 };
+const unsigned int g_case_png_size[5] = { 10572, 22184, 18375 };

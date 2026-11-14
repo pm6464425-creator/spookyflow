@@ -16,7 +16,7 @@
 
 static int sync_xmb_priority(App *a);
 
-static const char *const k_plat_name[PLAT_COUNT] = { "PS1", "PS2", "PS3", "BDISO" };
+static const char *const k_plat_name[PLAT_COUNT] = { "PS1", "PS2", "PS3", "BDISO", "SNES" };
 
 /* Cover cache loader: hand the game to the cover worker. Demo games keep
  * their drawn placeholder. */
@@ -256,7 +256,7 @@ static void finish_library(App *a)
     int t;
     for (t = 0; t < PLAT_COUNT; t++) {
         GameList *gl = &a->lib->tab[t];
-        if (gl->count == 0 && t != PLAT_BDISO) {
+        if (gl->count == 0 && t != PLAT_BDISO && t != PLAT_SNES) {
             demo_fill(a->lib, t);
             log_printf("library: %s has no games on HDD, showing demo library (%d titles)", k_plat_name[t], gl->count);
         } else {
@@ -1461,6 +1461,17 @@ static void launch_disc(App *a, int disc)
         return;
     }
     c = settings_game_get(&a->settings, lib_key(a->lib, g));   /* one set of settings for all discs */
+    /* Isolated SNES handoff to the installed pSNES; other backends unchanged. */
+    if (a->tab == PLAT_SNES) {
+        int result = a->host.launch_snes ? a->host.launch_snes(path) : -64;
+        if (result != 0) {
+            log_printf("snes: pSNES handoff returned %d for %s", result, path);
+            app_show_toast(a, result == -64 ? "Instala pSNES 7.2 para jugar SNES" : "No se pudo iniciar pSNES");
+        } else {
+            app_request_exit(a, "snes pSNES handoff");
+        }
+        return;
+    }
     /* V15.13: PS2 has its own independent Cobra backend; PS1 legacy stays
      * unchanged. Reject incompatible HEN BEFORE writing any CONFIG file. */
     if (a->tab == PLAT_PS2 && a->host.launch_ps2) {

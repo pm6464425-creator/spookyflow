@@ -12,6 +12,7 @@
  *     (see tiny3d.c), which runs our atexit handler. */
 #include <math.h>
 #include <stdio.h>
+#include <sys/process.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
@@ -297,6 +298,22 @@ static void setup_screen(void)
     log_printf("video: %dx%d, display aspect %.3f, pixel aspect %.4f", (int)vw, (int)vh, display_aspect, s.pa);
 }
 
+/* Dedicated SNES start: requires pSNES 7.2 installed under PSNE00001.
+ * PS1/PS2/PS3/BDISO backends are not modified. */
+static int launch_snes_psnes(const char *rom_path)
+{
+    static const char exe[] = "/dev_hdd0/game/PSNE00001/USRDIR/EBOOT.BIN";
+    const char *args[2];
+    int rc;
+    if (!rom_path || !rom_path[0] || !ps3_fs_exists(exe)) return -64;
+    args[0] = rom_path;
+    args[1] = NULL;
+    log_printf("snes: handoff pSNES 7.2 ROM=%s", rom_path);
+    rc = sysProcessExitSpawn2(exe, args, NULL, NULL, 0, 1001, SYS_PROCESS_SPAWN_STACK_SIZE_1M);
+    log_printf("snes: spawn returned rc=%d", rc);
+    return rc;
+}
+
 int main(int argc, const char *argv[])
 {
     AppHost host;
@@ -373,6 +390,7 @@ int main(int argc, const char *argv[])
     host.ps2_hen_poll = sf_ps2_hen_poll;
     host.launch_ps3 = sf_cobra_mount_ps3;
     host.launch_bdiso = launch_bdiso;
+    host.launch_snes = launch_snes_psnes;
     host.diag_ps3_select = sf_cobra_diag_selection;
     host.read_wm_config = read_wm_config;
     host.read_at = ps3_read_at;

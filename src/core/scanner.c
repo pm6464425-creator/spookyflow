@@ -16,6 +16,7 @@ static const ScanRoot k_roots[] = {
     { PLAT_PS3, "/dev_hdd0/GAMES",    SRC_HDD_GAME_FOLDERS },
     { PLAT_PS3, "/dev_hdd0/GAMEZ",    SRC_HDD_GAME_FOLDERS },
     { PLAT_BDISO, "/dev_hdd0/BDISO", SRC_HDD_ISO_DIR },
+    { PLAT_SNES, "/dev_hdd0/SNES", SRC_HDD_ISO_DIR },
     { PLAT_PS3, NTFS_INDEX_DIR,        SRC_NTFS_INDEX },       /* NTFS drives (PS3 + PS1), via webMAN */
 };
 
@@ -55,7 +56,7 @@ const ScanRoot *scanner_roots_with_usb_native(const ScanRoot *base, int nbase,
         { "PS3ISO", PLAT_PS3, SRC_HDD_ISO_DIR }, { "GAMES", PLAT_PS3, SRC_HDD_GAME_FOLDERS },
         { "GAMEZ", PLAT_PS3, SRC_HDD_GAME_FOLDERS }, { "PS2ISO", PLAT_PS2, SRC_HDD_ISO_DIR },
         { "PSXISO", PLAT_PS1, SRC_HDD_ISO_DIR }, { "PSXGAMES", PLAT_PS1, SRC_HDD_ISO_DIR },
-        { "BDISO", PLAT_BDISO, SRC_HDD_ISO_DIR },
+        { "BDISO", PLAT_BDISO, SRC_HDD_ISO_DIR }, { "SNES", PLAT_SNES, SRC_HDD_ISO_DIR },
     };
     enum { NU = (int)(sizeof(k_usb) / sizeof(k_usb[0])), MAXR = 32 + SCAN_USB_PORTS * NU };
     static ScanRoot roots[MAXR];
@@ -311,6 +312,14 @@ static void scan_iso_dir(Scanner *s, Library *lib, int plat, const char *dir, in
             if (plat == PLAT_BDISO && sf_stricmp(e->name,"COVERS") == 0) continue;
             if (depth == 0 && s->qn < SCAN_QUEUE_MAX && join(path, sizeof(path), dir, e->name))
                 sf_strlcpy(s->queue[s->qn++], path, SCAN_PATH_MAX);
+            continue;
+        }
+        if (plat == PLAT_SNES) {
+            /* Separate ROM formats, never touch ISO/CUE handling. */
+            if ((sf_ends_with_i(e->name, ".sfc") || sf_ends_with_i(e->name, ".smc") || sf_ends_with_i(e->name, ".zip")) &&
+                join(path, sizeof(path), dir, e->name) &&
+                lib_add(lib, plat, path, e->name, e->size, NULL, 1, 2, 0) >= 0)
+                s->found[plat]++;
             continue;
         }
         if (plat == PLAT_PS1) {

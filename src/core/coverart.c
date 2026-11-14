@@ -21,7 +21,7 @@ enum { F_SF_DL = 0, F_COUNT = 1 };
 static const char *const k_folders[F_COUNT] = { COVER_DL_DIR };
 
 static const char *const k_exts[] = { ".JPG", ".PNG", ".jpg", ".png" };
-static const char *const k_plat_dir[PLAT_COUNT] = { "ps1", "ps2", "ps3", "bdiso" };
+static const char *const k_plat_dir[PLAT_COUNT] = { "ps1", "ps2", "ps3", "bdiso", "snes" };
 
 #define CVR_HEADER 16
 #define CVR_VERSION 6     /* source-policy change: invalidate old cached 320x176 sidecar icons */
@@ -43,7 +43,8 @@ void cover_tex_size(int plat, int *w, int *h)
 {
     switch (plat) {
     case PLAT_PS1: *w = 384; *h = 384; break;   /* square jewel case */
-    case PLAT_PS2: *w = 320; *h = 448; break;   /* tall DVD case */
+    case PLAT_PS2: *w = 320; *h = 448; break;
+    case PLAT_SNES: *w = 384; *h = 268; break; /* horizontal SNES */   /* tall DVD case */
     default:       *w = 384; *h = 448; break;   /* Blu-ray case */
     }
 }

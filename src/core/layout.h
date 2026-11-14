@@ -6,7 +6,7 @@
 
 #include "draw.h"
 
-enum { PLAT_PS1 = 0, PLAT_PS2 = 1, PLAT_PS3 = 2, PLAT_BDISO = 3, PLAT_COUNT = 4 };
+enum { PLAT_PS1 = 0, PLAT_PS2 = 1, PLAT_PS3 = 2, PLAT_BDISO = 3, PLAT_SNES = 4, PLAT_COUNT = 5 };
 
 /* Cover flow (fractions of H) */
 #define LY_SEL_H      0.50f    /* selected case height */

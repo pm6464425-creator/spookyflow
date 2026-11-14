@@ -12,6 +12,7 @@ static float window_shape(int plat)
     case PLAT_PS1: return 1.00f;   /* PS1 fronts are square */
     case PLAT_PS2: return 0.70f;   /* PS2 DVD covers */
     case PLAT_BDISO: return 2.0f/3.0f; /* film posters, not PS3 game fronts */
+    case PLAT_SNES: return 240.0f/168.0f; /* horizontal SNES box front */
     default:       return 0.86f;   /* PS3 covers (webMAN COV packs) */
     }
 }
@@ -69,7 +70,7 @@ float layout_case_scale(int plat)
 {
     /* A square case at full height is very wide; trim it slightly so more
      * neighbors stay visible (decision noted in README). */
-    return plat == PLAT_PS1 ? 0.88f : 1.0f;
+    return (plat == PLAT_PS1 || plat == PLAT_SNES) ? 0.88f : 1.0f;
 }
 
 static int g_floor = 1;

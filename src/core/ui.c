@@ -18,9 +18,9 @@
 #define PI_F 3.14159265f
 #define ELLIPSIS "\xE2\x80\xA6"
 
-static const char *const k_plat_short[PLAT_COUNT] = { "PS1", "PS2", "PS3", "BDISO" };
+static const char *const k_plat_short[PLAT_COUNT] = { "PS1", "PS2", "PS3", "BDISO", "SNES" };
 /* Case header label. Plain text only: no platform logos are drawn or bundled. */
-static const char *const k_plat_case[PLAT_COUNT] = { "PS1", "PS2", "PS3", "Blu-ray" };
+static const char *const k_plat_case[PLAT_COUNT] = { "PS1", "PS2", "PS3", "Blu-ray", "Super Nintendo" };
 
 typedef struct { int present, tex, w, h, tintable; } TabImage;
 static TabImage g_tab_img[PLAT_COUNT];
@@ -47,7 +47,7 @@ void ui_tab_image_box_px(float *w_px, float *h_px)
 
 void ui_clear_tab_images(void) { memset(g_tab_img, 0, sizeof(g_tab_img)); }
 
-static int g_case_tex[PLAT_COUNT] = { -1, -1, -1, -1 };
+static int g_case_tex[PLAT_COUNT] = { -1, -1, -1, -1, -1 };
 void ui_set_case_image(int plat, int tex) { if (plat >= 0 && plat < PLAT_COUNT) g_case_tex[plat] = tex; }
 void ui_clear_case_images(void) { int i; for (i = 0; i < PLAT_COUNT; i++) g_case_tex[i] = -1; layout_clear_case_images(); }
 
@@ -1511,7 +1511,7 @@ static void draw_tabs(const App *a, float alpha, float yoff)
         uint32_t tc = sf_col_mix(TH_TEXT_DIM, TH_TEXT, k);
         if (g_tab_img[i].present) {
             const TabImage *ti = &g_tab_img[i];
-            float box_w = tw[i] - d_xu(m.tab_h * 0.55f);           /* clear of the rounded ends */
+            float box_w = (i == PLAT_BDISO || i == PLAT_SNES) ? tw[i] * 0.94f : tw[i] - d_xu(m.tab_h * 0.55f); /* original tab dimensions */
             float ih = img_h, iw = d_xu(ih * (float)ti->w / (float)ti->h);
             uint32_t tint = ti->tintable ? tc : sf_col_dim(0xFFFFFFFFu, 0.6f + 0.4f * k);
             if (iw > box_w) { ih *= box_w / iw; iw = box_w; }        /* wide logo: fit the width */
@@ -2547,7 +2547,7 @@ static void draw_storage(const App *a)
         const GameList *gl = &a->lib->tab[p];
         uint64_t s = 0;
         int i, n = 0, u = 0;
-        static const char *const names[PLAT_COUNT] = { "PS1", "PS2", "PS3", "BDISO" };
+        static const char *const names[PLAT_COUNT] = { "PS1", "PS2", "PS3", "BDISO", "SNES" };
         for (i = 0; i < gl->count && !gl->demo; i++) {
             const Game *g = &gl->games[i];
             if (g->flags & GAME_DEMO) continue;
