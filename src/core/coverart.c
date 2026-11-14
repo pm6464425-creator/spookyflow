@@ -586,19 +586,20 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
         cover_cache_stem(L->io.cache_dir, j->plat, j->path, j->size, stem, sizeof(stem));
         snprintf(f, sizeof(f), "%s.cvr", stem);
         if(j->plat==PLAT_SNES) {
-            CoverCand c[3];
+            CoverCand scands[3];
             char check[COVER_PATH_MAX+8];
-            int ci,nc=cover_candidates(j->plat,j->path,j->is_dir,"",NULL,c,3);
-            for(ci=0;ci<nc;ci++) {
-                if(strncmp(c[ci].base,COVER_DL_DIR "/",sizeof(COVER_DL_DIR))!=0)continue;
-                snprintf(check,sizeof(check),"%s.png",c[ci].base);
+            int ci,snc=cover_candidates(j->plat,j->path,j->is_dir,"",NULL,scands,3);
+            for(ci=0;ci<snc;ci++) {
+                if(strncmp(scands[ci].base,COVER_DL_DIR "/",sizeof(COVER_DL_DIR))!=0)continue;
+                sf_strlcpy(check,scands[ci].base,sizeof(check));
+                sf_strlcat(check,".png",sizeof(check));
                 if(snes_auto_png_portrait(&L->io,check)) {
                     if(L->io.remove)L->io.remove(L->io.ctx,f);
                     log_printf("snes: STALE_VERTICAL_CACHE_INVALIDATED rom=%s",j->path);
                     break;
                 }
             }
-            if(ci==nc && read_cache(L,f,j->plat,tw,th,year)) {
+            if(ci==snc && read_cache(L,f,j->plat,tw,th,year)) {
                 log_printf("snes: CACHE_HIT rom=%s",j->path);
                 sf_strlcpy(src,"cache",src_cap);L->n_cache++;return 1;
             }
