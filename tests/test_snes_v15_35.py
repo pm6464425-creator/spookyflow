@@ -58,7 +58,7 @@ tests=[
   '"captain tsubasa v hasha no shougou campione"',
   '"final fantasy mystic quest"',
   '"mega man 7"',
-  '"tecmo secret of the stars"',
+  '"tecmo secret of stars"',
   '"skyblazer"'))),
 ("12 PS1, PS2, PS3, BDISO and unchanged HEN launching are safe from this patch",
  all(sha_ok(*x) for x in (
