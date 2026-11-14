@@ -85,6 +85,17 @@ def verify(package):
     assert "Disney Tarzan (Spain).png" in catalog, "Tarzan Spanish cover absent"
     assert "Disney's Tarzan (USA).png" in catalog, "Tarzan USA cover absent"
     print("PASS real bundled Libretro PS1 cover names:", len(catalog))
+    # V15.31: verify the exact new SNES case exists in the built PKG.
+    snes_case = files.get("USRDIR/CASES/snes.png")
+    assert snes_case is not None, "SNES case PNG missing from installer"
+    assert snes_case == Path("pkgfiles/USRDIR/CASES/snes.png").read_bytes(), (
+        "Installer SNES case differs from generated source")
+    assert snes_case[:8] == bytes((137, 80, 78, 71, 13, 10, 26, 10)), (
+        "Broken packaged SNES PNG signature")
+    assert snes_case[16:24] == struct.pack(">II", 550, 500), (
+        "Unexpected packaged SNES case resolution")
+    print("PASS compiled SNES transparent case", len(snes_case), "bytes")
+
     rawiso = files["USRDIR/raw_iso.sprx"]
     assert len(rawiso) == 7930 and rawiso[:4] == b"SCE\x00", (
         "Invalid embedded raw_iso.sprx",len(rawiso))
