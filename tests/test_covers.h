@@ -628,11 +628,13 @@ static void test_snes_recover_vertical_and_alias(void)
     CHECK(snes_bad_sources==0);
     CHECK(snes_real_portrait>=2 && snes_real_horizontal>=1);
     f=memfs_find(COVER_DL_DIR "/Ace o Nerae! (ESP).png");
+    printf("TEST ACE wrote %s bytes=%u w=%u h=%u (%u,%u)\\n",f?"yes":"no",f?f->len:0u,f?(f->data[18]*256+f->data[19]):0u,f?(f->data[22]*256+f->data[23]):0u,f?f->data[22]:0u,f?f->data[23]:0u);
     CHECK(f && f->len==128 && f->data[19]==0 && f->data[22]==3 && f->data[23]==110);
     CHECK(memfs_find(cacheFile)==NULL); /* old processed title screen invalidated */
     CHECK(memfs_find("/dev_hdd0/SNES/COVERS/Ace o Nerae! (ESP).png")==NULL);
     CHECK(memfs_find(COVER_DL_DIR "/Ancient Magic - Bazoo! Mahou Sekai (ESP).png")!=NULL);
     f=memfs_find(COVER_DL_DIR "/Super Bomberman 5 (Japan) (T-En by Psyklax Beta) (Add by Svambo v1.0) (i).png");
+    printf("TEST BOMBER wrote %s bytes=%u h=%u (%u,%u)\\n",f?"yes":"no",f?f->len:0u,f?(f->data[22]*256+f->data[23]):0u,f?f->data[22]:0u,f?f->data[23]:0u);
     CHECK(f && f->len==128 && f->data[22]==1 && f->data[23]==108);
     for(i=0;i<4;i++)
         CHECK(cover_has_art(&io,PLAT_SNES,roms[i],0,items[i].size,""));
