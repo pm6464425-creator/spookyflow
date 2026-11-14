@@ -114,12 +114,36 @@ for contents in [menu,settings,ui,app,library]:
     generated_literals += re.findall(r'"((?:\\.|[^"\\])*)"',contents)
 unicode_used={ord(c) for literal in generated_literals for c in literal if ord(c)>127}
 
+# This audit originated as a V15.12 LANGUAGE-ONLY audit, before SNES was added.
+# V15.29 explicitly changes the platform table, SNES layout and the two tab
+# images. Preserve the strict V15.12 checks for earlier branches; on V15.29
+# check that every unrelated graphics/BDISO/PS1 module retains its baseline.
+v15_29 = "PLAT_SNES = 4" in read("src/core/layout.h")
+layout_safe = unchanged(layout_paths) or (
+    v15_29 and unchanged([p for p in layout_paths if p not in
+                         ("src/core/layout.c", "src/core/layout.h")])
+    and "PLAT_BDISO = 3, PLAT_SNES = 4, PLAT_COUNT = 5" in read("src/core/layout.h")
+    and "case PLAT_SNES: return 240.0f/168.0f" in read("src/core/layout.c")
+)
+media_safe = unchanged(media_paths) or (
+    v15_29 and unchanged([p for p in media_paths if p != "src/core/images_data.c"])
+    and "g_tab_png[5]" in read("src/core/images_data.c")
+    and "g_case_png[5]" in read("src/core/images_data.c")
+)
+covers_safe = unchanged(cover_paths) or (
+    v15_29 and unchanged([p for p in cover_paths if p not in
+                          ("src/core/coverart.c", "src/core/scanner.c")])
+    and 'PLAT_SNES, "/dev_hdd0/SNES"' in read("src/core/scanner.c")
+    and 'PLAT_BDISO, "/dev_hdd0/BDISO"' in read("src/core/scanner.c")
+    and "cover_dl_ps1_title_url" in read("src/core/coverart.c")
+    and "if (plat == PLAT_BDISO) return 0;" in read("src/core/coverart.c")
+)
 checks=[
  ("1. Tipografías y atlas idénticos a V15.11", unchanged(font_paths)),
  ("2. Todos los signos del español presentes en la fuente original",
      all(ord(ch) in cps for ch in spanish_chars)),
- ("3. Diseño, escala de texto y renderizado intactos", unchanged(layout_paths)),
- ("4. Fondos, animaciones, sonidos e iconos intactos", unchanged(media_paths)),
+ ("3. Diseño, escala de texto y renderizado intactos", layout_safe),
+ ("4. Fondos, animaciones, sonidos e iconos intactos", media_safe),
  ("5. Controles y motores originales intactos; nuevo PS2 aislado",
       unchanged(control_paths) and 'host.launch_ps3 = sf_cobra_mount_ps3;' in read("src/ps3/main.c")
       and 'host.launch_bdiso = launch_bdiso;' in read("src/ps3/main.c")
@@ -128,7 +152,7 @@ checks=[
       and 'lv2syscall3(8, 0x7026' in cobra_mount
       and 'int sf_cobra_mount_ps3(' in cobra_mount
       and '#ifdef SF_DISABLE_DIAG_TXT' in cobra_mount),
- ("6. PS1, BDISO y descarga de carátulas intactos", unchanged(cover_paths)),
+ ("6. PS1, BDISO y descarga de carátulas intactos", covers_safe),
  ("7. Archivos de ajustes y título de XMB compatibles",
       unchanged(["sfo.xml"]) and all(k in settings for k in serialized_keys)),
  ("8. Todas las etiquetas del menú traducidas",
