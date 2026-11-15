@@ -214,6 +214,15 @@ python3 tools/bundle_psnes.py \
   --header src/ps3/sf_psnes_filelist.h
 test -s pkgfiles/USRDIR/SNESENGINE/USRDIR/EBOOT.BIN
 test -s src/ps3/sf_psnes_filelist.h
+# V15.41 critical fix: the original EBOOT is NPDRM (SELF type 8) and
+# sysProcessExitSpawn2 cannot execute it. Convert the verified FREE upstream
+# binary into a separately signed APP SELF (type 4), like PS3 native launchers.
+# Store it INSIDE SpookyFlow itself; do not depend on webMAN or RetroArch.
+say "Converting verified native pSNES 7.2 to executable standalone APP SELF"
+bash tools/build_psnes_plain_self.sh \
+  pkgfiles/USRDIR/SNESENGINE/USRDIR/EBOOT.BIN \
+  pkgfiles/USRDIR/SNESENGINE/PSNES_ENGINE.SELF
+end
 # Licensing and source attribution, available in the installed package.
 curl --retry 3 --retry-delay 2 -fsSL \
   'https://raw.githubusercontent.com/theheroGAC/pemu-ps3/master/LICENSE' \
@@ -224,7 +233,9 @@ Original source, build instructions and upstream license:
 https://github.com/theheroGAC/pemu-ps3
 Original pEMU author: Cpasjuste
 https://github.com/Cpasjuste/pemu
-Embedded executable is original and SHA256-pinned. Never patched.
+Embedded NPDRM EBOOT is original and SHA256-pinned. Never patched.
+PSNES_ENGINE.SELF is derived byte-for-byte from its decrypted ELF, then
+signed as a standalone APP SELF for direct PS3 sysProcessExitSpawn2.
 This bundle starts pSNES directly; webMAN and RetroArch are not used by SNES.
 LICENSE_NOTE
 end
