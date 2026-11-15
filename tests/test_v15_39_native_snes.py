@@ -14,7 +14,7 @@ snes=app.split("if (a->tab == PLAT_SNES) {",1)[1].split("\n    /* V15.13:",1)[0]
 def digest(path):
     return subprocess.check_output(["git","hash-object",path],text=True).strip()
 protected={
-    "src/ps3/sf_cobra_mount.c":"a74a4e0ab2fe89a7d150ed10fe092e16a413e1aa",
+    "src/ps3/sf_cobra_mount.c":"fe9faf92587a9c86ae866502ef5346f98fb76715",
     "src/ps3/sf_ps2_hen.c":"f20a63d83596a9b5079fd056e261656a4f536201",
     "src/ps3/ps3_webman.c":"333f9d3fe75f3ebbdc0840ddb696385306919eca",
 }
