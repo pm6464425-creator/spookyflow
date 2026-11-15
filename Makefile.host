@@ -20,8 +20,12 @@ $(OUT)/test_core: $(CORE) $(wildcard src/core/*.h) tests/test_core.c tests/test_
 $(OUT)/preview: $(CORE) $(wildcard src/core/*.h) $(wildcard tools/preview/*.c tools/preview/*.h) Makefile.host | $(OUT)
 	$(CC) $(CFLAGS) -Isrc/core -o $@ $(CORE) tools/preview/preview.c tools/preview/render_soft.c -lm
 
-test: $(OUT)/test_core
+$(OUT)/test_snes_launcher: src/core/snes_launcher.c src/core/snes_launcher.h src/core/launch.c src/core/launch.h src/core/util.c tests/test_snes_launcher.c Makefile.host | $(OUT)
+	$(CC) $(CFLAGS) $(SANFLAGS) -Isrc/core -o $@ src/core/snes_launcher.c src/core/launch.c src/core/util.c tests/test_snes_launcher.c
+
+test: $(OUT)/test_core $(OUT)/test_snes_launcher
 	./$(OUT)/test_core
+	./$(OUT)/test_snes_launcher
 
 preview: $(OUT)/preview
 	mkdir -p preview
