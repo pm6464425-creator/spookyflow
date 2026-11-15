@@ -29,6 +29,7 @@
 #include "ps3_platform.h"
 #include "snes_name_match.h"
 #include "sf_snes_bundle.h"
+#include "sf_snes_diag.h"
 #include "sf_cobra_mount.h"
 #include "sf_ps2_mount.h"
 #include "sf_ps1_mount.h"
@@ -300,31 +301,64 @@ static void setup_screen(void)
     log_printf("video: %dx%d, display aspect %.3f, pixel aspect %.4f", (int)vw, (int)vh, display_aspect, s.pa);
 }
 
-/* V15.39: self-contained native PS3 pSNES 7.2. This is a PS3 spawn,
- * NOT a webMAN request, PKGLAUNCHER request, or RetroArch dependency.
- * pSNES 7.2's main.cpp expects argc > 1 and reads argv[1] as the ROM,
- * so argv[0] MUST be supplied explicitly as the executable. */
+/* V15.40: persistent, SNES-only forensic handoff to the native PS3 pSNES.
+ * IMPORTANT: sysProcessExitSpawn2 replaces the process and cannot report a
+ * subsequent pSNES crash. sf_snes_diag_before_spawn records the attempt,
+ * and the next SpookyFlow start imports pSNES's own boot.log. */
 static int launch_snes_psnes(const char *rom_path)
 {
     static const char exe[] = "/dev_hdd0/game/PSNE00001/USRDIR/EBOOT.BIN";
     const char *args[3];
+    sysFSStat rom_stat, exe_stat;
     int rc;
-    if (!rom_path || !rom_path[0] || !ps3_fs_is_file(NULL, rom_path))
+
+    log_printf("snes: DIAG_LAUNCH_SELECTED rom=%s",
+               rom_path ? rom_path : "(null)");
+    if (!rom_path || !rom_path[0] || !ps3_fs_is_file(NULL, rom_path)) {
+        log_printf("snes: DIAG_ROM_CHECK=FAIL missing_or_unreadable");
         return -64;
+    }
+    if (sysFsStat(rom_path, &rom_stat) == 0)
+        log_printf("snes: DIAG_ROM_CHECK=OK bytes=%llu",
+                   (unsigned long long)rom_stat.st_size);
+    else
+        log_printf("snes: DIAG_ROM_STAT=FAILED (is_file reported success)");
+
+    log_printf("snes: DIAG_ENGINE_PREPARE_BEGIN target=%s", exe);
     rc = sf_psnes_prepare();
+    log_printf("snes: DIAG_ENGINE_PREPARE_RESULT=%d", rc);
     if (rc != 0) {
         log_printf("snes: embedded pSNES 7.2 preflight rc=%d", rc);
         return rc;
     }
+    if (sysFsStat(exe, &exe_stat) != 0 || !exe_stat.st_size) {
+        log_printf("snes: DIAG_ENGINE_EBOOT=NOT_PRESENT_AFTER_PREPARE");
+        return -78;
+    }
+    log_printf("snes: DIAG_ENGINE_EBOOT=FOUND bytes=%llu",
+               (unsigned long long)exe_stat.st_size);
+
+    /* Keep the first existing stable CLI contract from V15.39:
+     * pSNES main() reads argv[1] for the full ROM path. */
     args[0] = exe;
     args[1] = rom_path;
     args[2] = NULL;
+
+    rc = sf_snes_diag_before_spawn(rom_path);
+    if (rc != 0) {
+        log_printf("snes: DIAG_SPAWN_CANCELLED cause=persistent_trace_not_saved rc=%d", rc);
+        return rc;
+    }
+    log_printf("snes: DIAG_SPAWN_CALL exe=%s argc=2 argv0=%s argv1=%s",
+               exe, args[0], args[1]);
     log_printf("snes: handoff pSNES 7.2 ROM=%s (embedded, no webMAN)", rom_path);
-    /* PSL1GHT declares this void: success exits SpookyFlow and runs pSNES.
-     * If it returns, the PS3 has refused the handoff; do not report success. */
+
+    /* PSL1GHT declares this void; on successful handoff this code does
+     * not resume. A return means PS3 rejected the process handoff. */
     sysProcessExitSpawn2(exe, args, NULL, NULL, 0, 1001,
                          SYS_PROCESS_SPAWN_STACK_SIZE_1M);
-    log_printf("snes: embedded pSNES spawn unexpectedly returned");
+    sf_snes_diag_spawn_returned();
+    log_printf("snes: DIAG_RESULT=SPAWN_API_RETURNED_NO_PROCESS_REPLACEMENT");
     return -65;
 }
 
@@ -342,10 +376,11 @@ int main(int argc, const char *argv[])
     {int removed=ps3_fs_cleanup_legacy_diagnostics();
      int diag_rc=log_open(SF_DIAG_SINGLE_PATH);
      if(diag_rc==0) {
-         log_printf("snes: DIAGNOSTIC_START V15.32 legacy_reports_removed=%d",removed);
-         log_printf("snes: REPORT_PATH=" SF_DIAG_SINGLE_PATH " MODE=OVERWRITE_ON_START");
-         log_printf("snes: ROM_DIRECTORY=/dev_hdd0/SNES");
-         log_printf("snes: CATALOG_PATH=" SNES_BOXART_INDEX);
+         log_printf("snes: DIAG_STARTUP V15.40 legacy_reports_removed=%d", removed);
+         log_printf("snes: DIAG_REPORT_PATH=" SF_DIAG_SINGLE_PATH " MODE=APPEND_UNTIL_80KB");
+         /* Import the previous pSNES process trace BEFORE a new launch. */
+         sf_snes_diag_on_startup();
+         log_printf("snes: DIAG_READY select a SNES cover and press X");
      }
     }
 #endif
