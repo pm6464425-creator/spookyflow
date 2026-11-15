@@ -38,6 +38,14 @@ jobs:
         run: python3 tests/test_v15_39_native_snes.py
       - name: V15.41 PS3 native APP SELF launch, correct ROM argument and no webMAN
         run: python3 tests/test_v15_41_psnes_self.py
+      - name: V15.42 SNES forced 16:9 FULL scaling, unchanged game files and per-ROM overrides
+        run: |
+          mkdir -p build-host/snes-16-9-fixtures
+          cc -std=c99 -O2 -g -Wall -Wextra -Werror -fsanitize=address,undefined \
+            -Isrc/ps3 src/ps3/sf_snes_screen.c tests/test_v15_42_snes_full.c \
+            -o build-host/test_v15_42_snes_full
+          ./build-host/test_v15_42_snes_full build-host/snes-16-9-fixtures
+          python3 tests/test_v15_42_snes_scaling_source.py
       - name: V15.36 PS1 PS2 PS3 local-cover recovery, scoped rescan, five-tab memory and twelve regressions
         run: python3 tests/test_v15_36_cache.py
       - name: V15.35 SNES authentic box-art only, legacy screen replacement, regional matching and 12 safety checks
