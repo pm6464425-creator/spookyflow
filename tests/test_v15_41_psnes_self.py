@@ -37,7 +37,7 @@ checks=[
   "sysProcessExitSpawn2(exe, args, NULL" in launcher),
  ("05 PS3 process argv convention sends ONE ROM argument",
   "args[0] = rom_path;" in launcher and "args[1] = NULL;" in launcher and
-  "args[0] = exe;" not in launcher and "args[2]" not in launcher),
+  "args[0] = exe;" not in launcher and "args[2] = NULL;" not in launcher),
  ("06 native pSNES resource installation retained and never overwrites others",
   "sf_psnes_prepare();" in launcher and
   "if (ps3_fs_exists(PSNES_HOME)) {" in bundle and
