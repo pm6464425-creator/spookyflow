@@ -1,0 +1,55 @@
+name: Publish SpookyFlow V15.40 direct PKG download
+
+on:
+  push:
+    branches:
+      - fix/v15-40-snes-launch-diagnostic
+    paths:
+      - .github/workflows/publish-v15-40-pkg.yml
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download already-tested PS3 PKG from successful build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh run download 43668291037 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name spookyflow-pkg-513253b2 \
+            --dir /tmp/spookyflow-release
+          test -f /tmp/spookyflow-release/spookyflow.pkg
+          test "$(stat -c%s /tmp/spookyflow-release/spookyflow.pkg)" -eq 5487840
+          printf '%s\n' \
+            '3b5d55de9769d7ec4b0ebf9c06448d27c11950c10228bad0f2b27f4b2b88b7e9  /tmp/spookyflow-release/spookyflow.pkg' \
+            | sha256sum -c -
+          cp /tmp/spookyflow-release/spookyflow.pkg \
+            /tmp/spookyflow-release/SPOOKYFLOW_V15_40_DIAGNOSTICO_SNES_LANZAMIENTO.pkg
+          echo "Validated original PS3 package SHA256; publishing unchanged."
+
+      - name: Create public GitHub release with direct .pkg asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='spookyflow-v15-40-snes-launch-diagnostic'
+          pkg='/tmp/spookyflow-release/SPOOKYFLOW_V15_40_DIAGNOSTICO_SNES_LANZAMIENTO.pkg'
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists; refusing to silently overwrite its binary."
+            exit 1
+          fi
+          gh release create "$tag" "$pkg" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target 513253b29f8e5bb185efd144a83a5027bff04aeb \
+            --title 'SpookyFlow V15.40 - Diagnostico de lanzamiento SNES' \
+            --notes 'PKG de prueba para PS3. Incluye pSNES 7.2 integrado, sin webMAN para SNES. Mejora el diagnostico del lanzamiento y recupera el boot.log de pSNES al reabrir SpookyFlow despues de volver al XMB. No soluciona todavia la causa del regreso al XMB. Antes de reportar un fallo, ejecutar un juego SNES y abrir SpookyFlow otra vez. Archivo: /dev_hdd0/tmp/spookyflow/diagnostico_snes.txt. Construido desde el commit 513253b29f8e5bb185efd144a83a5027bff04aeb y verificado con SHA256 3b5d55de9769d7ec4b0ebf9c06448d27c11950c10228bad0f2b27f4b2b88b7e9.' \
+            --prerelease
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
+            --json url,assets --jq '{url:.url, assets:[.assets[] | {name:.name,url:.url,size:.size}]}'
