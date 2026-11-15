@@ -33,7 +33,8 @@ checks=[
      'sysProcessExitSpawn2' in f),
     ("D: ROM roots and automatic boxart untouched",
      '/dev_hdd0/SNES' in Path("src/core/scanner.c").read_text() and
-     'SNES_BOXART_INDEX' in Path("src/ps3/main.c").read_text()),
+     'SNES_BOXART_INDEX' in Path("src/core/snes_name_match.h").read_text() and
+     'snes_name_catalog_matches' in Path("src/core/coverart.c").read_text()),
     ("E: release and executable pinned by SHA256",
      '9c7a5f3eae36b08ef6fa0715b61daee343160eac33c3d03fa30ccbe41fc8f7fc' in build and
      '6a0c3f62c9b4c45715e0041de9b7688652614e9933d0e0a4d9c6f6ccb0ebd707' in extract),
