@@ -109,6 +109,38 @@ def verify(package):
         assert "USRDIR/" + forbidden not in files, ("Wrong SNES art source", forbidden)
     print("PASS SNES cover-only PKG; no gameplay screenshot sources bundled")
 
+    # V15.39: inspect the REAL installable PKG to guarantee the entire
+    # native PS3 pSNES engine is present (NOT merely a reference to it).
+    engine = "USRDIR/SNESENGINE/"
+    psnes = files.get(engine + "USRDIR/EBOOT.BIN")
+    assert psnes is not None, "Native pSNES executable missing from SpookyFlow"
+    assert len(psnes) == 2594800, "Unexpected native pSNES SELF size"
+    assert hashlib.sha256(psnes).hexdigest() == (
+        "6a0c3f62c9b4c45715e0041de9b7688652614e9933d0e0a4d9c6f6ccb0ebd707"
+    ), "Embedded PS3 pSNES 7.2 binary is not the pinned official release"
+    assert psnes[:4] == b"SCE\x00"
+    assert files[engine + "PARAM.SFO"].startswith(b"\x00PSF")
+    assert b"PSNE00001" in files[engine + "PARAM.SFO"]
+    assert files[engine + "USRDIR/romfs/skins/default/config.cfg"]
+    assert files[engine + "USRDIR/skins/default/config.cfg"]
+    assert len([k for k in files if k.startswith(engine)]) >= 57
+    assert files[engine + "LICENSE.txt"] and files[engine + "SOURCE.txt"]
+    print("PASS standalone native pSNES 7.2: 55 resource files + license/source")
+
+    # Protect the four previously completed platforms' binary resources:
+    # these SHA256 values are from the user's supplied V15.37 PKG.
+    preserved = {
+        "USRDIR/raw_iso.sprx": "da887373cc7010fff7df600da797f360c01b37e744cd3ce6a0d04b52969fbcb2",
+        "USRDIR/ps2configs/SLES_501.20.ENC": "f1f39cdc6987c4c1c83f4a14cb688423c78a946c81d39ecd409ea54a2814016f",
+        "USRDIR/ps2configs/SLUS_201.74.ENC": "29ab443ae1154f1ecca79417a9f7d369fdbe5c72c5c07dcebf6f11589acbe9bf",
+        "USRDIR/TABS/bdiso.png": "783d454d3376500fbc764ac271486574f24c638bca89b0f8a88925ebe17445ea",
+        "USRDIR/TABS/snes.png": "e3d3b66db0fd9c26383d89655b8f6cce61ac0699efbbbc0333635fb85e9c67d6",
+    }
+    for name, digest in preserved.items():
+        assert hashlib.sha256(files[name]).hexdigest() == digest, (
+            "Original V15.37 resource changed unexpectedly", name)
+    print("PASS original PS1/PS2/PS3/BDISO package resources preserved")
+
     rawiso = files["USRDIR/raw_iso.sprx"]
     assert len(rawiso) == 7930 and rawiso[:4] == b"SCE\x00", (
         "Invalid embedded raw_iso.sprx",len(rawiso))
