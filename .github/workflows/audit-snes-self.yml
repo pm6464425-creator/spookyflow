@@ -1,0 +1,41 @@
+name: Audit PS3 pSNES NPDRM to plain SELF path
+on:
+  push:
+    branches: [fix/v15-41-snes-plain-self-spawn]
+    paths: [.github/workflows/audit-snes-self.yml]
+  workflow_dispatch:
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    env:
+      TOOLCHAIN_URL: https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore PSL1GHT toolchain
+        uses: actions/cache@v4
+        id: tc
+        with:
+          path: ps3dev
+          key: ps3dev-https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz-v1
+      - name: Fetch toolchain if cache is empty
+        if: steps.tc.outputs.cache-hit != 'true'
+        run: |
+          curl -fLsS --retry 3 "$TOOLCHAIN_URL" | tar xz -C ./
+      - name: Inspect tools and SELF headers
+        run: |
+          set -euo pipefail
+          export PATH="$PWD/ps3dev/bin:$PWD/ps3dev/ppu/bin:$PATH"
+          echo "== tool inventory =="
+          find ps3dev -maxdepth 5 -type f \( -iname '*self*' -o -iname '*sce*tool*' -o -iname '*unself*' -o -name 'fself*' -o -name 'keys' \) | head -65 || true
+          for t in scetool fake_scetool make_self make_self_npdrm fself unself readself ppu-readelf openssl; do
+            type "$t" || true
+          done
+          echo "== upstream release EBOOT =="
+          curl -fLsS --retry 3 https://github.com/theheroGAC/pemu-ps3/releases/download/7.2/psnes.pkg -o /tmp/upstream_psnes.pkg
+          printf '%s  %s\n' 9c7a5f3eae36b08ef6fa0715b61daee343160eac33c3d03fa30ccbe41fc8f7fc /tmp/upstream_psnes.pkg | sha256sum -c -
+          python3 tools/bundle_psnes.py --pkg /tmp/upstream_psnes.pkg --out /tmp/psnes-stage --header /tmp/sf_psnes_filelist.h
+          file /tmp/psnes-stage/USRDIR/EBOOT.BIN
+          od -Ax -tx1 -N 120 /tmp/psnes-stage/USRDIR/EBOOT.BIN
+          echo "== scetool capabilities =="
+          if command -v scetool >/dev/null 2>&1; then scetool --help | head -75 || true; fi
+          if command -v fake_scetool >/dev/null 2>&1; then fake_scetool --help | head -40 || true; fi
