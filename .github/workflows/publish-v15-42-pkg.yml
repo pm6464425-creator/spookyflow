@@ -1,0 +1,51 @@
+name: Publish SpookyFlow V15.42 SNES full-screen PKG
+
+on:
+  push:
+    branches: [fix/v15-42-snes-fullscreen-169]
+    paths: [.github/workflows/publish-v15-42-pkg.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve exact tested PS3 PKG from successful build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/spookyflow_v15_42
+          gh run download 43673226240 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name spookyflow-pkg-ea9fb0a4 \
+            --dir /tmp/spookyflow_v15_42
+          test -f /tmp/spookyflow_v15_42/spookyflow.pkg
+          test "$(stat -c%s /tmp/spookyflow_v15_42/spookyflow.pkg)" -eq 8105984
+          echo 'f391fc2ac433c8c539e052f9a0f2796c6971013422b570a0786f31ed940359c3  /tmp/spookyflow_v15_42/spookyflow.pkg' | sha256sum -c -
+          cp /tmp/spookyflow_v15_42/spookyflow.pkg /tmp/spookyflow_v15_42/SPOOKYFLOW_V15_42_SNES_PANTALLA_COMPLETA_16_9.pkg
+          echo "Validated original PS3 CI artifact, unchanged."
+
+      - name: Publish public direct-download .pkg, never ZIP
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='spookyflow-v15-42-snes-fullscreen-169'
+          pkg='/tmp/spookyflow_v15_42/SPOOKYFLOW_V15_42_SNES_PANTALLA_COMPLETA_16_9.pkg'
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'Refusing to silently replace existing release.'
+            exit 1
+          fi
+          gh release create "$tag" "$pkg" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target 'ea9fb0a4882b40899dda236408f2e82eaae8b294' \
+            --title 'SpookyFlow V15.42 - SNES pantalla completa 16:9' \
+            --notes 'PS3 test PKG. Soluciona el modo FIT pequeno del emulador pSNES 7.2 mediante EMULATION.SCALING=FULL antes de arrancar cada juego; aplica al ajuste global y, si existe, al ajuste individual del ROM. Solo modifica ese ajuste, sin alterar controles, guardados ni la lista de ROMs. Mismo motor nativo APP SELF sin webMAN para SNES que ya arranco en V15.41. Mantiene intactos los 80 recursos restantes, incluido todo PS1/PS2/PS3/BDISO. El modo FULL llena el area de video a 16:9; la resolucion fisica HDMI 1080p depende de la configuracion de salida de PS3 y del televisor: SNES no genera graficos 1080p nativos. Compilacion y pruebas automatizadas aprobadas. Pendiente prueba visual en PS3 real. Diagnostico: /dev_hdd0/tmp/spookyflow/diagnostico_snes.txt. SHA256: f391fc2ac433c8c539e052f9a0f2796c6971013422b570a0786f31ed940359c3.' \
+            --prerelease
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
+            --json url,assets --jq '{url:.url,assets:[.assets[] | {name:.name,url:.url,size:.size}]}'
