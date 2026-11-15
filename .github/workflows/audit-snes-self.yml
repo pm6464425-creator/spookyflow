@@ -39,3 +39,36 @@ jobs:
           echo "== scetool capabilities =="
           if command -v scetool >/dev/null 2>&1; then scetool --help | head -75 || true; fi
           if command -v fake_scetool >/dev/null 2>&1; then fake_scetool --help | head -40 || true; fi
+      - name: Convert verified FREE NPDRM homebrew to plain PS3 APP SELF
+        run: |
+          set -euo pipefail
+          export PATH="$PWD/ps3dev/bin:$PWD/ps3dev/ppu/bin:$PATH"
+          echo "== build open-source scetool =="
+          git clone -q --depth 1 https://github.com/naehrwert/scetool /tmp/sf_scetool
+          make -C /tmp/sf_scetool -j 2 CC=g++ LDFLAGS=-lz 2>&1 | tail -45
+          test -x /tmp/sf_scetool/scetool
+          mkdir -p /tmp/sf_scetool/data /tmp/snes_plain
+          for f in keys ldr_curves vsh_curves; do
+            curl -fLsS --retry 3 \
+              "https://raw.githubusercontent.com/aldostools/IRISMAN/master/rawseciso/data/$f" \
+              -o "/tmp/sf_scetool/data/$f"
+            test -s "/tmp/sf_scetool/data/$f"
+          done
+          cd /tmp/sf_scetool
+          echo "== original EBOOT metadata type =="
+          ./scetool -i /tmp/psnes-stage/USRDIR/EBOOT.BIN | head -75
+          echo "== decrypt original FREE homebrew NPDRM for PS3 execution =="
+          ./scetool -d /tmp/psnes-stage/USRDIR/EBOOT.BIN /tmp/snes_plain/psnes_original.elf
+          ppu-readelf -h /tmp/snes_plain/psnes_original.elf | head -28
+          test "$(od -An -tx1 -N4 /tmp/snes_plain/psnes_original.elf | tr -d ' \n')" = "7f454c46"
+          echo "== sign PS3 standalone APP SELF =="
+          make_self /tmp/snes_plain/psnes_original.elf /tmp/snes_plain/PSNES_ENGINE.SELF
+          test -s /tmp/snes_plain/PSNES_ENGINE.SELF
+          ./scetool -i /tmp/snes_plain/PSNES_ENGINE.SELF | head -75
+          sha256sum /tmp/snes_plain/psnes_original.elf /tmp/snes_plain/PSNES_ENGINE.SELF
+      - uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: psnes-v72-standalone-self-audit
+          path: /tmp/snes_plain/PSNES_ENGINE.SELF
+          retention-days: 7
