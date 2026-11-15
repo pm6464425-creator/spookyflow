@@ -31,6 +31,7 @@
 #include "snes_name_match.h"
 #include "sf_snes_bundle.h"
 #include "sf_snes_diag.h"
+#include "sf_snes_screen.h"
 #include "sf_cobra_mount.h"
 #include "sf_ps2_mount.h"
 #include "sf_ps1_mount.h"
@@ -338,6 +339,20 @@ static int launch_snes_psnes(const char *rom_path)
     if (rc != 0) {
         log_printf("snes: embedded pSNES 7.2 preflight rc=%d", rc);
         return rc;
+    }
+
+    /* V15.42: pSNES defaults to FIT (small 4:3 image). Before launching,
+     * set only PSNES.EMULATION.SCALING="FULL" and the selected ROM's own
+     * PSNES_GAME.EMULATION.SCALING if its override exists.
+     * Fail open to keep games playable if filesystem/config is unavailable;
+     * report exact reason in the existing diagnostic.
+     * TV output resolution remains selected by PS3 / Tiny3D (1080p if
+     * available), independent from the native SNES ROM resolution. */
+    rc = sf_snes_force_widescreen(rom_path);
+    if (rc == 0) {
+        log_printf("snes: DIAG_VIDEO_SCALING=FULL_16_9 cfg=GLOBAL_PLUS_ROM_OVERRIDE");
+    } else {
+        log_printf("snes: DIAG_VIDEO_SCALING=CONFIG_UPDATE_FAILED rc=%d; preserving playable SNES launch", rc);
     }
 
     /* New type-4 SELF must be present and SHA256-pinned. */
