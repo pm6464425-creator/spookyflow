@@ -1470,7 +1470,7 @@ static void launch_disc(App *a, int disc)
         return;
     }
     c = settings_game_get(&a->settings, lib_key(a->lib, g));   /* one set of settings for all discs */
-    /* V15.39: native pSNES 7.2 bundled inside SpookyFlow; no webMAN.
+    /* V15.41: native PS3 APP SELF pSNES 7.2 inside SpookyFlow; no webMAN.
      * PS1/PS2/PS3/BDISO are outside this isolated branch. */
     if (a->tab == PLAT_SNES) {
         int result = a->host.launch_snes ? a->host.launch_snes(path) : -71;
@@ -1480,6 +1480,7 @@ static void launch_disc(App *a, int disc)
             else if (result == -65) app_show_toast(a, "PS3 no pudo ejecutar pSNES");
             else if (result == -74) app_show_toast(a, "pSNES existente incompatible; no se modifico");
             else if (result == -75) app_show_toast(a, "Carpeta de instalacion SNES ocupada");
+            else if (result <= -80 && result >= -82) app_show_toast(a, "Motor SNES integrado dañado o no verificado");
             else app_show_toast(a, "Error al preparar motor SNES incluido");
         } else {
             app_request_exit(a, "snes embedded pSNES handoff");
