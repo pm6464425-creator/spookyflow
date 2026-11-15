@@ -97,6 +97,75 @@ static int verified_eboot(const char *path)
 #endif
 }
 
+/* V15.41: launch the genuine standalone APP SELF directly from
+ * SpookyFlow/USRDIR. An NPDRM EBOOT.BIN is not valid for sysProcessExitSpawn2;
+ * even though it exists, its dispatch can silently return to XMB.
+ * This original pSNES code was independently decoded and signed with
+ * PSL1GHT make_self (type 4 APP) at build time. We verify the exact
+ * output expected from the official pSNES 7.2 ELF.
+ */
+#define PSNES_PLAIN_SELF PSNES_BUNDLE "/PSNES_ENGINE.SELF"
+#define PSNES_PLAIN_SIZE 2614944ULL
+static const unsigned char k_plain_sha256[32] = {
+    0x62,0xc3,0xc4,0xda,0x28,0xa9,0x9c,0xfd,
+    0x73,0xff,0x69,0x24,0xe9,0xba,0xf5,0x5c,
+    0x96,0xe2,0xc6,0x4a,0xc2,0x6a,0xcb,0xb9,
+    0xd4,0x23,0xa2,0xb8,0xc7,0xd6,0x8d,0x06
+};
+
+int sf_psnes_plain_ready(void)
+{
+#ifdef SF_HAVE_TLS
+    FILE *f;
+    mbedtls_sha256_context ctx;
+    unsigned char hash[32]={0};
+    unsigned long long total=0;
+    size_t n;
+    int ok=1, stage=0;
+    unsigned char hdr[128] = {0};
+    f=fopen(PSNES_PLAIN_SELF,"rb");
+    if(!f) {
+        log_printf("snes: DIAG_APP_SELF_ERROR=FILE_NOT_PRESENT");
+        return -80;
+    }
+    if(fread(hdr,1,sizeof(hdr),f)!=sizeof(hdr) ||
+       memcmp(hdr,"SCE\x00",4)!=0 ||
+       hdr[0x2f]!=0x70 || hdr[0x7f]!=0x04) {
+        log_printf("snes: DIAG_APP_SELF_ERROR=INVALID_APP_SELF_HEADER");
+        (void)fclose(f);
+        return -81;
+    }
+    if(fseek(f,0,SEEK_SET)!=0) {
+        (void)fclose(f);
+        return -81;
+    }
+    mbedtls_sha256_init(&ctx);
+    if(mbedtls_sha256_starts_ret(&ctx,0)!=0)ok=0;
+    while(ok && (n=fread(s_psnes_io,1,sizeof(s_psnes_io),f))!=0) {
+        total += n;
+        if(total>PSNES_PLAIN_SIZE ||
+           mbedtls_sha256_update_ret(&ctx,s_psnes_io,n)!=0)ok=0;
+    }
+    if(ferror(f))ok=0;
+    if(ok && mbedtls_sha256_finish_ret(&ctx,hash)!=0)ok=0;
+    mbedtls_sha256_free(&ctx);
+    if(fclose(f)!=0)ok=0;
+    stage=ok && total==PSNES_PLAIN_SIZE &&
+          memcmp(hash,k_plain_sha256,sizeof(hash))==0;
+    if(!stage) {
+        log_printf("snes: DIAG_APP_SELF_ERROR=SHA256_OR_SIZE_MISMATCH bytes=%llu",
+                   total);
+        return -82;
+    }
+    log_printf("snes: DIAG_APP_SELF=VERIFIED type=APP non_npdrm=YES bytes=%llu",
+               total);
+    return 0;
+#else
+    log_printf("snes: DIAG_APP_SELF_ERROR=SHA256_UNAVAILABLE");
+    return -82;
+#endif
+}
+
 /* Copy a SHA-pinned package resource into private stage only. */
 static int copy_asset(const char *rel, unsigned long long expected)
 {
