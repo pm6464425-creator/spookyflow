@@ -302,14 +302,19 @@ static void setup_screen(void)
     log_printf("video: %dx%d, display aspect %.3f, pixel aspect %.4f", (int)vw, (int)vh, display_aspect, s.pa);
 }
 
-/* V15.40: persistent, SNES-only forensic handoff to the native PS3 pSNES.
- * IMPORTANT: sysProcessExitSpawn2 replaces the process and cannot report a
- * subsequent pSNES crash. sf_snes_diag_before_spawn records the attempt,
- * and the next SpookyFlow start imports pSNES's own boot.log. */
+/* V15.41: correct PS3 native process replacement.
+ * The original pSNES EBOOT.BIN is a type-8 NPDRM application and cannot
+ * launch via sysProcessExitSpawn2 (the V15.39/40 XMB regression).
+ * Use a build-verified type-4 APP SELF bundled with SpookyFlow itself.
+ * It is the exact same official pSNES 7.2 executable, re-signed as APP.
+ * pSNES retains its own /dev_hdd0/game/PSNE00001/USRDIR resources, prepared
+ * safely by sf_psnes_prepare; no webMAN, RetroArch, or external PKG needed.
+ */
 static int launch_snes_psnes(const char *rom_path)
 {
-    static const char exe[] = "/dev_hdd0/game/PSNE00001/USRDIR/EBOOT.BIN";
-    const char *args[3];
+    static const char exe[] =
+        "/dev_hdd0/game/" SF_APPID "/USRDIR/SNESENGINE/PSNES_ENGINE.SELF";
+    const char *args[2];
     sysFSStat rom_stat, exe_stat;
     int rc;
 
@@ -325,41 +330,53 @@ static int launch_snes_psnes(const char *rom_path)
     else
         log_printf("snes: DIAG_ROM_STAT=FAILED (is_file reported success)");
 
-    log_printf("snes: DIAG_ENGINE_PREPARE_BEGIN target=%s", exe);
+    /* Setup original pSNES data, only if it was never installed before;
+     * never overwrite an existing PSNE00001 title. */
+    log_printf("snes: DIAG_ENGINE_PREPARE_BEGIN data_home=/dev_hdd0/game/PSNE00001");
     rc = sf_psnes_prepare();
     log_printf("snes: DIAG_ENGINE_PREPARE_RESULT=%d", rc);
     if (rc != 0) {
         log_printf("snes: embedded pSNES 7.2 preflight rc=%d", rc);
         return rc;
     }
-    if (sysFsStat(exe, &exe_stat) != 0 || !exe_stat.st_size) {
-        log_printf("snes: DIAG_ENGINE_EBOOT=NOT_PRESENT_AFTER_PREPARE");
-        return -78;
+
+    /* New type-4 SELF must be present and SHA256-pinned. */
+    log_printf("snes: DIAG_APP_SELF_PRECHECK path=%s", exe);
+    rc = sf_psnes_plain_ready();
+    if (rc != 0) {
+        log_printf("snes: DIAG_APP_SELF_PRECHECK_FAILED rc=%d", rc);
+        return rc;
     }
-    log_printf("snes: DIAG_ENGINE_EBOOT=FOUND bytes=%llu",
+    if (sysFsStat(exe, &exe_stat) != 0 || !exe_stat.st_size) {
+        log_printf("snes: DIAG_APP_SELF_STAT=FAIL");
+        return -80;
+    }
+    log_printf("snes: DIAG_APP_SELF_STAT=OK bytes=%llu",
                (unsigned long long)exe_stat.st_size);
 
-    /* Keep the first existing stable CLI contract from V15.39:
-     * pSNES main() reads argv[1] for the full ROM path. */
-    args[0] = exe;
-    args[1] = rom_path;
-    args[2] = NULL;
+    /* PS3 process spawning supplies the target's argv[0] itself. Feed one
+     * user argument (ROM path), exactly as native RetroArch PS3 does.
+     * pSNES 7.2 main(argc,argv) then reads argv[1] as the selected ROM.
+     * Do NOT supply exe as args[0] (old V15.39/40 regression). */
+    args[0] = rom_path;
+    args[1] = NULL;
 
     rc = sf_snes_diag_before_spawn(rom_path);
     if (rc != 0) {
         log_printf("snes: DIAG_SPAWN_CANCELLED cause=persistent_trace_not_saved rc=%d", rc);
         return rc;
     }
-    log_printf("snes: DIAG_SPAWN_CALL exe=%s argc=2 argv0=%s argv1=%s",
-               exe, args[0], args[1]);
-    log_printf("snes: handoff pSNES 7.2 ROM=%s (embedded, no webMAN)", rom_path);
+    log_printf("snes: DIAG_SPAWN_KIND=SIGNED_APP_SELF no_npdrm=YES direct=YES");
+    log_printf("snes: DIAG_SPAWN_CALL exe=%s supplied_argc=1 supplied_arg0_ROM=%s",
+               exe, args[0]);
+    log_printf("snes: handoff pSNES 7.2 APP SELF ROM=%s (no webMAN)", rom_path);
 
-    /* PSL1GHT declares this void; on successful handoff this code does
-     * not resume. A return means PS3 rejected the process handoff. */
+    /* On success SpookyFlow is replaced; on failure capture in one
+     * diagnostic file and display an error on screen. */
     sysProcessExitSpawn2(exe, args, NULL, NULL, 0, 1001,
                          SYS_PROCESS_SPAWN_STACK_SIZE_1M);
     sf_snes_diag_spawn_returned();
-    log_printf("snes: DIAG_RESULT=SPAWN_API_RETURNED_NO_PROCESS_REPLACEMENT");
+    log_printf("snes: DIAG_RESULT=APP_SELF_SPAWN_API_RETURNED");
     return -65;
 }
 
