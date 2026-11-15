@@ -66,6 +66,12 @@ jobs:
           test -s /tmp/snes_plain/PSNES_ENGINE.SELF
           ./scetool -i /tmp/snes_plain/PSNES_ENGINE.SELF | head -75
           sha256sum /tmp/snes_plain/psnes_original.elf /tmp/snes_plain/PSNES_ENGINE.SELF
+          echo "== inspect app self decrypt roundtrip =="
+          ./scetool -v -d /tmp/snes_plain/PSNES_ENGINE.SELF /tmp/snes_plain/APP_roundtrip.elf || true
+          ls -lha /tmp/snes_plain/APP_roundtrip.elf || true
+          if test -f /tmp/snes_plain/APP_roundtrip.elf; then
+             sha256sum /tmp/snes_plain/APP_roundtrip.elf
+          fi
       - uses: actions/upload-artifact@v4
         if: success()
         with:
