@@ -13,6 +13,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <sys/process.h>
+#include <sys/file.h>    /* sysFSStat/sysFsStat for SNES-only launch checkpoints */
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
