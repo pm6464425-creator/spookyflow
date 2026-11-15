@@ -1,0 +1,57 @@
+name: Audit pSNES 7.2 edge-to-edge 16-9 native build
+on:
+  push:
+    branches: [fix/v15-43-snes-true-display-viewport]
+    paths:
+      - tools/build_psnes_true_fullscreen.sh
+      - .github/workflows/audit-v15-43-psnes-build.yml
+  workflow_dispatch:
+jobs:
+  audit:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 40
+    env:
+      TOOLCHAIN_URL: https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+      - name: Restore PSL1GHT PS3 toolchain
+        id: tc
+        uses: actions/cache@v4
+        with:
+          path: ps3dev
+          key: ps3dev-https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz-v1
+      - name: Fetch PSL1GHT toolchain if needed
+        if: steps.tc.outputs.cache-hit != 'true'
+        run: curl -fLsS --retry 3 "$TOOLCHAIN_URL" | tar xz -C ./
+      - name: Build patched pSNES PS3 PowerPC ELF
+        run: |
+          set -euo pipefail
+          export PS3DEV="$PWD/ps3dev"
+          export PSL1GHT="$PS3DEV"
+          export PATH="$PS3DEV/bin:$PS3DEV/ppu/bin:$PATH"
+          export PKG_CONFIG_PATH="$PS3DEV/portlibs/ppu/lib/pkgconfig"
+          bash tools/build_psnes_true_fullscreen.sh \
+            /tmp/sf-v15-43-engine /tmp/sf-v15-43-source
+      - name: Sign & identify native PS3 APP SELF
+        run: |
+          set -euo pipefail
+          export PATH="$PWD/ps3dev/bin:$PWD/ps3dev/ppu/bin:$PATH"
+          elf=/tmp/sf-v15-43-engine/PSNES_TRUE_FULLSCREEN.elf
+          make_self "$elf" /tmp/sf-v15-43-engine/PSNES_TRUE_FULLSCREEN.SELF
+          python3 - <<'PY'
+          import pathlib, struct, hashlib
+          p=pathlib.Path('/tmp/sf-v15-43-engine/PSNES_TRUE_FULLSCREEN.SELF').read_bytes()
+          assert p[:4] == b'SCE\x00'
+          offset=struct.unpack_from('>Q',p,0x28)[0]
+          assert struct.unpack_from('>I',p,offset+12)[0]==4
+          print('PASS PS3 native APP SELF',len(p),'sha256:',hashlib.sha256(p).hexdigest())
+          PY
+      - name: Retain new source-built standalone PS3 engine for integration
+        uses: actions/upload-artifact@v4
+        with:
+          name: v15-43-snes-real-169-engine
+          path: |
+            /tmp/sf-v15-43-engine/PSNES_TRUE_FULLSCREEN.elf
+            /tmp/sf-v15-43-engine/PSNES_TRUE_FULLSCREEN.SELF
+            /tmp/sf-v15-43-engine/original_build_sha256.txt
+          retention-days: 7
