@@ -46,7 +46,7 @@ cases=[
 ("08. SNES log includes scan, HTTP, downloaded files, decode, cache, and emulator",
  all(x in scanner+cover+main for x in
  ("snes: ROM_FOUND","snes: HTTP status=","snes: SAVED_COVER",
-  "snes: COVER_DECODE_ERROR","snes: COVER_GPU","snes: handoff pSNES"))),
+  "snes: COVER_DECODE_ERROR","snes: COVER_GPU","snes: Snes9x 2010 webMAN handoff"))),
 ("09. Original game paths, BDISO and PS2 HEN implementation unchanged",
  all(hash_is(*e) for e in (
   ("src/ps3/sf_ps2_hen.c","f20a63d83596a9b5079fd056e261656a4f536201"),
