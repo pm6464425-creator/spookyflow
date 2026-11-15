@@ -30,6 +30,7 @@ jobs:
           python3 tools/bundle_psnes.py --pkg /tmp/psnes-audit/psnes.pkg --out /tmp/psnes-audit/staged --header /tmp/psnes-audit/filelist.h
           git clone -q --depth 1 https://github.com/naehrwert/scetool /tmp/psnes-audit/scetool
           make -s -C /tmp/psnes-audit/scetool -j2 CC=g++ LDFLAGS=-lz > /tmp/psnes-audit/scetool-build.log 2>&1
+          mkdir -p /tmp/psnes-audit/scetool/data
           for k in keys ldr_curves vsh_curves; do
             curl -fLsS --retry 3 "https://raw.githubusercontent.com/aldostools/IRISMAN/91ac4e820e76fb9c1bbf9ec0cdd7592deb35f70d/rawseciso/data/$k" -o "/tmp/psnes-audit/scetool/data/$k"
           done
