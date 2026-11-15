@@ -214,11 +214,13 @@ python3 tools/bundle_psnes.py \
   --header src/ps3/sf_psnes_filelist.h
 test -s pkgfiles/USRDIR/SNESENGINE/USRDIR/EBOOT.BIN
 test -s src/ps3/sf_psnes_filelist.h
-# V15.41 critical fix: the original EBOOT is NPDRM (SELF type 8) and
+# V15.43: preserve V15.41 NPDRM->APP launch, but update the native
+# Tiny3D video viewport and enforce FULL inside pSNES (36 byte patch).
+# The original EBOOT is NPDRM (SELF type 8) and
 # sysProcessExitSpawn2 cannot execute it. Convert the verified FREE upstream
 # binary into a separately signed APP SELF (type 4), like PS3 native launchers.
 # Store it INSIDE SpookyFlow itself; do not depend on webMAN or RetroArch.
-say "Converting verified native pSNES 7.2 to executable standalone APP SELF"
+say "V15.43: signing verified native pSNES 7.2 with actual zero-overscan FULL-16:9 video patch"
 bash tools/build_psnes_plain_self.sh \
   pkgfiles/USRDIR/SNESENGINE/USRDIR/EBOOT.BIN \
   pkgfiles/USRDIR/SNESENGINE/PSNES_ENGINE.SELF
@@ -233,9 +235,15 @@ Original source, build instructions and upstream license:
 https://github.com/theheroGAC/pemu-ps3
 Original pEMU author: Cpasjuste
 https://github.com/Cpasjuste/pemu
-Embedded NPDRM EBOOT is original and SHA256-pinned. Never patched.
-PSNES_ENGINE.SELF is derived byte-for-byte from its decrypted ELF, then
-signed as a standalone APP SELF for direct PS3 sysProcessExitSpawn2.
+Embedded NPDRM EBOOT is original, unmodified, and SHA256-pinned.
+PSNES_ENGINE.SELF is a signed standalone APP SELF for PS3.
+Its ELF is derived from the original pSNES 7.2 ELF, with only 36 verified
+PowerPC64 code/viewport bytes changed (15 offsets) to enforce FULL 16:9
+and remove Tiny3D black borders at 480p/576p/720p/1080p.
+Original ELF SHA256: 6f621a419fc682af878b350e821b7906364c2f3712504bc5d96fe6b0cf5ebadf
+Patched ELF SHA256: 4815e9632f10f5f405e43d284b4d2857bb8415e7a71985afa85016d5863f516e
+Reproducible patch: tools/psnes_patch_true_fullscreen.py in the project source.
+pSNES remains launched with sysProcessExitSpawn2 (not NPDRM).
 This bundle starts pSNES directly; webMAN and RetroArch are not used by SNES.
 LICENSE_NOTE
 end
