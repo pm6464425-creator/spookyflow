@@ -1,0 +1,59 @@
+name: Publish SpookyFlow V15.43 verified real 16:9 SNES PKG
+
+on:
+  push:
+    branches: [fix/v15-43-snes-true-display-viewport]
+    paths:
+      - .github/workflows/publish-v15-43-pkg.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Verify original successfully tested PS3 PKG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/spookyflow_v15_43
+          gh run download 43675676425 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name spookyflow-pkg-f6ad1bd6 \
+            --dir /tmp/spookyflow_v15_43
+          test -f /tmp/spookyflow_v15_43/spookyflow.pkg
+          test "$(stat -c%s /tmp/spookyflow_v15_43/spookyflow.pkg)" -eq 8106416
+          echo 'f54286594295715b97ea1a2ab43a4fe49e5e3e6a44dd1ad629141fd865ac1562  /tmp/spookyflow_v15_43/spookyflow.pkg' | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/spookyflow_v15_43/spookyflow.pkg')
+          assert p.read_bytes()[:4] == bytes.fromhex('7f504b47')
+          print('PASS genuine PS3 installable PKG, 8106416 bytes')
+          PY
+          cp /tmp/spookyflow_v15_43/spookyflow.pkg \
+            /tmp/spookyflow_v15_43/SPOOKYFLOW_V15_43_SNES_PANTALLA_COMPLETA_REAL_16_9.pkg
+          echo 'Original signed and tested PS3 .pkg verified, not rebuilt.'
+
+      - name: Publish direct unzipped PS3 PKG to GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='spookyflow-v15-43-snes-169-real'
+          pkg='/tmp/spookyflow_v15_43/SPOOKYFLOW_V15_43_SNES_PANTALLA_COMPLETA_REAL_16_9.pkg'
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'Refusing to replace previously published tested package.'
+            exit 1
+          fi
+          gh release create "$tag" "$pkg" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target 'f6ad1bd65830a991fb82fef2a377e2a32ec16e95' \
+            --title 'SpookyFlow V15.43 - SNES 16:9 pantalla completa real' \
+            --notes 'VERSION EXPERIMENTAL para comprobar en PS3 real: corrige el motor de VIDEO de pSNES v7.2, no solo el fichero de configuracion. Mantiene el APP SELF que ya inicia ROMs en V15.41. Se ha realizado un parche minimo de 36 bytes en 15 offsets del ELF oficial (SHA256 del ELF resultante 4815e9632f10f5f405e43d284b4d2857bb8415e7a71985afa85016d5863f516e), para activar FULL y eliminar margenes de overscan de Tiny3D en 480p/576p/720p/1080 lineas. El resto del ejecutable y ROMs no se modifican. Ejecutable PowerPC64 firmado como PS3 APP SELF y su ELF verificado por descifrado y SHA256. Las pruebas CI de SpookyFlow, herramientas de diagnostico y verificaciones del PKG pasaron. Los recursos PS1/PS2/PS3/BDISO no fueron modificados. HDMI 1080p depende de la resolucion configurada de la PS3/televisor; SNES no es 1080p nativo. El usuario debe confirmar la pantalla visualmente en una PS3 real. Si persisten bordes, enviar foto y diagnostico. PKG SHA256 f54286594295715b97ea1a2ab43a4fe49e5e3e6a44dd1ad629141fd865ac1562.' \
+            --prerelease
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
+            --json url,assets --jq '{url:.url,assets:[.assets[] | {name:.name,url:.url,size:.size}]}'
