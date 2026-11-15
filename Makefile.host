@@ -20,8 +20,13 @@ $(OUT)/test_core: $(CORE) $(wildcard src/core/*.h) tests/test_core.c tests/test_
 $(OUT)/preview: $(CORE) $(wildcard src/core/*.h) $(wildcard tools/preview/*.c tools/preview/*.h) Makefile.host | $(OUT)
 	$(CC) $(CFLAGS) -Isrc/core -o $@ $(CORE) tools/preview/preview.c tools/preview/render_soft.c -lm
 
-test: $(OUT)/test_core
+# Actual SNES-only log.c linked into a host test with the PS3 diagnostic flag.
+$(OUT)/test_snes_diag_log: src/core/log.c src/core/log.h tests/test_snes_diag_log.c Makefile.host | $(OUT)
+	$(CC) $(CFLAGS) $(SANFLAGS) -DSF_SINGLE_DIAG_FILE -Isrc/core -o $@ src/core/log.c tests/test_snes_diag_log.c
+
+test: $(OUT)/test_core $(OUT)/test_snes_diag_log
 	./$(OUT)/test_core
+	./$(OUT)/test_snes_diag_log $(OUT)/last_snes_diagnostic_test.txt
 
 preview: $(OUT)/preview
 	mkdir -p preview
