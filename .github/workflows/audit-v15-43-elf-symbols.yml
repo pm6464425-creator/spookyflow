@@ -1,0 +1,50 @@
+name: Inspect original pSNES 7.2 ELF drawing code and symbols
+on:
+  push:
+    branches: [fix/v15-43-snes-true-display-viewport]
+    paths: [.github/workflows/audit-v15-43-elf-symbols.yml]
+  workflow_dispatch:
+jobs:
+  inspect:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    env:
+      TOOLCHAIN_URL: https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: tc
+        with:
+          path: ps3dev
+          key: ps3dev-https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz-v1
+      - name: Fetch PS3 toolchain if needed
+        if: steps.tc.outputs.cache-hit != 'true'
+        run: curl -fLsS --retry 3 "$TOOLCHAIN_URL" | tar xz -C ./
+      - name: Decode official pSNES 7.2 homebrew ELF
+        run: |
+          set -euo pipefail
+          export PATH="$PWD/ps3dev/bin:$PWD/ps3dev/ppu/bin:$PATH"
+          mkdir -p /tmp/psnes-audit/keys
+          curl -fLsS --retry 3 https://github.com/theheroGAC/pemu-ps3/releases/download/7.2/psnes.pkg -o /tmp/psnes-audit/psnes.pkg
+          echo '9c7a5f3eae36b08ef6fa0715b61daee343160eac33c3d03fa30ccbe41fc8f7fc  /tmp/psnes-audit/psnes.pkg' | sha256sum -c -
+          python3 tools/bundle_psnes.py --pkg /tmp/psnes-audit/psnes.pkg --out /tmp/psnes-audit/staged --header /tmp/psnes-audit/filelist.h
+          git clone -q --depth 1 https://github.com/naehrwert/scetool /tmp/psnes-audit/scetool
+          make -s -C /tmp/psnes-audit/scetool -j2 CC=g++ LDFLAGS=-lz > /tmp/psnes-audit/scetool-build.log 2>&1
+          for k in keys ldr_curves vsh_curves; do
+            curl -fLsS --retry 3 "https://raw.githubusercontent.com/aldostools/IRISMAN/91ac4e820e76fb9c1bbf9ec0cdd7592deb35f70d/rawseciso/data/$k" -o "/tmp/psnes-audit/scetool/data/$k"
+          done
+          (cd /tmp/psnes-audit/scetool && ./scetool -d /tmp/psnes-audit/staged/USRDIR/EBOOT.BIN /tmp/psnes-audit/psnes_orig.elf)
+          echo '6f621a419fc682af878b350e821b7906364c2f3712504bc5d96fe6b0cf5ebadf  /tmp/psnes-audit/psnes_orig.elf' | sha256sum -c -
+          ppu-readelf -S /tmp/psnes-audit/psnes_orig.elf | tail -30
+          echo "== Target functions symbols in unmodified pSNES ELF =="
+          ppu-nm --demangle --defined-only /tmp/psnes-audit/psnes_orig.elf | grep -Ei 'tiny3d_Project2D|TINY3DRenderer|C2DUIVideo::updateScaling|psnes.*Config|PEMUConfig::loadGame' | head -90 || true
+          echo "== Toolchain target info =="
+          ppu-objdump -i | head -25
+          echo "== PowerPC target file info =="
+          file /tmp/psnes-audit/psnes_orig.elf
+      - name: Preserve inspected original ELF (for local binary patch analysis)
+        uses: actions/upload-artifact@v4
+        with:
+          name: v15-43-official-psnes72-original-elf
+          path: /tmp/psnes-audit/psnes_orig.elf
+          retention-days: 7
