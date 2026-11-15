@@ -13,7 +13,6 @@ SCETOOL_REV=d78d8986c9ab831f084516f21ecdf87080ac7b78
 IRISMAN_REV=91ac4e820e76fb9c1bbf9ec0cdd7592deb35f70d
 EB_SHA=6a0c3f62c9b4c45715e0041de9b7688652614e9933d0e0a4d9c6f6ccb0ebd707
 ELF_SHA=6f621a419fc682af878b350e821b7906364c2f3712504bc5d96fe6b0cf5ebadf
-SELF_SHA=62c3c4da28a99cfd73ff6924e9baf55c96e2c64ac26acbb9d423a2b8c7d68d06
 
 printf '%s  %s\n' "$EB_SHA" "$eboot" | sha256sum -c -
 command -v make_self >/dev/null
@@ -42,16 +41,41 @@ ppu-readelf -h "$tmp/psnes.elf" | grep -q 'Class: *ELF64'
 
 mkdir -p "$(dirname "$target")"
 make_self "$tmp/psnes.elf" "$target" > "$tmp/sign.log" 2>&1
-printf '%s  %s\n' "$SELF_SHA" "$target" | sha256sum -c -
 test "$(stat -c%s "$target")" -eq 2614944
-python3 - "$target" <<'PY'
-import pathlib, struct, sys
-p=pathlib.Path(sys.argv[1]).read_bytes()
+
+# make_self randomizes cryptographic metadata, so signed SELF SHA256 is
+# NOT stable across runs. Prove equivalence by decrypting back to the
+# pinned PowerPC64 ELF before generating the per-build runtime fingerprint.
+( cd "$sceto"; ./scetool -d "$(realpath "$target")" "$tmp/roundtrip.elf" ) \
+  > "$tmp/roundtrip.log" 2>&1 || {
+  echo "ERROR: cannot roundtrip the APP SELF"; tail -25 "$tmp/roundtrip.log"; exit 1;
+}
+printf '%s  %s\n' "$ELF_SHA" "$tmp/roundtrip.elf" | sha256sum -c -
+
+python3 - "$target" src/ps3/sf_psnes_plain_hash.h <<'PY'
+import hashlib, pathlib, struct, sys
+src=pathlib.Path(sys.argv[1])
+out=pathlib.Path(sys.argv[2])
+p=src.read_bytes()
+assert len(p)==2614944
 assert p[:4]==b'SCE\x00'
-# PS3 SELF extended header app-info offset (0x28) + 12 = self_type.
 appinfo=struct.unpack_from('>Q',p,0x28)[0]
 kind=struct.unpack_from('>I',p,appinfo+12)[0]
 assert kind==4, ('expected PS3 APP non-NPDRM SELF, got',kind)
-print('PASS verified PS3 standalone APP SELF (type 4), no webMAN.')
+digest=hashlib.sha256(p).digest()
+sha=digest.hex()
+out.write_text(
+    '/* GENERATED from verified pSNES 7.2 original ELF; DO NOT EDIT */\n'
+    '#ifndef SF_PSNES_PLAIN_HASH_H\n#define SF_PSNES_PLAIN_HASH_H\n'
+    '#define PSNES_PLAIN_SIZE 2614944ULL\n'
+    '#define SF_PSNES_APP_SELF_SHA256 "'+sha+'"\n'
+    'static const unsigned char k_plain_sha256[32] = {\\n'
+    + ''.join('    '+','.join('0x%02x'%v for v in digest[i:i+8])+',\\n' for i in range(0,32,8))
+    + '};\\n#endif\\n'.replace('\\\\n','\\n'),
+    encoding='ascii'
+)
+src.with_suffix('.sha256').write_text(sha+'\\n',encoding='ascii')
+print('PASS pSNES APP SELF, roundtrip ELF pinned; actual signed SHA256='+sha)
 PY
+test -s src/ps3/sf_psnes_plain_hash.h
 echo "pSNES standalone APP SELF verified and packaged from official release."
