@@ -1,0 +1,22 @@
+name: psnes72-reference-binary
+on:
+  push:
+    paths:
+      - '.github/workflows/psnes72-reference.yml'
+  workflow_dispatch:
+jobs:
+  acquire-verified-psnes:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve official PS3 port release for audit
+        run: |
+          set -euo pipefail
+          curl -fLsS --retry 3 --retry-all-errors --connect-timeout 15 \
+            'https://github.com/theheroGAC/pemu-ps3/releases/download/7.2/psnes.pkg' -o psnes.pkg
+          echo '9c7a5f3eae36b08ef6fa0715b61daee343160eac33c3d03fa30ccbe41fc8f7fc  psnes.pkg' | sha256sum -c -
+          test "$(stat -c%s psnes.pkg)" -eq 2979792
+      - uses: actions/upload-artifact@v4
+        with:
+          name: psnes-v72-original-audit
+          path: psnes.pkg
+          retention-days: 7
