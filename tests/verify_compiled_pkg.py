@@ -119,6 +119,21 @@ def verify(package):
         "6a0c3f62c9b4c45715e0041de9b7688652614e9933d0e0a4d9c6f6ccb0ebd707"
     ), "Embedded PS3 pSNES 7.2 binary is not the pinned official release"
     assert psnes[:4] == b"SCE\x00"
+    # V15.41: the original PSNE EBOOT is type 8 NPDRM and is NOT usable
+    # with sysProcessExitSpawn2. Require the converted, signed type-4 APP
+    # PS3 SELF in the SAME SpookyFlow PKG or the build MUST fail.
+    assert struct.unpack_from(">I", psnes, 0x7c)[0] == 8, (
+        "Expected original pSNES EBOOT to be NPDRM")
+    standalone = files.get(engine + "PSNES_ENGINE.SELF")
+    assert standalone is not None, "Standalone pSNES APP SELF missing from compiled PKG"
+    assert len(standalone) == 2614944, "Standalone pSNES APP SELF wrong length"
+    assert standalone[:4] == b"SCE\x00", "Standalone pSNES is not a signed SELF"
+    assert struct.unpack_from(">I", standalone, 0x7c)[0] == 4, (
+        "Standalone pSNES SELF is NOT a PS3 APP: would return to XMB")
+    assert hashlib.sha256(standalone).hexdigest() == (
+        "62c3c4da28a99cfd73ff6924e9baf55c96e2c64ac26acbb9d423a2b8c7d68d06"
+    ), "pSNES APP SELF does not match verified original ELF conversion"
+    print("PASS V15.41 native APP SELF: non-NPDRM, SHA256-pinned, spawn-compatible format")
     assert files[engine + "PARAM.SFO"].startswith(b"\x00PSF")
     assert b"PSNE00001" in files[engine + "PARAM.SFO"]
     assert files[engine + "USRDIR/romfs/skins/default/config.cfg"]
