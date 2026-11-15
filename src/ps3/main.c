@@ -28,6 +28,7 @@
 #include "sound.h"
 #include "ps3_platform.h"
 #include "snes_name_match.h"
+#include "sf_snes_bundle.h"
 #include "sf_cobra_mount.h"
 #include "sf_ps2_mount.h"
 #include "sf_ps1_mount.h"
@@ -299,20 +300,31 @@ static void setup_screen(void)
     log_printf("video: %dx%d, display aspect %.3f, pixel aspect %.4f", (int)vw, (int)vh, display_aspect, s.pa);
 }
 
-/* Dedicated SNES start: requires pSNES 7.2 installed under PSNE00001.
- * PS1/PS2/PS3/BDISO backends are not modified. */
+/* V15.39: self-contained native PS3 pSNES 7.2. This is a PS3 spawn,
+ * NOT a webMAN request, PKGLAUNCHER request, or RetroArch dependency.
+ * pSNES 7.2's main.cpp expects argc > 1 and reads argv[1] as the ROM,
+ * so argv[0] MUST be supplied explicitly as the executable. */
 static int launch_snes_psnes(const char *rom_path)
 {
     static const char exe[] = "/dev_hdd0/game/PSNE00001/USRDIR/EBOOT.BIN";
-    const char *args[2];
-    if (!rom_path || !rom_path[0] || !ps3_fs_exists(exe)) return -64;
-    args[0] = rom_path;
-    args[1] = NULL;
-    log_printf("snes: handoff pSNES 7.2 ROM=%s", rom_path);
-    /* PSL1GHT declares sysProcessExitSpawn2 void: on success it never returns.
-     * If this code is reached, the handoff did not complete; keep the UI alive. */
-    sysProcessExitSpawn2(exe, args, NULL, NULL, 0, 1001, SYS_PROCESS_SPAWN_STACK_SIZE_1M);
-    log_printf("snes: spawn returned unexpectedly");
+    const char *args[3];
+    int rc;
+    if (!rom_path || !rom_path[0] || !ps3_fs_is_file(NULL, rom_path))
+        return -64;
+    rc = sf_psnes_prepare();
+    if (rc != 0) {
+        log_printf("snes: embedded pSNES 7.2 preflight rc=%d", rc);
+        return rc;
+    }
+    args[0] = exe;
+    args[1] = rom_path;
+    args[2] = NULL;
+    log_printf("snes: handoff pSNES 7.2 ROM=%s (embedded, no webMAN)", rom_path);
+    /* PSL1GHT declares this void: success exits SpookyFlow and runs pSNES.
+     * If it returns, the PS3 has refused the handoff; do not report success. */
+    sysProcessExitSpawn2(exe, args, NULL, NULL, 0, 1001,
+                         SYS_PROCESS_SPAWN_STACK_SIZE_1M);
+    log_printf("snes: embedded pSNES spawn unexpectedly returned");
     return -65;
 }
 
