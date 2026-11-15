@@ -60,6 +60,30 @@ static int stage_rom(const char *source, char *dest, size_t capacity)
     return 0;
 }
 
+/* Check exactly the installations the bundled PKGLAUNCH launcher supports.
+ * No writes are attempted until the required core and launcher exist. */
+static int snes_backend_preflight(void)
+{
+    static const char *const cores[] = {
+        "/dev_hdd0/game/RETROARCH/USRDIR/cores/snes9x2010_libretro_ps3.SELF",
+        "/dev_hdd0/game/SSNE10000/USRDIR/cores/snes9x2010_libretro_ps3.SELF",
+        "/dev_hdd0/game/SSNE10001/USRDIR/cores/snes9x2010_libretro_psl1ght.SELF"
+    };
+    unsigned i;
+    if (!ps3_fs_exists("/dev_hdd0/game/PKGLAUNCH/USRDIR/EBOOT.BIN")) {
+        log_printf("snes: missing PKGLAUNCH, no changes made");
+        return -70;
+    }
+    for (i = 0; i < sizeof(cores)/sizeof(cores[0]); ++i) {
+        if (ps3_fs_exists(cores[i])) {
+            log_printf("snes: Snes9x 2010 core verified at %s", cores[i]);
+            return 0;
+        }
+    }
+    log_printf("snes: Snes9x 2010 core not installed, no changes made");
+    return -71;
+}
+
 int sf_snes_launch(const char *rom_path)
 {
     unsigned char config[1024];
@@ -69,6 +93,8 @@ int sf_snes_launch(const char *rom_path)
     FILE *f;
     int rc;
     if (!snes_launcher_is_rom(rom_path)) return -64;
+    rc = snes_backend_preflight();
+    if (rc != 0) return rc;
     /* Query the existing webMAN Auto-play setting; avoid double invocation. */
     f = fopen(WM_CONFIG_PATH, "rb");
     if (f) { n = fread(config, 1, sizeof(config), f); (void)fclose(f); }
