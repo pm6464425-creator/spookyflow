@@ -7,6 +7,7 @@ def hash_is(path,sha):return subprocess.check_output(["git","hash-object",path],
 cover=src("src/core/coverart.c")
 log=src("src/core/log.c")
 main=src("src/ps3/main.c")
+sneslaunch=src("src/ps3/sf_snes_launch.c")
 plat=src("src/ps3/ps3_platform.h")
 fs=src("src/ps3/ps3_fs.c")
 app=src("src/core/app.c")
@@ -44,7 +45,7 @@ cases=[
  'strstr(msg,"snes:")' in log and
  'strstr(msg,"PS1_DIAG")' not in log),
 ("08. SNES log includes scan, HTTP, downloaded files, decode, cache, and emulator",
- all(x in scanner+cover+main for x in
+ all(x in scanner+cover+main+sneslaunch for x in
  ("snes: ROM_FOUND","snes: HTTP status=","snes: SAVED_COVER",
   "snes: COVER_DECODE_ERROR","snes: COVER_GPU","snes: Snes9x 2010 webMAN handoff"))),
 ("09. Original game paths, BDISO and PS2 HEN implementation unchanged",
