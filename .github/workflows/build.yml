@@ -36,6 +36,8 @@ jobs:
         run: python3 tests/test_v15_37.py
       - name: V15.39 native pSNES 7.2 standalone launch, secure installation and existing launcher safety
         run: python3 tests/test_v15_39_native_snes.py
+      - name: V15.41 PS3 native APP SELF launch, correct ROM argument and no webMAN
+        run: python3 tests/test_v15_41_psnes_self.py
       - name: V15.36 PS1 PS2 PS3 local-cover recovery, scoped rescan, five-tab memory and twelve regressions
         run: python3 tests/test_v15_36_cache.py
       - name: V15.35 SNES authentic box-art only, legacy screen replacement, regional matching and 12 safety checks
