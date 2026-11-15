@@ -141,27 +141,40 @@ int sf_psnes_prepare(void)
     char marker[48] = {0};
     static const char stamp[] = "SpookyFlow-PS3-pSNES7.2-bundle-v1\n";
 
+    log_printf("snes: DIAG_BUNDLE_PRECHECK home=%s installed=%d", PSNES_HOME, ps3_fs_exists(PSNES_HOME));
     if (ps3_fs_exists(PSNES_HOME)) {
         if (verified_eboot(PSNES_EXEC)) {
+            log_printf("snes: DIAG_ENGINE_STATUS=INSTALLED verified_sha256=YES");
             log_printf("snes: verified pSNES 7.2 already installed; no overwrite");
             return 0;
         }
+        log_printf("snes: DIAG_ENGINE_STATUS=INCOMPATIBLE verified_sha256=NO rc=-74");
         log_printf("snes: PSNE00001 exists but differs; untouched");
         return -74;
     }
-    if (!is_dir(SF_DATA_DIR)) return -72;
+    if (!is_dir(SF_DATA_DIR)) {
+        log_printf("snes: DIAG_STAGE_ERROR=DATA_DIRECTORY_MISSING rc=-72");
+        return -72;
+    }
     if (ps3_fs_exists(PSNES_STAGE)) {
         mark = fopen(PSNES_MARKER, "rb");
-        if (!mark) return -75;
+        if (!mark) {
+            log_printf("snes: DIAG_STAGE_ERROR=FOREIGN_STAGING_DIRECTORY rc=-75");
+            return -75;
+        }
         if (fread(marker, 1, strlen(stamp), mark) != strlen(stamp) ||
             memcmp(marker, stamp, strlen(stamp)) != 0) {
             (void)fclose(mark);
+            log_printf("snes: DIAG_STAGE_ERROR=WRONG_STAGE_MARKER rc=-75");
             return -75;
         }
         (void)fclose(mark);
     } else {
         int written_ok;
-        if (!mkdir_safe(PSNES_STAGE)) return -72;
+        if (!mkdir_safe(PSNES_STAGE)) {
+            log_printf("snes: DIAG_STAGE_ERROR=CANNOT_CREATE_STAGE rc=-72");
+            return -72;
+        }
         mark = fopen(PSNES_MARKER, "wb");
         if (!mark) return -72;
         written_ok = fwrite(stamp, 1, sizeof(stamp)-1, mark) == sizeof(stamp)-1;
@@ -170,19 +183,29 @@ int sf_psnes_prepare(void)
 
     for (i = 0; i < (unsigned)SF_PSNES_FILE_COUNT; ++i) {
         if (copy_asset(sf_psnes_files[i].relative, sf_psnes_files[i].size) != 0) {
+            log_printf("snes: DIAG_STAGE_COPY_ERROR item=%u/%u file=%s rc=-73",
+                       (unsigned)(i+1), (unsigned)SF_PSNES_FILE_COUNT,
+                       sf_psnes_files[i].relative);
             log_printf("snes: missing bundled asset %s", sf_psnes_files[i].relative);
             return -73;
         }
     }
+    log_printf("snes: DIAG_STAGE_COPIED files=%u", (unsigned)SF_PSNES_FILE_COUNT);
     if (!verified_eboot(PSNES_STAGE "/USRDIR/EBOOT.BIN")) {
+        log_printf("snes: DIAG_STAGE_HASH_ERROR=EBOOT_SHA256_MISMATCH rc=-76");
         log_printf("snes: embedded pSNES EBOOT failed SHA256 check");
         return -76;
     }
     if (ps3_fs_exists(PSNES_HOME) || rename(PSNES_STAGE, PSNES_HOME) != 0) {
+        log_printf("snes: DIAG_ACTIVATION_ERROR=RENAME_FAILED_OR_COLLISION rc=-77");
         log_printf("snes: could not atomically activate pSNES 7.2");
         return -77;
     }
-    if (!verified_eboot(PSNES_EXEC)) return -78;
+    if (!verified_eboot(PSNES_EXEC)) {
+        log_printf("snes: DIAG_ACTIVATION_ERROR=EBOOT_HASH_AFTER_ACTIVATION rc=-78");
+        return -78;
+    }
+    log_printf("snes: DIAG_ENGINE_STATUS=READY_FROM_BUNDLE engine=%s", PSNES_EXEC);
     log_printf("snes: bundled pSNES 7.2 ready (%u assets, no webMAN)",
                (unsigned)SF_PSNES_FILE_COUNT);
     return 0;
