@@ -1483,7 +1483,11 @@ static void launch_disc(App *a, int disc)
             else if (result == -67)
                 app_show_toast(a, "ROM SNES supera el limite de 64 MB");
             else if (result == -69)
-                app_show_toast(a, "Se necesita webMAN MOD + RetroArch + PKGLAUNCHER");
+                app_show_toast(a, "webMAN MOD no responde");
+            else if (result == -70)
+                app_show_toast(a, "Falta PKGLAUNCHER para ejecutar SNES");
+            else if (result == -71)
+                app_show_toast(a, "Falta el motor Snes9x 2010 en RetroArch");
             else
                 app_show_toast(a, "No se pudo preparar el juego SNES");
         } else {
