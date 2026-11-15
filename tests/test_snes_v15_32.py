@@ -38,12 +38,13 @@ cases=[
  '"diagnostico_ps1.txt"' in fs and
  'SF_DATA_DIR "/diagnostico_snes.txt"' in plat and
  'SF_DATA_DIR "/diagnostico_ps1.txt"' not in plat),
-("07. A single SNES TXT is overwritten, capped, and excludes PS1/PS2/BDISO",
- 'fopen(path,"wb")' in log and
- 'SF_DIAG_MAX_BYTES (1024u*1024u)' in log and
- 'strstr(msg,"snes:")' in log and
+("07. V15.40 single SNES launch TXT preserves previous session, capped, excludes other systems",
+ 'fopen(path, append ? "ab" : "wb")' in log and
+ '#define SF_DIAG_MAX_BYTES (96u * 1024u)' in log and
+ 'snes_launch_trace(msg)' in log and
+ 'SF_DIAG_NEW_SESSION_LIMIT' in log and
  'strstr(msg,"PS1_DIAG")' not in log),
-("08. SNES log includes scan, HTTP, downloaded files, decode, cache, and emulator",
+("08. Existing scan, HTTP, download and cover sources preserved; focused report filters this noise",
  all(x in scanner+cover+main for x in
  ("snes: ROM_FOUND","snes: HTTP status=","snes: SAVED_COVER",
   "snes: COVER_DECODE_ERROR","snes: COVER_GPU","snes: handoff pSNES"))),
