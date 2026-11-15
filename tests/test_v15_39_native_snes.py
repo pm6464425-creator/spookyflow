@@ -24,9 +24,10 @@ checks=[
      "host.launch_snes = launch_snes_psnes;" in main and
      "sf_psnes_prepare();" in f and
      "sf_psnes_prepare();" not in main.split("static int launch_snes_psnes(",1)[0]),
-    ("B: pSNES arguments honor the real PS3 main(argc, argv[1]) API",
-     'args[0] = exe;' in f and 'args[1] = rom_path;' in f and
-     'args[2] = NULL;' in f and 'sysProcessExitSpawn2(exe, args,' in f),
+    ("B: PS3 spawn uses signed APP SELF and the single user ROM argument",
+     'args[0] = rom_path;' in f and 'args[1] = NULL;' in f and
+     'PSNES_ENGINE.SELF' in f and 'sysProcessExitSpawn2(exe, args,' in f and
+     'sf_psnes_plain_ready()' in f),
     ("C: SNES is independent of webMAN/RetroArch",
      'ps3_webman_send(' not in f and 'launch_build(' not in f and
      'ps3_webman_get(' not in f and
