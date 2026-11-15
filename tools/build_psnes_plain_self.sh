@@ -3,7 +3,7 @@
 # NPDRM EBOOT to a standalone PS3 APP SELF. No ROMs are modified.
 set -euo pipefail
 eboot="$(realpath "$1")"
-target="$2"
+target="$(realpath -m "$2")"
 tmp="$(mktemp -d /tmp/sf_psnes_plain_XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
 sceto="$tmp/scetool"
@@ -50,6 +50,7 @@ test "$(stat -c%s "$target")" -eq 2614944
   > "$tmp/roundtrip.log" 2>&1 || {
   echo "ERROR: cannot roundtrip the APP SELF"; tail -25 "$tmp/roundtrip.log"; exit 1;
 }
+test -s "$tmp/roundtrip.elf" || { echo "ERROR: converter did not produce a roundtrip ELF"; tail -30 "$tmp/roundtrip.log"; exit 1; }
 printf '%s  %s\n' "$ELF_SHA" "$tmp/roundtrip.elf" | sha256sum -c -
 
 python3 - "$target" src/ps3/sf_psnes_plain_hash.h <<'PY'
