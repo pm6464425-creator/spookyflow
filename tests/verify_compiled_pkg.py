@@ -126,7 +126,7 @@ def verify(package):
         "Expected original pSNES EBOOT to be NPDRM")
     standalone = files.get(engine + "PSNES_ENGINE.SELF")
     assert standalone is not None, "Standalone pSNES APP SELF missing from compiled PKG"
-    assert len(standalone) == 2614944, "Standalone pSNES APP SELF wrong length"
+    assert 2_000_000 <= len(standalone) <= 8_000_000, "Standalone PS3 APP SELF implausible size"
     assert standalone[:4] == b"SCE\x00", "Standalone pSNES is not a signed SELF"
     assert struct.unpack_from(">I", standalone, 0x7c)[0] == 4, (
         "Standalone pSNES SELF is NOT a PS3 APP: would return to XMB")
@@ -141,7 +141,13 @@ def verify(package):
     assert ('#define SF_PSNES_APP_SELF_SHA256 "' + signed_hash + '"') in runtime_hash, (
         "Runtime APP SELF fingerprint does not match compiled package")
     assert "k_plain_sha256[32]" in runtime_hash
-    print("PASS V15.41 native APP SELF: non-NPDRM, build-verified ELF, SHA256:", signed_hash)
+    assert ('#define PSNES_PLAIN_SIZE ' + str(len(standalone)) + 'ULL') in runtime_hash, (
+        "Runtime PS3 APP SELF byte length differs from actual packaged engine")
+    assert (
+        '#define SF_PSNES_NATIVE_169_ELF_SHA256 '
+        '"4815e9632f10f5f405e43d284b4d2857bb8415e7a71985afa85016d5863f516e"'
+    ) in runtime_hash, "APP SELF was not built from the verified 16:9-viewport-patched official ELF"
+    print("PASS V15.43 pSNES 16:9 native APP SELF: size, type4, pinned patched ELF + SHA256:", signed_hash)
     assert files[engine + "PARAM.SFO"].startswith(b"\x00PSF")
     assert b"PSNE00001" in files[engine + "PARAM.SFO"]
     assert files[engine + "USRDIR/romfs/skins/default/config.cfg"]
