@@ -30,7 +30,8 @@ checks=[
  ("03 runtime new APP SELF SHA256 check is mandatory",
   "sf_psnes_plain_ready();" in launcher and
   "DIAG_APP_SELF_PRECHECK_FAILED" in launcher and
-  "k_plain_sha256" in bundle),
+  '#include "sf_psnes_plain_hash.h"' in bundle and
+  "PSNES_PLAIN_SIZE" in bundle),
  ("04 original type8 NPDRM EBOOT not used as process target",
   "PSNES_ENGINE.SELF" in launcher and
   'static const char exe[] = "/dev_hdd0/game/PSNE00001/USRDIR/EBOOT.BIN";' not in main and
@@ -46,7 +47,8 @@ checks=[
   'files.get(engine + "PSNES_ENGINE.SELF")' in verify and
   'struct.unpack_from(">I", standalone, 0x7c)[0] == 4' in verify and
   'struct.unpack_from(">I", psnes, 0x7c)[0] == 8' in verify and
-  '62c3c4da28a99cfd73ff6924e9baf55c96e2c64ac26acbb9d423a2b8c7d68d06' in verify),
+  'PSNES_ENGINE.sha256' in verify and
+  'SF_PSNES_APP_SELF_SHA256' in verify),
  ("08 no webMAN, RetroArch or PKGLAUNCH in SNES launch",
   all(word not in launcher for word in ["ps3_webman_send(","ps3_webman_get(","PKGLAUNCH","RETROARCH"]) and
   "sysProcessExitSpawn2" in launcher),
