@@ -197,6 +197,38 @@ python3 tools/gen_snes_case.py pkgfiles/USRDIR/CASES/snes.png
 test -s pkgfiles/USRDIR/CASES/snes.png
 end
 
+# --- Built-in native pSNES 7.2 for PS3 (NO webMAN, no external emulator) -------
+# This is the official 2026-10-30 PS3 port, not a Switch or PS4 executable.
+# Freeze the release by SHA256. Install ONLY as SpookyFlow resources; the
+# running app copies its own verified files to native pSNES home if absent.
+say "Bundling official pSNES 7.2 PS3 SELF and UI resources"
+curl --retry 3 --retry-delay 2 --fail --location --silent --show-error \
+  'https://github.com/theheroGAC/pemu-ps3/releases/download/7.2/psnes.pkg' \
+  -o /tmp/sf_psnes72.pkg
+printf '%s\n' \
+  '9c7a5f3eae36b08ef6fa0715b61daee343160eac33c3d03fa30ccbe41fc8f7fc  /tmp/sf_psnes72.pkg' \
+  | sha256sum -c -
+python3 tools/bundle_psnes.py \
+  --pkg /tmp/sf_psnes72.pkg \
+  --out pkgfiles/USRDIR/SNESENGINE \
+  --header src/ps3/sf_psnes_filelist.h
+test -s pkgfiles/USRDIR/SNESENGINE/USRDIR/EBOOT.BIN
+test -s src/ps3/sf_psnes_filelist.h
+# Licensing and source attribution, available in the installed package.
+curl --retry 3 --retry-delay 2 -fsSL \
+  'https://raw.githubusercontent.com/theheroGAC/pemu-ps3/master/LICENSE' \
+  -o pkgfiles/USRDIR/SNESENGINE/LICENSE.txt
+cat > pkgfiles/USRDIR/SNESENGINE/SOURCE.txt <<'LICENSE_NOTE'
+pSNES v7.2 - PS3 native port, by theheroGAC.
+Original source, build instructions and upstream license:
+https://github.com/theheroGAC/pemu-ps3
+Original pEMU author: Cpasjuste
+https://github.com/Cpasjuste/pemu
+Embedded executable is original and SHA256-pinned. Never patched.
+This bundle starts pSNES directly; webMAN and RetroArch are not used by SNES.
+LICENSE_NOTE
+end
+
 # --- build ----------------------------------------------------------------------
 say "make pkg (SF_TLS=1, PS2 Classics mandatory)"
 make clean >/dev/null 2>&1 || true
