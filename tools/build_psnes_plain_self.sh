@@ -64,17 +64,19 @@ kind=struct.unpack_from('>I',p,appinfo+12)[0]
 assert kind==4, ('expected PS3 APP non-NPDRM SELF, got',kind)
 digest=hashlib.sha256(p).digest()
 sha=digest.hex()
-out.write_text(
-    '/* GENERATED from verified pSNES 7.2 original ELF; DO NOT EDIT */\n'
-    '#ifndef SF_PSNES_PLAIN_HASH_H\n#define SF_PSNES_PLAIN_HASH_H\n'
-    '#define PSNES_PLAIN_SIZE 2614944ULL\n'
-    '#define SF_PSNES_APP_SELF_SHA256 "'+sha+'"\n'
-    'static const unsigned char k_plain_sha256[32] = {\\n'
-    + ''.join('    '+','.join('0x%02x'%v for v in digest[i:i+8])+',\\n' for i in range(0,32,8))
-    + '};\\n#endif\\n'.replace('\\\\n','\\n'),
-    encoding='ascii'
-)
-src.with_suffix('.sha256').write_text(sha+'\\n',encoding='ascii')
+lines = [
+    '/* GENERATED from verified pSNES 7.2 original ELF; DO NOT EDIT */',
+    '#ifndef SF_PSNES_PLAIN_HASH_H',
+    '#define SF_PSNES_PLAIN_HASH_H',
+    '#define PSNES_PLAIN_SIZE 2614944ULL',
+    '#define SF_PSNES_APP_SELF_SHA256 "'+sha+'"',
+    'static const unsigned char k_plain_sha256[32] = {',
+]
+for i in range(0, 32, 8):
+    lines.append('    '+','.join('0x%02x'%v for v in digest[i:i+8])+',')
+lines += ['};', '#endif']
+out.write_text('\n'.join(lines)+'\n', encoding='ascii')
+src.with_suffix('.sha256').write_text(sha+'\n',encoding='ascii')
 print('PASS pSNES APP SELF, roundtrip ELF pinned; actual signed SHA256='+sha)
 PY
 test -s src/ps3/sf_psnes_plain_hash.h
