@@ -31,8 +31,8 @@ checks={
  "20 BDISO retained": 'host.launch_bdiso = launch_bdiso;' in main,
  "21 old PS1 file retired": 'SF_DATA_DIR "/diagnostico_snes.txt"' in hdr and '"diagnostico_ps1.txt"' in fs,
  "22 old report allowlist": '"diagnostico.txt"' in fs,
- "23 only SNES messages persisted, PS1 internal diagnostics intact": 'strstr(msg,"snes:")' in log and 'strstr(msg,"PS1_DIAG")' not in log,
- "24 report truncates at every launch": 'fopen(path,"wb")' in log,
+ "23 only SNES launch messages persisted, PS1 internal diagnostics intact": 'snes_launch_trace(msg)' in log and 'strstr(msg,"PS1_DIAG")' not in log,
+ "24 report retains prior launch across process restart": 'fopen(path, append ? "ab" : "wb")' in log and 'SF_DIAG_NEW_SESSION_LIMIT' in log,
  "25 no previous PS2 forensic dump at startup": 'sf_ps2_hen_report_state(); /* Read-only inspection' not in main,
 }
 for title,ok in checks.items():print(("PASS" if ok else "FAIL"),title)
