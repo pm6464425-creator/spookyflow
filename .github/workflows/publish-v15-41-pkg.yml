@@ -1,0 +1,52 @@
+name: Publish SpookyFlow V15.41 standalone SNES PKG
+
+on:
+  push:
+    branches: [fix/v15-41-snes-plain-self-spawn]
+    paths: [.github/workflows/publish-v15-41-pkg.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve original successfully tested PS3 PKG (not rebuilt)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/spookyflow_v15_41
+          gh run download 43671333230 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name spookyflow-pkg-7d328f2b \
+            --dir /tmp/spookyflow_v15_41
+          test -f /tmp/spookyflow_v15_41/spookyflow.pkg
+          test "$(stat -c%s /tmp/spookyflow_v15_41/spookyflow.pkg)" -eq 8104000
+          echo 'bc5da7345b112102a9dc8e905830f186a0461c637fa0cc0fc09ad9914c39fed8  /tmp/spookyflow_v15_41/spookyflow.pkg' | sha256sum -c -
+          cp /tmp/spookyflow_v15_41/spookyflow.pkg /tmp/spookyflow_v15_41/SPOOKYFLOW_V15_41_SNES_APP_SELF_SIN_WEBMAN.pkg
+          echo "Verified byte-for-byte CI release artifact."
+
+      - name: Publish direct GitHub release asset (.pkg, no ZIP)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG='spookyflow-v15-41-snes-app-self-sin-webman'
+          PKG='/tmp/spookyflow_v15_41/SPOOKYFLOW_V15_41_SNES_APP_SELF_SIN_WEBMAN.pkg'
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'Existing release: refusing binary overwrite.'
+            exit 1
+          fi
+          gh release create "$TAG" "$PKG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target '7d328f2bcc6aa62a637cd2e3afa40deed0caf610' \
+            --title 'SpookyFlow V15.41 - SNES con motor APP SELF independiente' \
+            --notes 'PKG PS3 de pruebas, pSNES 7.2 integrado sin webMAN MOD ni RetroArch para SNES. Corrige la invocacion previa del EBOOT NPDRM (no ejecutable con sysProcessExitSpawn2): ahora utiliza APP SELF firmado desde el ELF oficial y verificado con SHA256 contra el ELF. Corregido el argumento ROM. Conserva caratulas y lanzadores PS1/PS2/PS3/BDISO y diagnostico SNES V15.40. Compilado y probado automaticamente, pendiente confirmar el arranque en una PS3 real. Si sale al XMB, volver a abrir SpookyFlow y enviar /dev_hdd0/tmp/spookyflow/diagnostico_snes.txt. SHA256 PKG: bc5da7345b112102a9dc8e905830f186a0461c637fa0cc0fc09ad9914c39fed8.' \
+            --prerelease
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" \
+            --json url,assets \
+            --jq '{url:.url,assets:[.assets[] | {name:.name,url:.url,size:.size}]}'
