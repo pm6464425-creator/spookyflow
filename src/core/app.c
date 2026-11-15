@@ -1470,14 +1470,27 @@ static void launch_disc(App *a, int disc)
         return;
     }
     c = settings_game_get(&a->settings, lib_key(a->lib, g));   /* one set of settings for all discs */
-    /* Isolated SNES handoff to the installed pSNES; other backends unchanged. */
+    /* V15.38: SNES-only ROM launch via Snes9x2010 + webMAN PKGLAUNCHER.
+     * All PS1/PS2/PS3/BDISO launch flows remain byte-for-byte unchanged. */
     if (a->tab == PLAT_SNES) {
-        int result = a->host.launch_snes ? a->host.launch_snes(path) : -64;
+        int result = a->host.launch_snes ? a->host.launch_snes(path) : -69;
         if (result != 0) {
-            log_printf("snes: pSNES handoff returned %d for %s", result, path);
-            app_show_toast(a, result == -64 ? "Instala pSNES 7.2 para jugar SNES" : "No se pudo iniciar pSNES");
+            log_printf("snes: Snes9x2010 launch failed rc=%d path=%s", result, path);
+            if (result == -64)
+                app_show_toast(a, "Formato o ruta SNES no admitidos");
+            else if (result == -65)
+                app_show_toast(a, "No se puede leer el ROM de SNES");
+            else if (result == -67)
+                app_show_toast(a, "ROM SNES supera el limite de 64 MB");
+            else if (result == -69)
+                app_show_toast(a, "Se necesita webMAN MOD + RetroArch + PKGLAUNCHER");
+            else
+                app_show_toast(a, "No se pudo preparar el juego SNES");
         } else {
-            app_request_exit(a, "snes pSNES handoff");
+            sound_play(SND_CONFIRM);
+            sf_strlcpy(a->last_launch, name, sizeof(a->last_launch));
+            a->launched = 1;
+            app_request_exit(a, "snes Snes9x2010 launch");
         }
         return;
     }
