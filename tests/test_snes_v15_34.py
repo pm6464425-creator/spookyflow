@@ -64,7 +64,7 @@ checks=[
     ("src/ps3/ps3_webman.c","333f9d3fe75f3ebbdc0840ddb696385306919eca"),
     ("src/core/ps1_name_match.c","b5ea816d0c4d978db13a0a1c89452f56b7f78e9c"),
     ("src/core/ui.c","0da4dccbaef66846b3dcc15779e0363e10be431c")
- )) and "host.launch_snes = launch_snes_psnes;" in read("src/ps3/main.c"))
+ )) and "host.launch_snes = sf_snes_launch;" in read("src/ps3/main.c"))
 ]
 fail=[]
 for label,ok in checks:
