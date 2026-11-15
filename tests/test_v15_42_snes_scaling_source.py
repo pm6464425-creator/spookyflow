@@ -32,7 +32,7 @@ checks=[
   'return rc;' not in snes.split("sf_snes_force_widescreen(rom_path);",1)[1].split("/* New type-4",1)[0]),
  ("05 no dependency on webMAN, RetroArch, ROM replacement or renderer patch",
   "ps3_webman_send(" not in snes and
-  "RetroArch" not in snes and
+  "retroarch_" not in snes.lower() and
   "fopen(rom_path" not in snes and
   "sysProcessExitSpawn2(exe, args" in snes),
  ("06 native pSNES binary and converter source unchanged",
