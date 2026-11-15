@@ -117,7 +117,7 @@ tests=[
  ("10. Original PS1/PS2/PS3/BDISO launchers, graphics and tab logos untouched",
   all(check_hash(p,sha) for p,sha in baseline.items()) and
   all(x in main for x in ("host.launch_ps1 =", "host.launch_ps2 =", "host.launch_ps3 =", "host.launch_bdiso =", "host.launch_snes =")) and
-  "host.launch_snes = launch_snes_psnes;" in main and
+  "host.launch_snes = sf_snes_launch;" in main and
   'if (a->tab == PLAT_SNES)' in app and
   '"PS1", "PS2", "PS3", "BDISO", "SNES"' in ui),
 ]
