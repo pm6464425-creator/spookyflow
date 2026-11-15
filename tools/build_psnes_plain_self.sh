@@ -2,7 +2,7 @@
 # Convert the original, SHA256-pinned FREE pSNES homebrew release from
 # NPDRM EBOOT to a standalone PS3 APP SELF. No ROMs are modified.
 set -euo pipefail
-eboot="$1"
+eboot="$(realpath "$1")"
 target="$2"
 tmp="$(mktemp -d /tmp/sf_psnes_plain_XXXXXX)"
 trap 'rm -rf "$tmp"' EXIT
