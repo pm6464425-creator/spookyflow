@@ -1470,14 +1470,19 @@ static void launch_disc(App *a, int disc)
         return;
     }
     c = settings_game_get(&a->settings, lib_key(a->lib, g));   /* one set of settings for all discs */
-    /* Isolated SNES handoff to the installed pSNES; other backends unchanged. */
+    /* V15.39: native pSNES 7.2 bundled inside SpookyFlow; no webMAN.
+     * PS1/PS2/PS3/BDISO are outside this isolated branch. */
     if (a->tab == PLAT_SNES) {
-        int result = a->host.launch_snes ? a->host.launch_snes(path) : -64;
+        int result = a->host.launch_snes ? a->host.launch_snes(path) : -71;
         if (result != 0) {
-            log_printf("snes: pSNES handoff returned %d for %s", result, path);
-            app_show_toast(a, result == -64 ? "Instala pSNES 7.2 para jugar SNES" : "No se pudo iniciar pSNES");
+            log_printf("snes: embedded pSNES handoff returned %d for %s", result, path);
+            if (result == -64) app_show_toast(a, "No se puede leer el ROM SNES");
+            else if (result == -65) app_show_toast(a, "PS3 no pudo ejecutar pSNES");
+            else if (result == -74) app_show_toast(a, "pSNES existente incompatible; no se modifico");
+            else if (result == -75) app_show_toast(a, "Carpeta de instalacion SNES ocupada");
+            else app_show_toast(a, "Error al preparar motor SNES incluido");
         } else {
-            app_request_exit(a, "snes pSNES handoff");
+            app_request_exit(a, "snes embedded pSNES handoff");
         }
         return;
     }
