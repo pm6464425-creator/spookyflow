@@ -130,10 +130,18 @@ def verify(package):
     assert standalone[:4] == b"SCE\x00", "Standalone pSNES is not a signed SELF"
     assert struct.unpack_from(">I", standalone, 0x7c)[0] == 4, (
         "Standalone pSNES SELF is NOT a PS3 APP: would return to XMB")
-    assert hashlib.sha256(standalone).hexdigest() == (
-        "62c3c4da28a99cfd73ff6924e9baf55c96e2c64ac26acbb9d423a2b8c7d68d06"
-    ), "pSNES APP SELF does not match verified original ELF conversion"
-    print("PASS V15.41 native APP SELF: non-NPDRM, SHA256-pinned, spawn-compatible format")
+    # The signer randomizes encrypted SELF bytes. Verify the actual
+    # release binary against the generated runtime C hash and embedded
+    # SHA manifest (and converter checks decoded ELF roundtrip at build).
+    signed_hash = hashlib.sha256(standalone).hexdigest()
+    manifest = files.get(engine + "PSNES_ENGINE.sha256")
+    assert manifest is not None and manifest.decode("ascii").strip() == signed_hash, (
+        "Signed APP SELF differs from its embedded release digest")
+    runtime_hash = Path("src/ps3/sf_psnes_plain_hash.h").read_text()
+    assert ('#define SF_PSNES_APP_SELF_SHA256 "' + signed_hash + '"') in runtime_hash, (
+        "Runtime APP SELF fingerprint does not match compiled package")
+    assert "k_plain_sha256[32]" in runtime_hash
+    print("PASS V15.41 native APP SELF: non-NPDRM, build-verified ELF, SHA256:", signed_hash)
     assert files[engine + "PARAM.SFO"].startswith(b"\x00PSF")
     assert b"PSNE00001" in files[engine + "PARAM.SFO"]
     assert files[engine + "USRDIR/romfs/skins/default/config.cfg"]
