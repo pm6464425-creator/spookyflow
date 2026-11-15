@@ -25,7 +25,7 @@ static int ident_char(unsigned char c)
     return isalnum(c) || c == '_';
 }
 
-/* Skip whitespace, quoted strings, #, //, and /*style comments.
+/* Skip whitespace, quoted strings, hash, line and block comments.
  * A malformed quoted string/comment is deliberately rejected. */
 static size_t skip_token(const char *s, size_t n, size_t i)
 {
@@ -155,11 +155,11 @@ static int write_atomic(const char *path, const char *bytes, size_t n)
     memcpy(tmp+p,suffix,sizeof(suffix));
     f=fopen(tmp,"wb");
     if(!f) return -6;
-    if(fwrite(bytes,1,n,f)!=n || fflush(f)!=0 || fclose(f)!=0) {
-        /* The short circuit in fclose is intentional only if needed;
-         * avoid unlinking original configuration on any write failure. */
-        remove(tmp);
-        return -6;
+    {
+        int bad=(fwrite(bytes,1,n,f)!=n);
+        if(!bad && fflush(f)!=0) bad=1;
+        if(fclose(f)!=0) bad=1;
+        if(bad) { remove(tmp); return -6; }
     }
     if(rename(tmp,path)!=0) {
         remove(tmp);
@@ -171,7 +171,7 @@ int sf_snes_config_set_full(const char *path, int create_if_missing)
 {
     FILE *f;
     char *buf=NULL,*out=NULL;
-    size_t n,open,close,vb,ve,cut,delta;
+    size_t n,open,close,vb,ve,cut;
     long fsz;
     int result,found;
     static const char initial[] =
@@ -192,8 +192,10 @@ int sf_snes_config_set_full(const char *path, int create_if_missing)
     n=(size_t)fsz;
     buf=(char*)malloc(n+SNES_CFG_EXTRA+1);
     if(!buf) { fclose(f); return -3; }
-    if(fread(buf,1,n,f)!=n || fclose(f)!=0 || memchr(buf,0,n)) {
-        free(buf); return -2;
+    {
+        int bad=(fread(buf,1,n,f)!=n);
+        if(fclose(f)!=0) bad=1;
+        if(bad || memchr(buf,0,n)) { free(buf); return -2; }
     }
     buf[n]='\0';
     result=find_emulation_group(buf,n,&open,&close);
@@ -206,7 +208,6 @@ int sf_snes_config_set_full(const char *path, int create_if_missing)
     }
     if(found) {
         cut=ve-vb;
-        delta=4-cut;
         out=(char*)malloc(n+5);
         if(!out) { free(buf); return -3; }
         memcpy(out,buf,vb);
