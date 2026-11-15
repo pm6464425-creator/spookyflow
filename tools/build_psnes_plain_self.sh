@@ -13,6 +13,7 @@ SCETOOL_REV=d78d8986c9ab831f084516f21ecdf87080ac7b78
 IRISMAN_REV=91ac4e820e76fb9c1bbf9ec0cdd7592deb35f70d
 EB_SHA=6a0c3f62c9b4c45715e0041de9b7688652614e9933d0e0a4d9c6f6ccb0ebd707
 ELF_SHA=6f621a419fc682af878b350e821b7906364c2f3712504bc5d96fe6b0cf5ebadf
+FULL_ELF_SHA=4815e9632f10f5f405e43d284b4d2857bb8415e7a71985afa85016d5863f516e
 
 printf '%s  %s\n' "$EB_SHA" "$eboot" | sha256sum -c -
 command -v make_self >/dev/null
@@ -39,9 +40,20 @@ printf '%s  %s\n' "$ELF_SHA" "$tmp/psnes.elf" | sha256sum -c -
 ppu-readelf -h "$tmp/psnes.elf" | grep -q 'Machine: *PowerPC64'
 ppu-readelf -h "$tmp/psnes.elf" | grep -q 'Class: *ELF64'
 
+# V15.43: patch ONLY 36 verified bytes inside original pSNES 7.2 ELF.
+# These PowerPC64 instructions and constant slots cover Tiny3D viewport
+# margins plus C2DUIVideo's FILT/FULL fallback. We retain original SNES9x
+# emulation/audio/controllers and launcher (all byte-for-byte unchanged).
+# Every original instruction, target, float and full SHA must match.
+python3 tools/psnes_patch_true_fullscreen.py \
+  "$tmp/psnes.elf" "$tmp/psnes_169.elf"
+printf '%s  %s\n' "$FULL_ELF_SHA" "$tmp/psnes_169.elf" | sha256sum -c -
+ppu-readelf -h "$tmp/psnes_169.elf" | grep -q 'Machine: *PowerPC64'
+
 mkdir -p "$(dirname "$target")"
-make_self "$tmp/psnes.elf" "$target" > "$tmp/sign.log" 2>&1
-test "$(stat -c%s "$target")" -eq 2614944
+make_self "$tmp/psnes_169.elf" "$target" > "$tmp/sign.log" 2>&1
+test "$(stat -c%s "$target")" -ge 2000000
+test "$(stat -c%s "$target")" -le 8000000
 
 # make_self randomizes cryptographic metadata, so signed SELF SHA256 is
 # NOT stable across runs. Prove equivalence by decrypting back to the
@@ -51,14 +63,14 @@ test "$(stat -c%s "$target")" -eq 2614944
   echo "ERROR: cannot roundtrip the APP SELF"; tail -25 "$tmp/roundtrip.log"; exit 1;
 }
 test -s "$tmp/roundtrip.elf" || { echo "ERROR: converter did not produce a roundtrip ELF"; tail -30 "$tmp/roundtrip.log"; exit 1; }
-printf '%s  %s\n' "$ELF_SHA" "$tmp/roundtrip.elf" | sha256sum -c -
+printf '%s  %s\n' "$FULL_ELF_SHA" "$tmp/roundtrip.elf" | sha256sum -c -
 
 python3 - "$target" src/ps3/sf_psnes_plain_hash.h <<'PY'
 import hashlib, pathlib, struct, sys
 src=pathlib.Path(sys.argv[1])
 out=pathlib.Path(sys.argv[2])
 p=src.read_bytes()
-assert len(p)==2614944
+assert 2_000_000<=len(p)<=8_000_000
 assert p[:4]==b'SCE\x00'
 appinfo=struct.unpack_from('>Q',p,0x28)[0]
 kind=struct.unpack_from('>I',p,appinfo+12)[0]
@@ -66,10 +78,11 @@ assert kind==4, ('expected PS3 APP non-NPDRM SELF, got',kind)
 digest=hashlib.sha256(p).digest()
 sha=digest.hex()
 lines = [
-    '/* GENERATED from verified pSNES 7.2 original ELF; DO NOT EDIT */',
+    '/* GENERATED from verified pSNES 7.2 + 36-byte source-pinned 16:9 patch */',
     '#ifndef SF_PSNES_PLAIN_HASH_H',
     '#define SF_PSNES_PLAIN_HASH_H',
-    '#define PSNES_PLAIN_SIZE 2614944ULL',
+    '#define PSNES_PLAIN_SIZE '+str(len(p))+'ULL',
+    '#define SF_PSNES_NATIVE_169_ELF_SHA256 "4815e9632f10f5f405e43d284b4d2857bb8415e7a71985afa85016d5863f516e"',
     '#define SF_PSNES_APP_SELF_SHA256 "'+sha+'"',
     'static const unsigned char k_plain_sha256[32] = {',
 ]
@@ -78,7 +91,7 @@ for i in range(0, 32, 8):
 lines += ['};', '#endif']
 out.write_text('\n'.join(lines)+'\n', encoding='ascii')
 src.with_suffix('.sha256').write_text(sha+'\n',encoding='ascii')
-print('PASS pSNES APP SELF, roundtrip ELF pinned; actual signed SHA256='+sha)
+print('PASS pSNES APP SELF, roundtrip FULL-16:9 ELF pinned; signed size='+str(len(p))+' SHA256='+sha)
 PY
 test -s src/ps3/sf_psnes_plain_hash.h
-echo "pSNES standalone APP SELF verified and packaged from official release."
+echo "V15.43 pSNES standalone APP SELF from original ELF + verified 36-byte fullscreen patch."
