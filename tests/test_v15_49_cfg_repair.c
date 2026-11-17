@@ -43,6 +43,7 @@ int main(int argc,char **argv)
 {
     char conf[600],game[600],sram[600],tmp[650],bak[650],now[5000],old[5000],state[256];
     int rc;
+    (void)state; /* rollback-only build intentionally never probes the rewritten file */
     assert(argc==2);
     assert(snprintf(conf,sizeof(conf),"%s/config.cfg",argv[1])<(int)sizeof(conf));
     assert(snprintf(game,sizeof(game),"%s/rom.cfg",argv[1])<(int)sizeof(game));
