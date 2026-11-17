@@ -1417,6 +1417,7 @@ static void ps2_hen_return_to_xmb(App *a, const char *reason)
     static const char request[] =
         "/wait.ps3?xmb;/wait.ps3?3;/play.ps3?PS2U10000";
     int rc = a->host.launch ? a->host.launch(request) : -1;
+    log_printf("audio: DIAG_BACKEND platform=PS2 route=HEN_XMB_PLAY_REQUEST rc=%d", rc);
     if (rc == 0) {
         log_printf("PS2_DIAG AUTOPLAY=QUEUED LAUNCHER=PS2U10000");
         app_show_toast(a, "PS2 listo. Inicio automatico desde XMB");
@@ -1439,6 +1440,8 @@ static void launch_disc(App *a, int disc)
     const char *path;
     if (!g) return;
     if (g->flags & GAME_DEMO) { app_show_toast(a, "Juego de prueba: agrega tus juegos para iniciarlos"); return; }
+    log_printf("audio: DIAG_LAUNCH_REQUEST platform=%d game_selected=YES src=SpookyFlow audio_isolation=YES", (int)a->tab);
+    log_printf("audio: DIAG_AUDIO_OBSERVATION=PRE_HANDOFF_ONLY no_game_audio_capture_after_exit");
     d = lib_game_disc(a->lib, g, disc);
     path = d ? lib_str(a->lib, d->path) : lib_path(a->lib, g);
     if (d) {
@@ -1461,6 +1464,7 @@ static void launch_disc(App *a, int disc)
         if (!a->host.launch_bdiso) { app_show_toast(a, "No se puede iniciar BDISO"); return; }
         log_printf("bdiso: mount %s", path);
         rc = a->host.launch_bdiso(path);
+        log_printf("audio: DIAG_BACKEND platform=BDISO route=COBRA_OR_WEBMAN rc=%d",rc);
         if (rc != 0) { log_printf("bdiso: mount failed rc=%d path=%s",rc,path);
             app_show_toast(a,"Falló el montaje BDISO"); return; }
         sound_play(SND_CONFIRM);
@@ -1474,6 +1478,7 @@ static void launch_disc(App *a, int disc)
      * PS1/PS2/PS3/BDISO are outside this isolated branch. */
     if (a->tab == PLAT_SNES) {
         int result = a->host.launch_snes ? a->host.launch_snes(path) : -71;
+        log_printf("audio: DIAG_BACKEND platform=SNES result_if_returned=%d (successful_exitspawn_does_not_return)",result);
         if (result != 0) {
             log_printf("snes: embedded pSNES handoff returned %d for %s", result, path);
             if (result == -64) app_show_toast(a, "No se puede leer el ROM SNES");
@@ -1491,6 +1496,7 @@ static void launch_disc(App *a, int disc)
      * unchanged. Reject incompatible HEN BEFORE writing any CONFIG file. */
     if (a->tab == PLAT_PS2 && a->host.launch_ps2) {
         int result = a->host.ps2_preflight ? a->host.ps2_preflight(path) : -1;
+        log_printf("audio: DIAG_BACKEND platform=PS2 stage=PREFLIGHT rc=%d",result);
         if (result != 0) {
             log_printf("ps2: safe preflight failed rc=%d for %s", result, path);
             if (result == -41) {
@@ -1541,6 +1547,7 @@ static void launch_disc(App *a, int disc)
             ps2cfg_auto_cobra(a, path, lib_str(a->lib, d ? d->id : g->id));
         log_printf("ps2: mounting directly with Cobra: %s emulator=%d", path, c.emulator);
         result = a->host.launch_ps2(path, c.emulator);
+        log_printf("audio: DIAG_BACKEND platform=PS2 stage=COBRA_MOUNT rc=%d",result);
         if (result != 0) {
             log_printf("ps2: mount failed rc=%d for %s", result, path);
             app_show_toast(a, "No se pudo montar PS2");
@@ -1560,6 +1567,7 @@ static void launch_disc(App *a, int disc)
         log_printf("PS1_DIAG STAGE=SELECTION GAME=%s PATH=%s EMULATOR_PREF=%d",
                    name,path,c.emulator);
         result=a->host.launch_ps1(path,c.emulator);
+        log_printf("audio: DIAG_BACKEND platform=PS1 stage=NATIVE_MOUNT rc=%d",result);
         log_printf("PS1_DIAG STAGE=NATIVE_MOUNT RESULT=%d",result);
         if(result==0){
             sound_play(SND_CONFIRM);
@@ -1618,6 +1626,7 @@ static void launch_disc(App *a, int disc)
         const char *tid = lib_str(a->lib, d ? d->id : g->id);
         log_printf("cobra: mount %s (folder=%d)", path, folder);
         result = a->host.launch_ps3(path, folder, tid);
+        log_printf("audio: DIAG_BACKEND platform=PS3 stage=COBRA_MOUNT rc=%d",result);
         if (result != 0) {
             log_printf("cobra: mount failure %d for %s", result, path);
             app_show_toast(a, "Falló el montaje Cobra");
@@ -1653,6 +1662,7 @@ static void launch_disc(App *a, int disc)
         if(a->tab==PLAT_PS1)
             log_printf("PS1_DIAG STAGE=WEBMAN_TRANSPORT RESULT_RC=%d "
                        "PATH=%s",launch_rc,path);
+        log_printf("audio: DIAG_BACKEND platform=%d stage=WEBMAN_REQUEST rc=%d",(int)a->tab,launch_rc);
         if(launch_rc!=0){
             if(a->tab==PLAT_PS1) {
                 log_printf("PS1_DIAG STAGE=FINAL RESULT=NOT_MOUNTED "
