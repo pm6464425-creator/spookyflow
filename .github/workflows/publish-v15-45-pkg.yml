@@ -1,0 +1,57 @@
+name: Publish SpookyFlow V15.45 verified PS3 audio isolation test
+
+on:
+  push:
+    branches: [fix/v15-45-audio-isolation-diagnostic]
+    paths: [.github/workflows/publish-v15-45-pkg.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Retrieve exact successful PS3 PKG with all tests passing
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/sf-v15-45
+          gh run download 44010079097 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name spookyflow-pkg-858a2a87 \
+            --dir /tmp/sf-v15-45
+          test -f /tmp/sf-v15-45/spookyflow.pkg
+          test "$(stat -c%s /tmp/sf-v15-45/spookyflow.pkg)" -eq 8106288
+          echo '5402fe09f19021285044c0df41755daf775148b043ad6c63a0bd5c3b40869d76  /tmp/sf-v15-45/spookyflow.pkg' | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/sf-v15-45/spookyflow.pkg').read_bytes()
+          assert p[:4]==b'\x7fPKG'
+          assert len(p)==8106288
+          print('PASS: compiled authentic PS3 .pkg (no zip), 8106288 bytes')
+          PY
+          cp /tmp/sf-v15-45/spookyflow.pkg /tmp/sf-v15-45/SPOOKYFLOW_V15_45_DIAGNOSTICO_AUDIO_AISLADO.pkg
+
+      - name: Release verified direct .pkg to GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='spookyflow-v15-45-audio-isolation-test'
+          pkg='/tmp/sf-v15-45/SPOOKYFLOW_V15_45_DIAGNOSTICO_AUDIO_AISLADO.pkg'
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Existing release; refusing overwriting its bytes."
+            exit 1
+          fi
+          gh release create "$tag" "$pkg" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target '858a2a8791f63ad1412266c7960db0d9c9d6aaff' \
+            --title 'SpookyFlow V15.45 - diagnostico de audio aislado (prueba A/B)' \
+            --notes 'EXPERIMENTO PARA DIAGNOSTICAR AUDIO, NO REPARACION DEFINITIVA. El menu de SpookyFlow no tendra sonidos temporalmente: no llama audioInit/audioPortOpen ni inicia los hilos de mezcla y musica. El codigo de audio de todos los juegos y las rutas de lanzamiento PS1 PS2 PS3 BDISO SNES permanecen sin modificaciones, incluido pSNES 7.2 y el parche de pantalla de V15.43. La V15.44 detectaba fallos del audio, pero una lista restrictiva del logger descarto audio: HANDOFF_STOP_RESULT del diagnostico. V15.45 ahora conserva todos los registros de audio relevantes en el TXT existente /dev_hdd0/tmp/spookyflow/diagnostico_snes.txt (pese al nombre antiguo) y muestra audio: DIAG_ISOLATION_TEST=ACTIVE V15.45 al inicio. Probar el MISMO juego arrancado directamente desde XMB y desde SpookyFlow. Si sigue en silencio: descarta motor de sonido propio de SpookyFlow y revisa salida HDMI/Cobra/hand-off. Si recupera sonido: demuestra interferencia del audio propio del lanzador, y se puede reescribir su inicializacion sin afectar juegos. Compilacion PS3 verificada, 64657 pruebas generales y 20+15 tests audio aprobados. Pendiente prueba en consola real. PKG SHA256: 5402fe09f19021285044c0df41755daf775148b043ad6c63a0bd5c3b40869d76.' \
+            --prerelease
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
+            --json url,assets --jq '{url:.url,assets:[.assets[] | {name:.name,url:.url,size:.size}]}'
