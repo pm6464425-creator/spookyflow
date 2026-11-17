@@ -40,6 +40,8 @@ jobs:
         run: python3 tests/test_v15_41_psnes_self.py
       - name: V15.43 native SNES true edge-to-edge 16:9 viewport, 15 binary-patch and safety tests
         run: python3 tests/test_v15_43_snes_true_fullscreen.py
+      - name: V15.44 all-platform game audio handoff and PS3 service cleanup - 20 forensic checks
+        run: python3 tests/test_v15_44_audio_handoff.py
       - name: V15.42 SNES forced 16:9 FULL scaling, unchanged game files and per-ROM overrides
         run: |
           mkdir -p build-host/snes-16-9-fixtures
