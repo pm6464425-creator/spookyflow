@@ -1,0 +1,56 @@
+name: Publish SpookyFlow V15.46 AUDIO-only forensic PKG
+on:
+  push:
+    branches: [fix/v15-46-audio-only-diagnostic]
+    paths: [.github/workflows/publish-v15-46-pkg.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Restore original host-tested PS3 package (no rebuild)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/sf1546
+          gh run download 44012187306 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name spookyflow-pkg-9b9b123f \
+            --dir /tmp/sf1546
+          test -f /tmp/sf1546/spookyflow.pkg
+          test "$(stat -c%s /tmp/sf1546/spookyflow.pkg)" -eq 8108528
+          echo '3e63ed21de0db49e2fff79467ac42efc237fae36d03cc0f23e11be8f7896e1e3  /tmp/sf1546/spookyflow.pkg' | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          b=Path('/tmp/sf1546/spookyflow.pkg').read_bytes()
+          assert b[:4]==b'\x7fPKG'
+          assert len(b)==8108528
+          print('PASS verified real PS3 PKG (non ZIP); sha256 exact')
+          PY
+          cp /tmp/sf1546/spookyflow.pkg /tmp/sf1546/SPOOKYFLOW_V15_46_DIAGNOSTICO_EXCLUSIVO_AUDIO.pkg
+      - name: Publish real PS3 .pkg direct-download release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='spookyflow-v15-46-audio-only-diagnostic'
+          pkg='/tmp/sf1546/SPOOKYFLOW_V15_46_DIAGNOSTICO_EXCLUSIVO_AUDIO.pkg'
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo 'Refusing to overwrite already published binary'
+            exit 1
+          fi
+          gh release create "$tag" "$pkg" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target '9b9b123f41a0a2e3e7b6991f14570a34c7fb86e2' \
+            --title 'SpookyFlow V15.46 - diagnostico exclusivo de audio para PS3 PS2 PS1 SNES BDISO' \
+            --notes 'VERSION EXPERIMENTAL DE DIAGNOSTICO, NO REPARACION DE SONIDO CONFIRMADA. Crea un unico archivo separado /dev_hdd0/tmp/spookyflow/diagnostico_audio.txt. Registra eventos AUDIO de todas las plataformas: sistema seleccionado, etapa de lanzamiento, backend Cobra/webMAN y codigo RC, estado real del puerto de audio propio de SpookyFlow al iniciar, antes/despues de lanzar, antes de entrar a XMB. V15.46 mantiene el A/B de V15.45: audio del menu de SpookyFlow desactivado intencionadamente para aislar su puerto de los juegos. El diagnostico no puede observar ni escuchar la salida PCM del juego tras salir de SpookyFlow, por eso no dice SOUND_OK solo por montarse. TXT se mantiene entre sesiones, se vacia y reutiliza al llegar a 56KiB; no genera reportes de audio adicionales ni registra ROMs o caratulas. Conservar PS3/PS2/PS1/BDISO/SNES mounts, pSNES7.2 y su parche de video anterior. Host tests 64657 passed; 18/18 controles audio y test real de persistencia y rotacion; compilacion nativa PS3 PASS; integridad del PKG verificada. El usuario debe probar el MISMO juego iniciado desde XMB y desde SpookyFlow, indicar si se oye, volver a abrir SpookyFlow y enviar exclusivamente diagnostico_audio.txt. SHA256 3e63ed21de0db49e2fff79467ac42efc237fae36d03cc0f23e11be8f7896e1e3.' \
+            --prerelease
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
+            --json url,assets \
+            --jq '{url:.url,assets:[.assets[] | {name:.name,url:.url,size:.size}]}'
