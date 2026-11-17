@@ -1,0 +1,57 @@
+name: Publish SpookyFlow V15.44 PS3 audio handoff hotfix
+
+on:
+  push:
+    branches: [fix/v15-44-audio-handoff-all-platforms]
+    paths: [.github/workflows/publish-v15-44-pkg.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Retrieve EXACT original tested PS3 package
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/sf-v15-44-pkg
+          gh run download 44003807685 \
+            --repo "$GITHUB_REPOSITORY" \
+            --name spookyflow-pkg-1b52ae5d \
+            --dir /tmp/sf-v15-44-pkg
+          test -f /tmp/sf-v15-44-pkg/spookyflow.pkg
+          test "$(stat -c%s /tmp/sf-v15-44-pkg/spookyflow.pkg)" -eq 8107056
+          echo 'ffefca6acfe38091f1656eefb13f49d8fc57f43fc71cb33476de4e45dc506d7e  /tmp/sf-v15-44-pkg/spookyflow.pkg' | sha256sum -c -
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/sf-v15-44-pkg/spookyflow.pkg').read_bytes()
+          assert p[:4]==b'\x7fPKG'
+          assert len(p)==8107056
+          print("PASS compiled real PS3 PKG V15.44")
+          PY
+          cp /tmp/sf-v15-44-pkg/spookyflow.pkg /tmp/sf-v15-44-pkg/SPOOKYFLOW_V15_44_CORRECCION_AUDIO_JUEGOS.pkg
+
+      - name: Upload verified direct .pkg release asset to GitHub
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag='spookyflow-v15-44-audio-handoff-fix'
+          pkg='/tmp/sf-v15-44-pkg/SPOOKYFLOW_V15_44_CORRECCION_AUDIO_JUEGOS.pkg'
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release already exists: refusing to silently replace binary."
+            exit 1
+          fi
+          gh release create "$tag" "$pkg" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target '1b52ae5d64f619acdb79ea4f737742e3cf5c337c' \
+            --title 'SpookyFlow V15.44 - correccion auditable de audio al lanzar juegos' \
+            --notes 'PKG EXPERIMENTAL para PS3. Se analizo la falta de sonido cuando el juego se ejecuta desde SpookyFlow, aun cuando XMB y juegos iniciados directamente desde XMB tienen sonido. Se encontro y corrigio un defecto de ciclo de vida: el lanzador SNES usaba sysProcessExitSpawn2 sin cerrar su propio puerto de audio. Ahora se libera explicitamente antes de la sustitucion del proceso; si falla el spawn, se reinicia el audio de la interfaz. Para PS1/PS2/PS3/BDISO SpookyFlow libera su puerto de audio justo despues de un montaje aceptado, antes del retorno a XMB/autoplay; en caso de error de montaje el audio continua activo. Se incluyen comprobaciones de las seis etapas de liberacion (join hilo, port stop, notify remove, port close, queue destroy, audio quit) y diagnosticos por codigo de retorno. Conserva la integracion pSNES 7.2 y el parche de video V15.43, y los montajes de todas las plataformas se mantienen sin cambios. 64657 pruebas del nucleo y 20/20 de audio superadas, build nativo PS3 y verificacion de contenido PKG aprobados. NO se puede confirmar audio real sin una prueba en la PS3. Para revisar: tras probar un juego SNES y uno PS3 o PS1, reabrir SpookyFlow y enviar /dev_hdd0/tmp/spookyflow/diagnostico_snes.txt. SHA256 PKG ffefca6acfe38091f1656eefb13f49d8fc57f43fc71cb33476de4e45dc506d7e.' \
+            --prerelease
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" \
+            --json url,assets --jq '{url:.url,assets:[.assets[] | {name:.name,url:.url,size:.size}]}'
