@@ -23,6 +23,9 @@ static u64 g_key;
 static sys_ppu_thread_t g_tid;
 static volatile int g_run;
 static int g_state;   /* 0 off, 1 audio open, 2 thread running */
+/* Read-only diagnostic; 0 means no SpookyFlow LV2 port has been opened. */
+int ps3_audio_diag_state(void) { return g_state; }
+
 
 static void audio_thread(void *arg)
 {
