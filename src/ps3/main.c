@@ -403,9 +403,13 @@ static int launch_snes_psnes(const char *rom_path)
      * normal atexit() cleanup. PSL1GHT's ps3load does explicit cleanup
      * before sysProcessExitSpawn2; doing the same for the streaming audio
      * port prevents handing pSNES a still-open audio session. */
+    log_printf("audio: DIAG_SNES_PHASE=PRE_SPAWN ui_port_state=%d", ps3_audio_diag_state());
+    log_printf("audio: DIAG_SNES_HANDOFF=READY runtime_video_unchanged=YES");
     log_printf("audio: HANDOFF_SNES pre-release before direct spawn");
     ps3_audio_stop();
     g_audio_released_for_launch = 1;
+    log_printf("audio: DIAG_SNES_PHASE=AFTER_STOP ui_port_state=%d", ps3_audio_diag_state());
+    log_printf("audio: DIAG_SNES_OWN_AUDIO=UNOBSERVABLE_AFTER_PROCESS_REPLACEMENT");
     log_printf("audio: HANDOFF_SNES audioPortStop/Close/Quit completed, executing pSNES");
     sysProcessExitSpawn2(exe, args, NULL, NULL, 0, 1001,
                          SYS_PROCESS_SPAWN_STACK_SIZE_1M);
@@ -474,6 +478,11 @@ int main(int argc, const char *argv[])
 
     sound_init();
 #if SF_V15_45_AUDIO_ISOLATION_TEST
+    log_printf("audio: DIAG_SYSTEM=V15.46 AUDIO_ONLY_RPT path=/dev_hdd0/tmp/spookyflow/diagnostico_audio.txt");
+    log_printf("audio: DIAG_UI_AUDIO_MODE=ISOLATED no_audioInit no_audioPortOpen no_decoder");
+    log_printf("audio: DIAG_UI_PORT_INITIAL=%d expected_zero=YES", ps3_audio_diag_state());
+    log_printf("audio: DIAG_NEXT_GAME_AUDIO=CANNOT_BE_MEASURED_FROM_LAUNCHER");
+    log_printf("audio: DIAG_REQUEST=COMPARE_SAME_TITLE_DIRECT_XMB_VS_SPOOKYFLOW_AND_REPORT_HEARD");
     log_printf("audio: DIAG_ISOLATION_TEST=ACTIVE V15.45 UI_AUDIO_DISABLED=YES GAME_AUDIO_NOT_MODIFIED");
     log_printf("audio: DIAG_NO_AUDIO_INIT=YES no_LV2_audio_ports_no_mixer_threads_no_wav_decoder");
 #else
@@ -573,9 +582,12 @@ int main(int argc, const char *argv[])
          * Keep normal Quit and power-off flows unchanged. */
         if (g_app.launched && !g_audio_released_for_launch) {
             log_printf("audio: DIAG_DISC_HANDOFF_SELECTED platform=%d audio_test=NO_PORT_INIT", (int)g_app.tab);
+            log_printf("audio: DIAG_DISC_PHASE=PRE_RELEASE ui_port_state=%d", ps3_audio_diag_state());
             log_printf("audio: HANDOFF_DISC begin platform=%d", (int)g_app.tab);
             ps3_audio_stop();
             g_audio_released_for_launch = 1;
+            log_printf("audio: DIAG_DISC_PHASE=AFTER_RELEASE ui_port_state=%d", ps3_audio_diag_state());
+            log_printf("audio: DIAG_DISC_NEXT_STEP=RETURN_TO_XMB_GAME_AUDIO_NOT_ACCESSIBLE");
             log_printf("audio: HANDOFF_DISC audio released before XMB/game transition");
         }
 
@@ -601,7 +613,12 @@ int main(int argc, const char *argv[])
     }
 
     if (g_app.poweroff) log_printf("main loop finished, webMAN is powering the system off");
-    if (g_app.launched) log_printf("main loop finished, Cobra mounted \"%s\" for XMB", g_app.last_launch);
+    if (g_app.launched) {
+        log_printf("audio: DIAG_MAIN_EXIT=AFTER_GAME_HANDOFF_REQUEST ui_port_state=%d", ps3_audio_diag_state());
+        log_printf("main loop finished, Cobra mounted \"%s\" for XMB", g_app.last_launch);
+    } else {
+        log_printf("audio: DIAG_MAIN_EXIT=NORMAL_UI_EXIT ui_port_state=%d", ps3_audio_diag_state());
+    }
     log_printf("main loop finished, returning to XMB");
     return 0;   /* atexit handler saves, closes the log and releases pads */
 }
