@@ -66,6 +66,7 @@ int ps3_read_at(void *ctx, const char *path, uint64_t off, void *buf, uint32_t l
 void ps3_load_sounds(void);    /* optional user WAVs; call before ps3_audio_start */
 void ps3_audio_start(void);
 void ps3_audio_stop(void);
+int  ps3_audio_diag_state(void);  /* 0 closed, 1 port open, 2 mixer thread active */
 
 /* ps3_covers.c: cover art worker */
 #include "coverart.h"
