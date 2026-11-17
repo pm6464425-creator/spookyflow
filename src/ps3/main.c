@@ -397,16 +397,16 @@ static int launch_snes_psnes(const char *rom_path)
      * normal atexit() cleanup. PSL1GHT's ps3load does explicit cleanup
      * before sysProcessExitSpawn2; doing the same for the streaming audio
      * port prevents handing pSNES a still-open audio session. */
-    log_printf("audio: HANDOFF_SN_ES pre-release before direct spawn");
+    log_printf("audio: HANDOFF_SNES pre-release before direct spawn");
     ps3_audio_stop();
     g_audio_released_for_launch = 1;
-    log_printf("audio: HANDOFF_SN_ES audioPortStop/Close/Quit completed, executing pSNES");
+    log_printf("audio: HANDOFF_SNES audioPortStop/Close/Quit completed, executing pSNES");
     sysProcessExitSpawn2(exe, args, NULL, NULL, 0, 1001,
                          SYS_PROCESS_SPAWN_STACK_SIZE_1M);
     sf_snes_diag_spawn_returned();
     log_printf("snes: DIAG_RESULT=APP_SELF_SPAWN_API_RETURNED");
     /* If the operating system refused to replace us, keep the UI usable. */
-    log_printf("audio: HANDOFF_SN_ES spawn rejected; restarting UI audio");
+    log_printf("audio: HANDOFF_SNES spawn rejected; restarting UI audio");
     ps3_audio_start();
     g_audio_released_for_launch = 0;
     return -65;
