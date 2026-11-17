@@ -51,6 +51,11 @@ static App g_app;
 static unsigned char g_scratch[UI_SCRATCH_BYTES];
 static volatile int g_sys_exit;
 static int g_saved_on_exit;
+/* V15.44: audio is handed back exactly once after an accepted disc mount.
+ * Previously we waited for atexit while the game's autoplay was already
+ * queued; SNES did not even use the normal exit path (direct exitspawn). */
+static int g_audio_released_for_launch;
+
 
 /* Poll presence without touching native NTFS mount handles or files.
  * Port 0..7: native storage probe for NTFS; 0..10: LV2 sysFs FAT drives. */
@@ -388,10 +393,22 @@ static int launch_snes_psnes(const char *rom_path)
 
     /* On success SpookyFlow is replaced; on failure capture in one
      * diagnostic file and display an error on screen. */
+    /* V15.44: exitspawn replaces the process directly and must not rely on
+     * normal atexit() cleanup. PSL1GHT's ps3load does explicit cleanup
+     * before sysProcessExitSpawn2; doing the same for the streaming audio
+     * port prevents handing pSNES a still-open audio session. */
+    log_printf("audio: HANDOFF_SN_ES pre-release before direct spawn");
+    ps3_audio_stop();
+    g_audio_released_for_launch = 1;
+    log_printf("audio: HANDOFF_SN_ES audioPortStop/Close/Quit completed, executing pSNES");
     sysProcessExitSpawn2(exe, args, NULL, NULL, 0, 1001,
                          SYS_PROCESS_SPAWN_STACK_SIZE_1M);
     sf_snes_diag_spawn_returned();
     log_printf("snes: DIAG_RESULT=APP_SELF_SPAWN_API_RETURNED");
+    /* If the operating system refused to replace us, keep the UI usable. */
+    log_printf("audio: HANDOFF_SN_ES spawn rejected; restarting UI audio");
+    ps3_audio_start();
+    g_audio_released_for_launch = 0;
     return -65;
 }
 
@@ -532,6 +549,19 @@ int main(int argc, const char *argv[])
         if (tiny3d_MenuActive()) held = 0;          /* XMB overlay open: ignore pads */
         if (g_sys_exit) app_request_exit(&g_app, "sysutil");
         app_update(&g_app, held, dt);
+
+        /* V15.44 shared audio handoff: PS1/PS2/PS3/BDISO still perform their
+         * original mounts and webMAN requests unchanged. If mounting fails,
+         * g_app.launched stays false and sound remains available in the UI.
+         * Once an accepted mount queues a return to XMB / autoplay, release
+         * our audio port before the fade and before XMB can run the title.
+         * Keep normal Quit and power-off flows unchanged. */
+        if (g_app.launched && !g_audio_released_for_launch) {
+            log_printf("audio: HANDOFF_DISC begin platform=%d", (int)g_app.tab);
+            ps3_audio_stop();
+            g_audio_released_for_launch = 1;
+            log_printf("audio: HANDOFF_DISC audio released before XMB/game transition");
+        }
 
         /* Tiny3D reuses ONE vertex buffer every frame and its Flip does not
          * wait for the GPU (tiny3d_WaitRSX is only a comment in tiny3d.c and
