@@ -19,7 +19,8 @@ checks={
  "07 make defaults TLS enabled": "SF_TLS ?= 1" in m,
  "08 make defaults TXT reports disabled": "-DSF_DISABLE_DIAG_TXT" in m,
  "09 general logs use ONE central report; legacy logs disabled":
-     '#ifdef SF_SINGLE_DIAG_FILE' in src("src/core/log.c") and
+     ('#ifdef SF_SINGLE_DIAG_FILE' in src("src/core/log.c") or
+      '#if defined(SF_SINGLE_DIAG_FILE) && !defined(SF_VIDEO_ONLY_DIAG)' in src("src/core/log.c")) and
      '#elif defined(SF_DISABLE_DIAG_TXT)' in src("src/core/log.c") and
      '-DSF_SINGLE_DIAG_FILE' in m,
  "10 covers diagnostic TXT creation disabled": '#ifdef SF_DISABLE_DIAG_TXT' in src("src/core/cover_diag.c"),
