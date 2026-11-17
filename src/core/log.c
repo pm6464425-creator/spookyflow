@@ -25,6 +25,23 @@ static int snes_launch_trace(const char *msg)
 {
     const char *s;
     if (strncmp(msg, "SNES_DIAG", 9) == 0) return 1;
+    /* V15.45: the original allowlist inadvertently hid EVERY audio trace,
+     * including HANDOFF_STOP_RESULT from V15.44. Keep both formats in the
+     * same bounded single diagnostic TXT, flushed before game handoff.
+     * Only audio lifecycle events, not every platform scan, are recorded. */
+    if (strncmp(msg, "audio: ", 7) == 0) {
+        const char *a = msg + 7;
+        return strncmp(a, "DIAG_", 5) == 0 ||
+               strncmp(a, "HANDOFF_", 8) == 0 ||
+               strncmp(a, "audioInit failed", 16) == 0 ||
+               strncmp(a, "audioPortOpen failed", 20) == 0 ||
+               strncmp(a, "audioPortStart failed", 21) == 0 ||
+               strncmp(a, "audioGetPortConfig failed", 25) == 0 ||
+               strncmp(a, "audioSetNotifyEventQueue failed", 30) == 0 ||
+               strncmp(a, "event queue failed", 18) == 0 ||
+               strncmp(a, "thread create failed", 20) == 0 ||
+               strncmp(a, "started", 7) == 0;
+    }
     if (strncmp(msg, "snes: ", 6) != 0) return 0;
     s = msg + 6;
     /* Filter by ALLOWLIST: no hundreds of ROM_FOUND/CACHE_HIT/COVER_GPU. */
