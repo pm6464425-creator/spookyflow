@@ -63,7 +63,8 @@ check("09 stage only from original NPDRM EBOOT and original ELF",
       'printf \'%s  %s\\n\' "$ELF_SHA" "$tmp/psnes.elf"' in converter)
 check("10 real ELF patched before self signing, SHA and roundtrip checked",
       converter.index("tools/psnes_patch_true_fullscreen.py") <
-      converter.index('make_self "$tmp/psnes_169.elf"') and
+      converter.index("tools/psnes_patch_border_fill.py") <
+      converter.index('make_self "$tmp/psnes_edge.elf"') and
       '$FULL_ELF_SHA' in converter and
       'sha256sum -c -' in converter and
       'roundtrip.elf' in converter)
@@ -87,7 +88,7 @@ check("13 existing SNES preview, cover art, diagnostics and ROM path unchanged",
 check("14 no unsafe core library update: only pinned executable bytes patched",
       'git clone -q --depth 1 https://github.com/naehrwert/scetool' in converter and
       'ppu-readelf' in converter and
-      'make_self "$tmp/psnes_169.elf"' in converter)
+      'make_self "$tmp/psnes_edge.elf"' in converter)
 check("15 source attribution lists actual changed ELF and original", 
       "4815e9632f10f5f405e43d284b4d2857bb8415e7a71985afa85016d5863f516e" in pkg and
       "6f621a419fc682af878b350e821b7906364c2f3712504bc5d96fe6b0cf5ebadf" in pkg)
