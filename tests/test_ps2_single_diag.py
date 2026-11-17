@@ -14,6 +14,7 @@ app=src("src/core/app.c")
 mk=src("Makefile")
 allowlist={
  "diagnostico.txt", "log.txt","diagnostico_ps1.txt","diagnostico_portadas.txt","diagnostico_usb_ntfs.txt",
+ "diagnostico_audio.txt","diagnostico_snes.txt",
  "cobra_startup_probe.txt","cobra_selection_probe.txt","cobra_last_mount.txt",
  "cobra_trace.txt","cobra_previous_interruption.txt","ps2_hen_last.txt",
  "ps2_launcher_probe.txt","ps2_last_mount.txt","ps2_mount_trace.txt"
@@ -22,7 +23,7 @@ block=fs.split('static const char *const names[]={',1)[1].split('};',1)[0]
 entries=set(re.findall(r'"([^"]+)"',block))
 checks={
  "01 one SNES file name": '#define SF_DIAG_SINGLE_PATH SF_DATA_DIR "/diagnostico_snes.txt"' in hdr,
- "02 old PS1 and PS2 reports removed": "diagnostico.txt" in entries and "diagnostico_ps1.txt" in entries and len(entries)==14 and entries==allowlist,
+ "02 old PS1 and PS2 reports removed": "diagnostico.txt" in entries and "diagnostico_ps1.txt" in entries and len(entries)==len(allowlist) and entries==allowlist,
  "03 central SNES report preserved through restart": 'fopen(path, append ? "ab" : "wb")' in log,
  "04 startup creates folder before opening report": main.index('ps3_fs_mkdirs();')<main.index('log_open(SF_DIAG_SINGLE_PATH)'),
  "05 startup safely removes legacy logs": "ps3_fs_cleanup_legacy_diagnostics();" in main,
