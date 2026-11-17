@@ -32,6 +32,7 @@
 #include "sf_snes_bundle.h"
 #include "sf_snes_diag.h"
 #include "sf_snes_screen.h"
+#include "sf_video_diag.h"
 #include "sf_cobra_mount.h"
 #include "sf_ps2_mount.h"
 #include "sf_ps1_mount.h"
@@ -51,6 +52,12 @@
  * no audioInit()/audioPortOpen() or background decoder threads run here.
  * Menu sound effects intentionally OFF. Game audio remains untouched. */
 #define SF_V15_45_AUDIO_ISOLATION_TEST 1
+/* V15.48: stop *startup* Cobra probes from recreating retired TXT files.
+ * Native Cobra backends and their error handling stay byte-for-byte intact. */
+#ifdef SF_VIDEO_ONLY_DIAG
+#define sf_cobra_diag_startup(stage) (0)
+#define sf_cobra_diag_report_previous() ((void)0)
+#endif
 
 static Library g_lib;
 static App g_app;
@@ -360,6 +367,9 @@ static int launch_snes_psnes(const char *rom_path)
      * TV output resolution remains selected by PS3 / Tiny3D (1080p if
      * available), independent from the native SNES ROM resolution. */
     rc = sf_snes_force_widescreen(rom_path);
+#ifdef SF_VIDEO_ONLY_DIAG
+    sf_video_diag_before_snes(rom_path, rc);
+#endif
     if (rc == 0) {
         log_printf("snes: DIAG_VIDEO_SCALING=FULL_16_9 cfg=GLOBAL_PLUS_ROM_OVERRIDE");
     } else {
@@ -373,6 +383,9 @@ static int launch_snes_psnes(const char *rom_path)
         log_printf("snes: DIAG_APP_SELF_PRECHECK_FAILED rc=%d", rc);
         return rc;
     }
+#ifdef SF_VIDEO_ONLY_DIAG
+    sf_video_diag_verified_self();
+#endif
     if (sysFsStat(exe, &exe_stat) != 0 || !exe_stat.st_size) {
         log_printf("snes: DIAG_APP_SELF_STAT=FAIL");
         return -80;
@@ -436,7 +449,17 @@ int main(int argc, const char *argv[])
     /* Create a persistent trace BEFORE any graphics, pad, audio or UI work.
      * This separates an early startup freeze from a Cobra mount freeze. */
     ps3_fs_mkdirs();
-#ifdef SF_SINGLE_DIAG_FILE
+#ifdef SF_VIDEO_ONLY_DIAG
+    {
+        int removed=ps3_fs_cleanup_legacy_diagnostics();
+        int diag_rc=log_open(SF_DIAG_SINGLE_PATH);
+        if(diag_rc==0) {
+            log_printf("video_diag: SINGLE_REPORT=" SF_DIAG_SINGLE_PATH " OLD_TXTS_REMOVED=%d",removed);
+            log_printf("video_diag: SCOPE=SCREEN_SNES; audio_and_other_platforms_UNMODIFIED");
+            sf_snes_diag_on_startup(); /* import actual previous pSNES boot trace */
+        }
+    }
+#elif defined(SF_SINGLE_DIAG_FILE)
     {int removed=ps3_fs_cleanup_legacy_diagnostics();
      int diag_rc=log_open(SF_DIAG_SINGLE_PATH);
      if(diag_rc==0) {
@@ -494,6 +517,9 @@ int main(int argc, const char *argv[])
     rc = ui_upload_textures(g_scratch, sizeof(g_scratch));
     if (rc != 0) log_printf("render: texture upload failed (%d)", rc);
     setup_screen();
+#ifdef SF_VIDEO_ONLY_DIAG
+    sf_video_diag_startup();
+#endif
 
     memset(&host, 0, sizeof(host));
     host.fs_list = ps3_fs_list;

@@ -7,7 +7,58 @@
 static FILE *g_log;
 static double g_time;
 static int g_echo;
-#ifdef SF_SINGLE_DIAG_FILE
+/* V15.48 forensic mode: one bounded TXT, across process handoffs.
+ * Former diagnostic implementations remain source-available but do NOT
+ * create audio, cover or SNES TXT files in this build. */
+#ifdef SF_VIDEO_ONLY_DIAG
+#define SF_VIDEO_MAX (192u * 1024u)
+#define SF_VIDEO_REUSE_LIMIT (160u * 1024u)
+static size_t s_video_written;
+static const char s_video_header[] =
+    "SPOOKYFLOW V15.48 - DIAGNOSTICO AVANZADO DE VIDEO SNES\n"
+    "DATOS DEL HARDWARE REAL (hasta lanzamiento) y arranque posterior de pSNES.\n"
+    "NO MIDE PIXELES DEL JUEGO NI LA IMAGEN HDMI DESPUES DE SALIR DE SPOOKYFLOW.\n"
+    "NO CONFUNDIR una firma correcta del SELF con pantalla completa comprobada.\n"
+    "Una unica ruta: /dev_hdd0/tmp/spookyflow/diagnostico_pantalla_snes.txt\n"
+    "----------------------------------------------------------------------\n";
+static int video_report_open(const char *path)
+{
+    FILE *f;
+    long size=-1;
+    int append=0;
+    char h[sizeof(s_video_header)]={0};
+    size_t hlen=sizeof(s_video_header)-1;
+    if(g_log) { (void)fclose(g_log);g_log=NULL; }
+    s_video_written=0;
+    if(!path || !path[0])return -1;
+    f=fopen(path,"rb");
+    if(f) {
+        if(fseek(f,0,SEEK_END)==0)size=ftell(f);
+        rewind(f);
+        if(size>=(long)hlen && size<(long)SF_VIDEO_REUSE_LIMIT &&
+           fread(h,1,hlen,f)==hlen && memcmp(h,s_video_header,hlen)==0)append=1;
+        (void)fclose(f);
+    }
+    g_log=fopen(path,append?"ab":"wb");
+    if(!g_log)return -1;
+    if(!append) {
+        if(fwrite(s_video_header,1,hlen,g_log)!=hlen) {
+            (void)fclose(g_log);g_log=NULL;return -1;
+        }
+        s_video_written=hlen;
+    } else s_video_written=(size_t)size;
+    {
+        static const char start[]="\n========== NUEVA SESION - VIDEO SNES V15.48 ==========\n";
+        size_t n=sizeof(start)-1;
+        if(fwrite(start,1,n,g_log)!=n || fflush(g_log)!=0) {
+            (void)fclose(g_log);g_log=NULL;return -1;
+        }
+        s_video_written+=n;
+    }
+    return 0;
+}
+#endif
+#if defined(SF_SINGLE_DIAG_FILE) && !defined(SF_VIDEO_ONLY_DIAG)
 /* The old V15.32 report was flooded by ~500 ROM_FOUND + cover cache
  * events, then overwritten on reboot. Preserve the last useful launch
  * across XMB restarts and record ONLY execution diagnostics. */
@@ -117,7 +168,9 @@ static int snes_launch_trace(const char *msg)
 
 int log_open(const char *path)
 {
-#ifdef SF_SINGLE_DIAG_FILE
+#if defined(SF_VIDEO_ONLY_DIAG)
+    return video_report_open(path);
+#elif defined(SF_SINGLE_DIAG_FILE)
     FILE *prev = NULL;
     char header[sizeof(s_diag_header)] = {0};
     long old_size = -1;
@@ -177,7 +230,7 @@ int log_open(const char *path)
 void log_close(void)
 {
     if (g_log) { fflush(g_log); fclose(g_log); g_log = 0; }
-#ifdef SF_SINGLE_DIAG_FILE
+#if defined(SF_SINGLE_DIAG_FILE) && !defined(SF_VIDEO_ONLY_DIAG)
     if (s_audio_diag) {
         (void)fflush(s_audio_diag);
         (void)fclose(s_audio_diag);
@@ -203,7 +256,19 @@ void log_printf(const char *fmt, ...)
     va_end(ap);
     /* the library scan logs from a worker thread: serialize file writes */
     while (__sync_lock_test_and_set(&g_lock, 1)) { }
-#ifdef SF_SINGLE_DIAG_FILE
+#if defined(SF_VIDEO_ONLY_DIAG)
+    if(g_log) {
+        const char *msg=line+n;
+        size_t len=strlen(line);
+        int is_video=strncmp(msg,"video_diag: ",12)==0;
+        int is_snes=strncmp(msg,"snes: DIAG_",11)==0 ||
+                    strncmp(msg,"snes: handoff pSNES",19)==0;
+        if((is_video || is_snes) && s_video_written+len+1<SF_VIDEO_MAX) {
+            if(fputs(line,g_log)>=0 && fputc('\n',g_log)!=EOF && fflush(g_log)==0)
+                s_video_written+=len+1;
+        }
+    }
+#elif defined(SF_SINGLE_DIAG_FILE)
     /* Write to one independent AUDIO-ONLY TXT, never mix ROM scans,
      * cover cache records or non-audio diagnostics into this file. */
     if(s_audio_diag) {

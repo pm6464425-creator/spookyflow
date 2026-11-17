@@ -249,3 +249,70 @@ int sf_snes_force_widescreen(const char *rom_path)
      * exists, it must also be FULL; otherwise global FULL is inherited. */
     return sf_snes_config_set_full(cfg,0);
 }
+
+/* V15.48: read-only video-config probe using the same lexer as the
+ * existing production FULL writer, without changing any file.
+ * 0=FULL, 1=another scaling, 2=missing value/file, negative=corrupt.
+ */
+int sf_snes_config_video_probe(const char *path, char *out, size_t cap)
+{
+    FILE *f;
+    char *buf;
+    long l=-1;
+    size_t n,open,close,vb,ve;
+    int found,rc;
+    if(!out || cap<48 || !path) return -10;
+    out[0]=0;
+    f=fopen(path,"rb");
+    if(!f) {
+        snprintf(out,cap,"state=MISSING (per-ROM file inherits global)");
+        return 2;
+    }
+    if(fseek(f,0,SEEK_END)!=0 || (l=ftell(f))<1 || l>(long)SNES_CFG_MAX ||
+       fseek(f,0,SEEK_SET)!=0) {
+        (void)fclose(f);
+        snprintf(out,cap,"state=BAD_SIZE_OR_SEEK size=%ld",l);
+        return -2;
+    }
+    n=(size_t)l;
+    buf=(char*)malloc(n+1);
+    if(!buf) {
+        (void)fclose(f);
+        snprintf(out,cap,"state=OUT_OF_MEMORY");
+        return -3;
+    }
+    rc=(fread(buf,1,n,f)==n && !ferror(f) && !memchr(buf,0,n))?0:-4;
+    if(fclose(f)!=0)rc=-4;
+    buf[n]=0;
+    if(rc!=0) {
+        snprintf(out,cap,"state=READ_FAILED bytes=%u",(unsigned)n);
+        free(buf);
+        return rc;
+    }
+    if(find_emulation_group(buf,n,&open,&close)!=0) {
+        snprintf(out,cap,"state=EMULATION_GROUP_NOT_FOUND bytes=%u",(unsigned)n);
+        free(buf);
+        return -5;
+    }
+    found=find_scaling_value(buf,n,open,close,&vb,&ve);
+    if(found<0) {
+        snprintf(out,cap,"state=BAD_SCALING_SYNTAX bytes=%u",(unsigned)n);
+        free(buf);
+        return -5;
+    }
+    if(found==0) {
+        snprintf(out,cap,"state=SCALING_NOT_SET bytes=%u",(unsigned)n);
+        free(buf);
+        return 2;
+    }
+    if(ve-vb>48) {
+        snprintf(out,cap,"state=INVALID_VALUE_LENGTH bytes=%u",(unsigned)(ve-vb));
+        free(buf);
+        return -5;
+    }
+    rc=(ve-vb==4 && memcmp(buf+vb,"FULL",4)==0)?0:1;
+    snprintf(out,cap,"state=PARSED scaling=%.*s expected_FULL=%s config_bytes=%u",
+             (int)(ve-vb),buf+vb,rc==0?"YES":"NO",(unsigned)n);
+    free(buf);
+    return rc;
+}

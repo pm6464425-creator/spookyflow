@@ -59,6 +59,8 @@ int ps3_fs_cleanup_legacy_diagnostics(void)
         "diagnostico.txt", /* previous V15.22 PS2-only report, superseded */
         "diagnostico_ps1.txt", /* old PS1 TXT retired by SNES diagnostic */
         "diagnostico_portadas.txt",
+        "diagnostico_audio.txt",
+        "diagnostico_snes.txt",
         "diagnostico_usb_ntfs.txt",
         "cobra_startup_probe.txt",
         "cobra_selection_probe.txt",
@@ -82,6 +84,34 @@ int ps3_fs_cleanup_legacy_diagnostics(void)
         if((st.st_mode & SF_S_IFMT)==SF_S_IFDIR) continue;
         if(sysFsUnlink(path)==0)removed++;
     }
+#ifdef SF_VIDEO_ONLY_DIAG
+    /* User asked to remove all old diagnostics, not user data.
+     * Enumerate only this folder and unlink ONLY diagnostico*.txt,
+     * skipping the live report, non-regular entries and all subfolders. */
+    {
+        s32 fd;
+        if(sysFsOpendir(SF_DATA_DIR,&fd)==0) {
+            for(;;) {
+                sysFSDirent ent;
+                u64 got=0;
+                size_t n;
+                char full[256];
+                sysFSStat st;
+                int rr=sysFsReaddir(fd,&ent,&got);
+                if(rr!=0 || got==0)break;
+                n=strlen(ent.d_name);
+                if(n<=4 || n>=120)continue;
+                if(strncmp(ent.d_name,"diagnostico",11)!=0)continue;
+                if(strcmp(ent.d_name+n-4,".txt")!=0)continue;
+                if(strcmp(ent.d_name,"diagnostico_pantalla_snes.txt")==0)continue;
+                if(snprintf(full,sizeof(full),"%s/%s",SF_DATA_DIR,ent.d_name)>=(int)sizeof(full))continue;
+                if(sysFsStat(full,&st)!=0 || (st.st_mode & SF_S_IFMT)==SF_S_IFDIR)continue;
+                if(sysFsUnlink(full)==0)removed++;
+            }
+            sysFsClosedir(fd);
+        }
+    }
+#endif
     return removed;
 }
 

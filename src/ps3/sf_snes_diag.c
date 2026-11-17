@@ -133,6 +133,13 @@ void sf_snes_diag_on_startup(void)
                    (unsigned)SF_PSNES_BOOT_MAX_LINES,
                    (unsigned)SF_PSNES_BOOT_MAX_BYTES);
     (void)fclose(boot);
+#ifdef SF_VIDEO_ONLY_DIAG
+    log_printf("video_diag: PSNES_BOOT_FORENSIC lines=%u entered=%d main_loop=%d reset_clean=%d",
+               lines,entered,mainloop,clean[0]=='1');
+    log_printf("video_diag: PSNES_BOOT_LIMITATION=CONTAINS_PROCESS_STAGES_NOT_GPU_FRAMEBUFFER_OR_SCALING_VALUES");
+    if(!mainloop) log_printf("video_diag: PSNES_BOOT_WARNING=MAIN_LOOP_NOT_CONFIRMED");
+    else log_printf("video_diag: PSNES_BOOT_CONFIRMED=MAIN_LOOP_RUNNING (not proof of visible full-screen)");
+#endif
     if (clean[0] != '1')
         log_printf("snes: DIAG_RESULT=BOOTLOG_MAY_BE_STALE; old file was not cleared");
     else if (!entered)

@@ -42,6 +42,18 @@ jobs:
         run: python3 tests/test_v15_43_snes_true_fullscreen.py
       - name: V15.47 SNES border fill 16:9, ELF and screen projection controls
         run: python3 tests/test_v15_47_border_fill.py
+      - name: V15.48 forensic SNES video diagnostics - video config, single TXT, persistence and cleanup
+        run: |
+          cc -std=c99 -O2 -Wall -Wextra -Werror -Isrc/ps3 \
+            src/ps3/sf_snes_screen.c tests/test_v15_48_cfg_probe.c \
+            -o build-host/test_v15_48_cfg_probe
+          ./build-host/test_v15_48_cfg_probe /tmp/sf1548_video_cfg_probe.cfg
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror \
+            -DSF_SINGLE_DIAG_FILE=1 -DSF_VIDEO_ONLY_DIAG=1 \
+            -Isrc/core src/core/log.c tests/test_v15_48_video_diag_log.c \
+            -o build-host/test_v15_48_video_diag_log
+          ./build-host/test_v15_48_video_diag_log /tmp/sf1548_video_forensic_log.txt
+          python3 tests/test_v15_48_video_diag_integration.py
       - name: V15.44 all-platform game audio handoff and PS3 service cleanup - 20 forensic checks
         run: python3 tests/test_v15_44_audio_handoff.py
       - name: V15.45 isolate SpookyFlow UI sound to diagnose game silence + preserve audio TXT traces
@@ -376,6 +388,25 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title 'SpookyFlow V15.47 — pSNES 16:9 compensación de bordes' \
             --notes 'PARCHE EXPERIMENTAL, SIN PRUEBA VISUAL EN PS3 REAL. V15.46 preservada fuera del motor gráfico de SNES: audio, PS1, PS2, PS3, BDISO, controles, carátulas y ROMs intactos. pSNES 7.2 firmado como APP SELF desde ELF original SHA verificado y parche V15.43, con una segunda corrección de proyección Tiny3D HDTV que compensa franjas laterales y verticales; puede recortar algunos píxeles del borde. Validaciones: geometría y direccionamiento PowerPC64, bytes previos exactos, ELF firmado y descifrado nuevamente con SHA, prueba del PKG instalable y regresiones. Confirma resultado en PS3 HEN con el mismo juego SNES.'
+      - name: Publish V15.48 forensic SNES video single-report PKG after validation
+        if: github.ref == 'refs/heads/fix/v15-48-snes-video-forensic-report'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-48-snes-video-forensic-report" --jq '.commit.sha')
+          if [ "$current" != "$GITHUB_SHA" ]; then
+            echo 'Superseded commit: no release'
+            exit 0
+          fi
+          pkg='SPOOKYFLOW_V15_48_DIAGNOSTICO_AVANZADO_PANTALLA_SNES.pkg'
+          cp spookyflow.pkg "$pkg"
+          sha256sum "$pkg"
+          tag="spookyflow-v15-48-snes-video-forensic-${GITHUB_SHA:0:8}"
+          gh release create "$tag" "$pkg" --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --prerelease \
+            --title 'SpookyFlow V15.48 — diagnostico avanzado de pantalla SNES' \
+            --notes 'DIAGNOSTICO, NO CORRECCION 16:9 CONFIRMADA. Al arrancar limpia solo reportes TXT de diagnostico antiguos bajo /dev_hdd0/tmp/spookyflow/ y conserva un unico informe /dev_hdd0/tmp/spookyflow/diagnostico_pantalla_snes.txt (reutilizado y acotado). Comprueba directamente desde la PS3 el modo de video, la resolucion Tiny3D, rutas y configuracion FULL global/por ROM y verificacion SHA256 del pSNES APP SELF integrado V15.47; en la siguiente apertura importa el boot.log REAL de pSNES para comprobar entrada al bucle principal. Diferencia calculos de geometria del parche de medidas de hardware, y deja explicitamente SIN MEDIR pixeles HDMI y viewport del siguiente proceso pSNES. La instrumentacion no toca el emulador ni los backends PS1/PS2/PS3/BDISO, caratulas, ROMs, partidas o audio. Los informes antiguos borrados son solo TXT conocidos/prefijo diagnostico*.txt en la carpeta, sin eliminar otros datos. Tras instalar, arrancar SNES, volver a abrir SpookyFlow y enviar el unico informe completo. CI host y compilacion nativa deben superar todas las verificaciones.'
       - uses: actions/upload-artifact@v4
         with:
           name: spookyflow-pkg-${{ env.sha_name }}
