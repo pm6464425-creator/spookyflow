@@ -54,6 +54,22 @@ jobs:
             -o build-host/test_v15_48_video_diag_log
           ./build-host/test_v15_48_video_diag_log /tmp/sf1548_video_forensic_log.txt
           python3 tests/test_v15_48_video_diag_integration.py
+      - name: V15.49 verified PS3 HEN config FULL persistence and safe fallback
+        run: |
+          mkdir -p build-host/snes1549
+          for mode in normal rename_denied temp_denied rollback; do
+            case "$mode" in
+              normal) extra="" ;;
+              rename_denied) extra="-DSF_SN_TEST_RENAME_EEXIST" ;;
+              temp_denied) extra="-DSF_SN_TEST_DENY_TEMP" ;;
+              rollback) extra="-DSF_SN_TEST_DENY_TEMP -DSF_SN_TEST_DENY_DIRECT" ;;
+            esac
+            cc -std=c99 -O2 -Wall -Wextra -Werror -DSF_SN_CFG_BACKUP_DIR='"/tmp"' \
+              $extra -Isrc/ps3 src/ps3/sf_snes_screen.c tests/test_v15_49_cfg_repair.c \
+              -o "build-host/test_v15_49_${mode}"
+            "build-host/test_v15_49_${mode}" build-host/snes1549
+          done
+          python3 tests/test_v15_49_cfg_repair_integration.py
       - name: V15.44 all-platform game audio handoff and PS3 service cleanup - 20 forensic checks
         run: python3 tests/test_v15_44_audio_handoff.py
       - name: V15.45 isolate SpookyFlow UI sound to diagnose game silence + preserve audio TXT traces
@@ -407,6 +423,22 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title 'SpookyFlow V15.48 — diagnostico avanzado de pantalla SNES' \
             --notes 'DIAGNOSTICO, NO CORRECCION 16:9 CONFIRMADA. Al arrancar limpia solo reportes TXT de diagnostico antiguos bajo /dev_hdd0/tmp/spookyflow/ y conserva un unico informe /dev_hdd0/tmp/spookyflow/diagnostico_pantalla_snes.txt (reutilizado y acotado). Comprueba directamente desde la PS3 el modo de video, la resolucion Tiny3D, rutas y configuracion FULL global/por ROM y verificacion SHA256 del pSNES APP SELF integrado V15.47; en la siguiente apertura importa el boot.log REAL de pSNES para comprobar entrada al bucle principal. Diferencia calculos de geometria del parche de medidas de hardware, y deja explicitamente SIN MEDIR pixeles HDMI y viewport del siguiente proceso pSNES. La instrumentacion no toca el emulador ni los backends PS1/PS2/PS3/BDISO, caratulas, ROMs, partidas o audio. Los informes antiguos borrados son solo TXT conocidos/prefijo diagnostico*.txt en la carpeta, sin eliminar otros datos. Tras instalar, arrancar SNES, volver a abrir SpookyFlow y enviar el unico informe completo. CI host y compilacion nativa deben superar todas las verificaciones.'
+      - name: Publish V15.49 corrected SNES FULL config PKG after validations
+        if: github.ref == 'refs/heads/fix/v15-49-snes-fullscreen-config-write'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-49-snes-fullscreen-config-write" --jq '.commit.sha')
+          if [ "$current" != "$GITHUB_SHA" ]; then echo 'Superseded commit'; exit 0; fi
+          pkg='SPOOKYFLOW_V15_49_CORRECCION_REAL_FULL_SNES.pkg'
+          cp spookyflow.pkg "$pkg"
+          sha256sum "$pkg"
+          tag="spookyflow-v15-49-snes-full-config-${GITHUB_SHA:0:8}"
+          gh release create "$tag" "$pkg" --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --prerelease \
+            --title 'SpookyFlow V15.49 — correccion de escritura FULL en PS3 HEN' \
+            --notes 'Basado en el diagnostico real V15.48 (config writer rc=-6, escala FIT, TV 1920x1080). Corrige ruta de reemplazo de config.cfg: si falla fopen temporal o rename existente, crea respaldo verificable bajo /dev_hdd0/tmp/spookyflow, escribe solo los ajustes del config de pSNES, lee nuevamente para confirmar FULL, revierte el archivo anterior en caso de fallo y recupera el respaldo en el siguiente inicio si el CFG queda corrupto. Incluye códigos de etapa y errno en el único diagnostico_pantalla_snes.txt. Conserva mismo pSNES firmado V15.47, controles, audio, sistemas PS1/PS2/PS3/BDISO, ROMs, partidas y carátulas. Las pruebas host simulan que rename no reemplaza ficheros existentes y que la carpeta no deja crear un temporal. El efecto 16:9 se debe comprobar físicamente en PS3 HEN; el SHA no mide píxeles HDMI.'
       - uses: actions/upload-artifact@v4
         with:
           name: spookyflow-pkg-${{ env.sha_name }}
