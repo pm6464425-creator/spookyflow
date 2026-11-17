@@ -300,7 +300,7 @@ static int write_atomic(const char *path,const char *bytes,size_t n,
     errno=EACCES;
 #endif
     if(f){
-        bad=(fwrite(bytes,1,n)!=n || fflush(f)!=0);
+        bad=(fwrite(bytes,1,n,f)!=n || fflush(f)!=0);
         if(fclose(f)!=0)bad=1;
         if(!bad) {
             if(cfg_rename_replace(tmp,path)==0){
