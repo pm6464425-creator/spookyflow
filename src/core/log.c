@@ -25,7 +25,9 @@ static size_t s_file_bytes;
  * audio traces completely separate and append only until its 64 KiB
  * bound is reached, then replace this same one TXT (never create more).
  * This cannot read audio from a DIFFERENT PS3 process after handoff. */
+#ifndef SF_AUDIO_DIAG_PATH
 #define SF_AUDIO_DIAG_PATH "/dev_hdd0/tmp/spookyflow/diagnostico_audio.txt"
+#endif
 #define SF_AUDIO_DIAG_MAX (64u * 1024u)
 #define SF_AUDIO_DIAG_ROTATE (56u * 1024u)
 static FILE *s_audio_diag;
