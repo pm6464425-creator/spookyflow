@@ -52,6 +52,12 @@ int main(int argc, char **argv)
     log_printf("snes: DIAG_LAUNCH_SELECTED rom=/dev_hdd0/SNES/X-Kaliber 2097.smc");
     log_printf("snes: DIAG_ENGINE_PREPARE_RESULT=0");
     log_printf("snes: DIAG_SPAWN_CALL exe=/dev_hdd0/game/PSNE00001/USRDIR/EBOOT.BIN");
+    /* V15.45: audit results for ALL platforms must survive this allowlist. */
+    log_printf("audio: DIAG_ISOLATION_TEST=ACTIVE V15.45 UI_AUDIO_DISABLED=YES");
+    log_printf("audio: HANDOFF_DISC begin platform=2");
+    log_printf("audio: HANDOFF_STOP_RESULT thread_join=00000000 port_stop=80010002");
+    log_printf("audio: HANDOFF_STOP_WARNING resource cleanup failed");
+    log_printf("audio: DIAG_DISC_HANDOFF_SELECTED platform=2 audio_test=NO_PORT_INIT");
     log_printf("bdiso: unrelated system");
     log_close();
     n = read_file(path);
@@ -59,6 +65,12 @@ int main(int argc, char **argv)
     assert(strstr(buf, "V15.40"));
     assert(strstr(buf, "DIAG_LAUNCH_SELECTED"));
     assert(strstr(buf, "DIAG_SPAWN_CALL"));
+    assert(strstr(buf, "DIAG_ISOLATION_TEST=ACTIVE"));
+    assert(strstr(buf, "HANDOFF_DISC begin platform=2"));
+    assert(strstr(buf, "HANDOFF_STOP_RESULT thread_join=00000000"));
+    assert(strstr(buf, "HANDOFF_STOP_WARNING resource cleanup failed"));
+    assert(strstr(buf, "DIAG_DISC_HANDOFF_SELECTED platform=2"));
+    assert(!strstr(buf, "audio: started without"));
     assert(!strstr(buf, "ROM_FOUND"));
     assert(!strstr(buf, "CACHE_HIT"));
     assert(!strstr(buf, "COVER_GPU"));
