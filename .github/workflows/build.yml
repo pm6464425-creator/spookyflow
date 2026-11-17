@@ -40,6 +40,8 @@ jobs:
         run: python3 tests/test_v15_41_psnes_self.py
       - name: V15.43 native SNES true edge-to-edge 16:9 viewport, 15 binary-patch and safety tests
         run: python3 tests/test_v15_43_snes_true_fullscreen.py
+      - name: V15.47 SNES border fill 16:9, ELF and screen projection controls
+        run: python3 tests/test_v15_47_border_fill.py
       - name: V15.44 all-platform game audio handoff and PS3 service cleanup - 20 forensic checks
         run: python3 tests/test_v15_44_audio_handoff.py
       - name: V15.45 isolate SpookyFlow UI sound to diagnose game silence + preserve audio TXT traces
@@ -354,6 +356,26 @@ jobs:
       - name: Verify compiled PKG title, transparent icon, Title ID, and package payload
         run: python3 tests/verify_compiled_pkg.py spookyflow.pkg
 
+      - name: Publish V15.47 border-fill PKG only after host and native checks
+        if: github.ref == 'refs/heads/fix/v15-47-snes-border-fill'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-47-snes-border-fill" --jq '.commit.sha')
+          if [ "$current" != "$GITHUB_SHA" ]; then
+            echo 'Superseded commit: no release'
+            exit 0
+          fi
+          pkg='SPOOKYFLOW_V15_47_SNES_FULL_16_9_CROP_CONTROLADO.pkg'
+          cp spookyflow.pkg "$pkg"
+          sha256sum "$pkg"
+          sha256sum pkgfiles/USRDIR/SNESENGINE/PSNES_ENGINE.SELF
+          tag="spookyflow-v15-47-snes-edge-fill-${GITHUB_SHA:0:8}"
+          gh release create "$tag" "$pkg" --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --prerelease \
+            --title 'SpookyFlow V15.47 — pSNES 16:9 compensación de bordes' \
+            --notes 'PARCHE EXPERIMENTAL, SIN PRUEBA VISUAL EN PS3 REAL. V15.46 preservada fuera del motor gráfico de SNES: audio, PS1, PS2, PS3, BDISO, controles, carátulas y ROMs intactos. pSNES 7.2 firmado como APP SELF desde ELF original SHA verificado y parche V15.43, con una segunda corrección de proyección Tiny3D HDTV que compensa franjas laterales y verticales; puede recortar algunos píxeles del borde. Validaciones: geometría y direccionamiento PowerPC64, bytes previos exactos, ELF firmado y descifrado nuevamente con SHA, prueba del PKG instalable y regresiones. Confirma resultado en PS3 HEN con el mismo juego SNES.'
       - uses: actions/upload-artifact@v4
         with:
           name: spookyflow-pkg-${{ env.sha_name }}

@@ -237,6 +237,12 @@ Original pEMU author: Cpasjuste
 https://github.com/Cpasjuste/pemu
 Embedded NPDRM EBOOT is original, unmodified, and SHA256-pinned.
 PSNES_ENGINE.SELF is a signed standalone APP SELF for PS3.
+V15.47: after the pinned V15.43 ELF, a verified eight-slot Tiny3D
+HDTV viewport correction expands the image to compensate visible margins.
+The final signed APP SELF is decrypted and SHA checked; its ELF hash is stored
+in PSNES_ENGINE.edge.sha256 inside this PKG. This intentionally crops a
+small amount of the edge; the result needs PS3 hardware confirmation.
+No game ROMs, audio, controller or PS1/PS2/PS3/BDISO code is modified.
 Its ELF is derived from the original pSNES 7.2 ELF, with only 36 verified
 PowerPC64 code/viewport bytes changed (15 offsets) to enforce FULL 16:9
 and remove Tiny3D black borders at 480p/576p/720p/1080p.

@@ -49,9 +49,16 @@ python3 tools/psnes_patch_true_fullscreen.py \
   "$tmp/psnes.elf" "$tmp/psnes_169.elf"
 printf '%s  %s\n' "$FULL_ELF_SHA" "$tmp/psnes_169.elf" | sha256sum -c -
 ppu-readelf -h "$tmp/psnes_169.elf" | grep -q 'Machine: *PowerPC64'
+# V15.47: second source-audited PS3 HDTV viewport pass, after the pinned
+# V15.43 ELF has been verified. Final digest verified after signing+decrypting.
+python3 tools/psnes_patch_border_fill.py \
+  "$tmp/psnes_169.elf" "$tmp/psnes_edge.elf" "$tmp/psnes_edge.sha256"
+ppu-readelf -h "$tmp/psnes_edge.elf" | grep -q 'Machine: *PowerPC64'
+edge_sha="$(cat "$tmp/psnes_edge.sha256")"
+test "${#edge_sha}" -eq 64
 
 mkdir -p "$(dirname "$target")"
-make_self "$tmp/psnes_169.elf" "$target" > "$tmp/sign.log" 2>&1
+make_self "$tmp/psnes_edge.elf" "$target" > "$tmp/sign.log" 2>&1
 test "$(stat -c%s "$target")" -ge 2000000
 test "$(stat -c%s "$target")" -le 8000000
 
@@ -63,13 +70,16 @@ test "$(stat -c%s "$target")" -le 8000000
   echo "ERROR: cannot roundtrip the APP SELF"; tail -25 "$tmp/roundtrip.log"; exit 1;
 }
 test -s "$tmp/roundtrip.elf" || { echo "ERROR: converter did not produce a roundtrip ELF"; tail -30 "$tmp/roundtrip.log"; exit 1; }
-printf '%s  %s\n' "$FULL_ELF_SHA" "$tmp/roundtrip.elf" | sha256sum -c -
+printf '%s  %s\n' "$edge_sha" "$tmp/roundtrip.elf" | sha256sum -c -
 
-python3 - "$target" src/ps3/sf_psnes_plain_hash.h <<'PY'
+python3 - "$target" src/ps3/sf_psnes_plain_hash.h "$tmp/psnes_edge.sha256" <<'PY'
 import hashlib, pathlib, struct, sys
 src=pathlib.Path(sys.argv[1])
 out=pathlib.Path(sys.argv[2])
 p=src.read_bytes()
+edge_digest=pathlib.Path(sys.argv[3]).read_text(encoding='ascii').strip()
+assert len(edge_digest)==64 and all(c in '0123456789abcdef' for c in edge_digest)
+assert edge_digest != '4815e9632f10f5f405e43d284b4d2857bb8415e7a71985afa85016d5863f516e'
 assert 2_000_000<=len(p)<=8_000_000
 assert p[:4]==b'SCE\x00'
 appinfo=struct.unpack_from('>Q',p,0x28)[0]
@@ -82,7 +92,8 @@ lines = [
     '#ifndef SF_PSNES_PLAIN_HASH_H',
     '#define SF_PSNES_PLAIN_HASH_H',
     '#define PSNES_PLAIN_SIZE '+str(len(p))+'ULL',
-    '#define SF_PSNES_NATIVE_169_ELF_SHA256 "4815e9632f10f5f405e43d284b4d2857bb8415e7a71985afa85016d5863f516e"',
+    '#define SF_PSNES_NATIVE_169_ELF_SHA256 "4815e9632f10f5f405e43d284b4d2857bb8415e7a71985afa85016d5863f516e"', # known intermediate
+    '#define SF_PSNES_NATIVE_BORDER_FILL_ELF_SHA256 "'+edge_digest+'"', # verified final ELF
     '#define SF_PSNES_APP_SELF_SHA256 "'+sha+'"',
     'static const unsigned char k_plain_sha256[32] = {',
 ]
@@ -94,4 +105,5 @@ src.with_suffix('.sha256').write_text(sha+'\n',encoding='ascii')
 print('PASS pSNES APP SELF, roundtrip FULL-16:9 ELF pinned; signed size='+str(len(p))+' SHA256='+sha)
 PY
 test -s src/ps3/sf_psnes_plain_hash.h
-echo "V15.43 pSNES standalone APP SELF from original ELF + verified 36-byte fullscreen patch."
+cp "$tmp/psnes_edge.sha256" "$(dirname "$target")/PSNES_ENGINE.edge.sha256"
+echo "V15.47 pSNES native APP SELF: SHA-verified V15.43 + bounded border fill; ELF signed/decrypted SHA matches."

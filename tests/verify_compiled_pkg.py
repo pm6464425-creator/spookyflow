@@ -147,7 +147,13 @@ def verify(package):
         '#define SF_PSNES_NATIVE_169_ELF_SHA256 '
         '"4815e9632f10f5f405e43d284b4d2857bb8415e7a71985afa85016d5863f516e"'
     ) in runtime_hash, "APP SELF was not built from the verified 16:9-viewport-patched official ELF"
-    print("PASS V15.43 pSNES 16:9 native APP SELF: size, type4, pinned patched ELF + SHA256:", signed_hash)
+    edge_manifest = files.get(engine + "PSNES_ENGINE.edge.sha256",b"").decode("ascii").strip()
+    assert len(edge_manifest)==64 and all(c in "0123456789abcdef" for c in edge_manifest), (
+        "V15.47 final decrypted ELF digest absent from real installable PKG")
+    assert ('#define SF_PSNES_NATIVE_BORDER_FILL_ELF_SHA256 "' + edge_manifest + '"') in runtime_hash, (
+        "V15.47 final ELF SHA manifest differs from the hash compiled into runtime")
+    assert edge_manifest != "4815e9632f10f5f405e43d284b4d2857bb8415e7a71985afa85016d5863f516e"
+    print("PASS V15.47 signed SNES engine, pinned intermediate, final signed-roundtrip ELF SHA:", signed_hash, edge_manifest)
     assert files[engine + "PARAM.SFO"].startswith(b"\x00PSF")
     assert b"PSNE00001" in files[engine + "PARAM.SFO"]
     assert files[engine + "USRDIR/romfs/skins/default/config.cfg"]
