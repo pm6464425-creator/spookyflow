@@ -88,14 +88,28 @@ void ps3_audio_start(void)
     params.level = 1.0f;
     rc = audioPortOpen(&params, &g_port);
     if (rc != 0) { log_printf("audio: audioPortOpen failed (%08x)", (unsigned)rc); audioQuit(); return; }
-    audioGetPortConfig(g_port, &g_cfg);
+    rc = audioGetPortConfig(g_port, &g_cfg);
+    if (rc != 0) {
+        log_printf("audio: audioGetPortConfig failed (%08x)", (unsigned)rc);
+        (void)audioPortClose(g_port);
+        (void)audioQuit();
+        return;
+    }
     /* start silent: clear every block */
     memset((void *)(u64)g_cfg.audioDataStart, 0,
            (size_t)g_cfg.numBlocks * (size_t)g_cfg.channelCount * AUDIO_BLOCK_SAMPLES * sizeof(f32));
     rc = audioCreateNotifyEventQueue(&g_queue, &g_key);
     if (rc != 0) { log_printf("audio: event queue failed (%08x)", (unsigned)rc); audioPortClose(g_port); audioQuit(); return; }
-    audioSetNotifyEventQueue(g_key);
-    sysEventQueueDrain(g_queue);
+    rc = audioSetNotifyEventQueue(g_key);
+    if (rc != 0) {
+        log_printf("audio: audioSetNotifyEventQueue failed (%08x)", (unsigned)rc);
+        (void)sysEventQueueDestroy(g_queue, 0);
+        (void)audioPortClose(g_port);
+        (void)audioQuit();
+        return;
+    }
+    rc = sysEventQueueDrain(g_queue);
+    if (rc != 0) log_printf("audio: queue drain warning (%08x)", (unsigned)rc);
     rc = audioPortStart(g_port);
     if (rc != 0) {
         log_printf("audio: audioPortStart failed (%08x)", (unsigned)rc);
@@ -119,16 +133,32 @@ void ps3_audio_start(void)
 void ps3_audio_stop(void)
 {
     u64 rv;
-    if (!g_state) return;
+    s32 rc_stop, rc_remove, rc_close, rc_queue, rc_quit, rc_join=0;
+    if (!g_state) {
+        log_printf("audio: HANDOFF_STOP_ALREADY_CLOSED");
+        return;
+    }
+    log_printf("audio: HANDOFF_STOP_BEGIN state=%d port=%u", g_state, (unsigned)g_port);
+    /* Stop the decoder before its mixer/port can be destroyed. */
     music_thread_stop();
-    if (g_state == 2) { g_run = 0; sysThreadJoin(g_tid, &rv); }
-    audioPortStop(g_port);
-    audioRemoveNotifyEventQueue(g_key);
-    audioPortClose(g_port);
-    sysEventQueueDestroy(g_queue, 0);
-    audioQuit();
+    if (g_state == 2) {
+        g_run = 0;
+        rc_join = sysThreadJoin(g_tid, &rv);
+    }
+    rc_stop = audioPortStop(g_port);
+    rc_remove = audioRemoveNotifyEventQueue(g_key);
+    rc_close = audioPortClose(g_port);
+    rc_queue = sysEventQueueDestroy(g_queue, 0);
+    rc_quit = audioQuit();
     g_state = 0;
-    log_printf("audio: stopped");
+    log_printf("audio: HANDOFF_STOP_RESULT thread_join=%08x port_stop=%08x notify_remove=%08x "
+               "port_close=%08x queue_destroy=%08x audio_quit=%08x",
+               (unsigned)rc_join, (unsigned)rc_stop, (unsigned)rc_remove,
+               (unsigned)rc_close, (unsigned)rc_queue, (unsigned)rc_quit);
+    if (rc_join || rc_stop || rc_remove || rc_close || rc_queue || rc_quit)
+        log_printf("audio: HANDOFF_STOP_WARNING resource cleanup returned error; consult individual status codes");
+    else
+        log_printf("audio: HANDOFF_STOP_OK audio service released");
 }
 
 /* Optional user sounds: /dev_hdd0/tmp/spookyflow/sounds/move.wav etc.
