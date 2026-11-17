@@ -45,6 +45,12 @@
 
 #define VERTEX_BUFFER_BYTES (4u * 1024u * 1024u)
 #define TEXTURE_POOL_BYTES  (32u * 1024u * 1024u)   /* UI atlases, case images, backgrounds (1280x720 each) */
+/* V15.45 temporary diagnostic A/B: the PS3 and BD games are silent only
+ * after SpookyFlow launches them, while XMB-started titles have audio.
+ * Remove our mixer/port from the equation entirely for one test build;
+ * no audioInit()/audioPortOpen() or background decoder threads run here.
+ * Menu sound effects intentionally OFF. Game audio remains untouched. */
+#define SF_V15_45_AUDIO_ISOLATION_TEST 1
 
 static Library g_lib;
 static App g_app;
@@ -406,8 +412,12 @@ static int launch_snes_psnes(const char *rom_path)
     sf_snes_diag_spawn_returned();
     log_printf("snes: DIAG_RESULT=APP_SELF_SPAWN_API_RETURNED");
     /* If the operating system refused to replace us, keep the UI usable. */
+#if SF_V15_45_AUDIO_ISOLATION_TEST
+    log_printf("audio: DIAG_SNES_SPAWN_REJECTED port_never_initialized; UI_AUDIO_STILL_DISABLED");
+#else
     log_printf("audio: HANDOFF_SNES spawn rejected; restarting UI audio");
     ps3_audio_start();
+#endif
     g_audio_released_for_launch = 0;
     return -65;
 }
@@ -463,8 +473,13 @@ int main(int argc, const char *argv[])
     atexit(on_exit_handler);   /* registered after tiny3d_Init: runs before tiny3d_Exit */
 
     sound_init();
+#if SF_V15_45_AUDIO_ISOLATION_TEST
+    log_printf("audio: DIAG_ISOLATION_TEST=ACTIVE V15.45 UI_AUDIO_DISABLED=YES GAME_AUDIO_NOT_MODIFIED");
+    log_printf("audio: DIAG_NO_AUDIO_INIT=YES no_LV2_audio_ports_no_mixer_threads_no_wav_decoder");
+#else
     ps3_load_sounds();
     ps3_audio_start();
+#endif
     if (ps3_render_init(TEXTURE_POOL_BYTES) != 0) log_printf("render: texture pool allocation failed");
     if (ps3_render_init_covers() != 0) log_printf("render: cover texture allocation failed");
     rc = ui_upload_textures(g_scratch, sizeof(g_scratch));
@@ -557,6 +572,7 @@ int main(int argc, const char *argv[])
          * our audio port before the fade and before XMB can run the title.
          * Keep normal Quit and power-off flows unchanged. */
         if (g_app.launched && !g_audio_released_for_launch) {
+            log_printf("audio: DIAG_DISC_HANDOFF_SELECTED platform=%d audio_test=NO_PORT_INIT", (int)g_app.tab);
             log_printf("audio: HANDOFF_DISC begin platform=%d", (int)g_app.tab);
             ps3_audio_stop();
             g_audio_released_for_launch = 1;
