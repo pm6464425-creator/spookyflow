@@ -44,6 +44,14 @@ jobs:
         run: python3 tests/test_v15_44_audio_handoff.py
       - name: V15.45 isolate SpookyFlow UI sound to diagnose game silence + preserve audio TXT traces
         run: python3 tests/test_v15_45_audio_isolation.py
+      - name: V15.46 dedicated audio-only report - real logger durability and all platform trace
+        run: |
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror -DSF_SINGLE_DIAG_FILE=1 \
+             '-DSF_AUDIO_DIAG_PATH="/tmp/spookyflow_v15_46_audio_test.txt"' \
+             -Isrc/core src/core/log.c tests/test_v15_46_audio_only_log.c \
+             -o build-host/test_v15_46_audio_only_log
+          ./build-host/test_v15_46_audio_only_log /tmp/spookyflow_v15_46_snes_test.txt
+          python3 tests/test_v15_46_audio_only_integration.py
       - name: V15.42 SNES forced 16:9 FULL scaling, unchanged game files and per-ROM overrides
         run: |
           mkdir -p build-host/snes-16-9-fixtures
