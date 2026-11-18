@@ -13,6 +13,7 @@ static float window_shape(int plat)
     case PLAT_PS2: return 0.70f;   /* PS2 DVD covers */
     case PLAT_BDISO: return 2.0f/3.0f; /* film posters, not PS3 game fronts */
     case PLAT_SNES: return 240.0f/168.0f; /* horizontal SNES box front */
+    case PLAT_ARCADE: return 291.0f/430.0f; /* Neo Geo MVS portrait artwork */
     default:       return 0.86f;   /* PS3 covers (webMAN COV packs) */
     }
 }
@@ -26,7 +27,7 @@ void layout_use_case_images(int on) { g_cases_on = on != 0; }
 int  layout_case_image_active(int plat)
 {
     return plat >= 0 && plat < PLAT_COUNT && g_case_img[plat].set &&
-           (plat == PLAT_BDISO || plat == PLAT_SNES || g_cases_on);
+           (plat == PLAT_BDISO || plat == PLAT_SNES || plat == PLAT_ARCADE || g_cases_on);
 }
 
 void layout_set_case_image(int plat, float img_w, float img_h, float cx, float cy, float cw, float ch)
