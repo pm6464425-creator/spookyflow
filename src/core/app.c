@@ -256,7 +256,10 @@ static void finish_library(App *a)
     int t;
     for (t = 0; t < PLAT_COUNT; t++) {
         GameList *gl = &a->lib->tab[t];
-        if (gl->count == 0 && t != PLAT_BDISO && t != PLAT_SNES && t != PLAT_ARCADE) {
+        if (gl->count == 0 && t == PLAT_ARCADE) {
+            demo_fill(a->lib, t);
+            log_printf("arcade: showing 2 labeled visual preview cases; no arcade ROMs installed");
+        } else if (gl->count == 0 && t != PLAT_BDISO && t != PLAT_SNES) {
             demo_fill(a->lib, t);
             log_printf("library: %s has no games on HDD, showing demo library (%d titles)", k_plat_name[t], gl->count);
         } else {
