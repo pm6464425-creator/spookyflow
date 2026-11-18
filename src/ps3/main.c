@@ -33,6 +33,7 @@
 #include "sf_snes_diag.h"
 #include "sf_snes_screen.h"
 #include "sf_video_diag.h"
+#include "sf_ps1_video_diag.h"
 #include "sf_cobra_mount.h"
 #include "sf_ps2_mount.h"
 #include "sf_ps1_mount.h"
@@ -162,8 +163,32 @@ static int power_off_via_webman(void)
 /* Launch: webMAN mounts and starts the game once spookyflow is back at the XMB */
 static int launch_via_webman(const char *request)
 {
-    return ps3_webman_send(request);
+    int rc=ps3_webman_send(request);
+#ifdef SF_PS1_VIDEO_DIAG
+    /* The host.launch callback is the existing PS1 fallback transport.
+     * No extra request, mount command, plugin, or system patch is issued. */
+    sf_ps1_video_diag_webman(request,rc);
+#endif
+    return rc;
 }
+#ifdef SF_PS1_VIDEO_DIAG
+static int launch_ps1_forensic(const char *path,int emulator)
+{
+    int rc;
+    sf_ps1_video_diag_before_launch(path,emulator,"COBRA_NATIVE");
+    rc=sf_ps1_mount(path,emulator);
+    sf_ps1_video_diag_launch_result("COBRA_NATIVE",rc);
+    return rc;
+}
+static int launch_ps1_staged_forensic(void)
+{
+    int rc;
+    sf_ps1_video_diag_before_launch(NULL,-1,"MULTIBIN_CUE_CACHE");
+    rc=sf_ps1_join_mount();
+    sf_ps1_video_diag_launch_result("MULTIBIN_CUE_CACHE",rc);
+    return rc;
+}
+#endif
 
 /* BDISO: native Cobra mounting for sysFs drives; webMAN-assisted mounting
  * for NTFS .ntfs[BDISO] index files (which aren't a real .iso filepath).
@@ -449,7 +474,15 @@ int main(int argc, const char *argv[])
     /* Create a persistent trace BEFORE any graphics, pad, audio or UI work.
      * This separates an early startup freeze from a Cobra mount freeze. */
     ps3_fs_mkdirs();
-#ifdef SF_VIDEO_ONLY_DIAG
+#if defined(SF_PS1_VIDEO_DIAG)
+    {
+        int removed=ps3_fs_cleanup_legacy_diagnostics();
+        int diag_rc=log_open(SF_DIAG_SINGLE_PATH);
+        if(diag_rc==0)
+            log_printf("ps1_video_diag: REPORT=" SF_DIAG_SINGLE_PATH
+                       " OLD_DIAGNOSTIC_TXTS_REMOVED=%d",removed);
+    }
+#elif defined(SF_VIDEO_ONLY_DIAG)
     {
         int removed=ps3_fs_cleanup_legacy_diagnostics();
         int diag_rc=log_open(SF_DIAG_SINGLE_PATH);
@@ -517,7 +550,9 @@ int main(int argc, const char *argv[])
     rc = ui_upload_textures(g_scratch, sizeof(g_scratch));
     if (rc != 0) log_printf("render: texture upload failed (%d)", rc);
     setup_screen();
-#ifdef SF_VIDEO_ONLY_DIAG
+#if defined(SF_PS1_VIDEO_DIAG)
+    sf_ps1_video_diag_startup();
+#elif defined(SF_VIDEO_ONLY_DIAG)
     sf_video_diag_startup();
 #endif
 
@@ -532,10 +567,18 @@ int main(int argc, const char *argv[])
     host.launch = launch_via_webman; /* Legacy PS1 only. PS2 uses Cobra. */
     host.ps2_preflight = sf_ps2_preflight;
     host.launch_ps2 = sf_ps2_mount;
+#ifdef SF_PS1_VIDEO_DIAG
+    host.launch_ps1 = launch_ps1_forensic;
+#else
     host.launch_ps1 = sf_ps1_mount;
+#endif
     host.ps1_join_start = sf_ps1_join_start;
     host.ps1_join_poll = sf_ps1_join_poll;
+#ifdef SF_PS1_VIDEO_DIAG
+    host.ps1_join_mount = launch_ps1_staged_forensic;
+#else
     host.ps1_join_mount = sf_ps1_join_mount;
+#endif
     host.ps2_hen_start = sf_ps2_hen_start;
     host.ps2_hen_poll = sf_ps2_hen_poll;
     host.launch_ps3 = sf_cobra_mount_ps3;

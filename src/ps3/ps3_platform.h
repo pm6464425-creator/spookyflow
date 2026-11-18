@@ -16,7 +16,9 @@
 #define SF_COVERS_DIR    SF_DATA_DIR "/covers"   /* processed cover cache (safe to delete) */
 /* V15.32: ONE SNES-focused report, overwritten each SpookyFlow start.
  * The old PS1 TXT is safely deleted via an explicit allowlist. */
-#ifdef SF_VIDEO_ONLY_DIAG
+#if defined(SF_PS1_VIDEO_DIAG)
+#define SF_DIAG_SINGLE_PATH SF_DATA_DIR "/diagnostico_pantalla_ps1.txt"
+#elif defined(SF_VIDEO_ONLY_DIAG)
 #define SF_DIAG_SINGLE_PATH SF_DATA_DIR "/diagnostico_pantalla_snes.txt"
 #else
 #define SF_DIAG_SINGLE_PATH SF_DATA_DIR "/diagnostico_snes.txt"

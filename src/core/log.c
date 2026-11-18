@@ -14,6 +14,16 @@ static int g_echo;
 #define SF_VIDEO_MAX (192u * 1024u)
 #define SF_VIDEO_REUSE_LIMIT (160u * 1024u)
 static size_t s_video_written;
+#if defined(SF_PS1_VIDEO_DIAG)
+static const char s_video_header[] =
+    "SPOOKYFLOW V15.51 - DIAGNOSTICO AVANZADO PANTALLA PS1\n"
+    "Informe exclusivo PS1; registra valores verificados antes del montaje.\n"
+    "SONY PS/PS2 UPSCALER: 0=OFF, 1=NORMAL 4:3, 2=PANTALLA COMPLETA 16:9.\n"
+    "NO se modifica xRegistry.sys ni los emuladores PS1 del sistema.\n"
+    "NO mide pixeles HDMI ni el framebuffer del siguiente proceso PS1.\n"
+    "Unico TXT: /dev_hdd0/tmp/spookyflow/diagnostico_pantalla_ps1.txt\n"
+    "----------------------------------------------------------------------\n";
+#else
 static const char s_video_header[] =
     "SPOOKYFLOW V15.48 - DIAGNOSTICO AVANZADO DE VIDEO SNES\n"
     "DATOS DEL HARDWARE REAL (hasta lanzamiento) y arranque posterior de pSNES.\n"
@@ -21,6 +31,7 @@ static const char s_video_header[] =
     "NO CONFUNDIR una firma correcta del SELF con pantalla completa comprobada.\n"
     "Una unica ruta: /dev_hdd0/tmp/spookyflow/diagnostico_pantalla_snes.txt\n"
     "----------------------------------------------------------------------\n";
+#endif
 static int video_report_open(const char *path)
 {
     FILE *f;
@@ -48,7 +59,11 @@ static int video_report_open(const char *path)
         s_video_written=hlen;
     } else s_video_written=(size_t)size;
     {
+#if defined(SF_PS1_VIDEO_DIAG)
+        static const char start[]="\n========== NUEVA SESION - VIDEO PS1 V15.51 ==========\n";
+#else
         static const char start[]="\n========== NUEVA SESION - VIDEO SNES V15.48 ==========\n";
+#endif
         size_t n=sizeof(start)-1;
         if(fwrite(start,1,n,g_log)!=n || fflush(g_log)!=0) {
             (void)fclose(g_log);g_log=NULL;return -1;
@@ -260,10 +275,19 @@ void log_printf(const char *fmt, ...)
     if(g_log) {
         const char *msg=line+n;
         size_t len=strlen(line);
+#if defined(SF_PS1_VIDEO_DIAG)
+        int is_video=strncmp(msg,"ps1_video_diag: ",16)==0;
+        int is_ps1=strncmp(msg,"PS1_DIAG",8)==0 ||
+                   strncmp(msg,"PS1_MOUNT",9)==0 ||
+                   strncmp(msg,"PS1_JOIN",8)==0 ||
+                   strncmp(msg,"ps1: ",5)==0;
+        if((is_video || is_ps1) && s_video_written+len+1<SF_VIDEO_MAX) {
+#else
         int is_video=strncmp(msg,"video_diag: ",12)==0;
         int is_snes=strncmp(msg,"snes: DIAG_",11)==0 ||
                     strncmp(msg,"snes: handoff pSNES",19)==0;
         if((is_video || is_snes) && s_video_written+len+1<SF_VIDEO_MAX) {
+#endif
             if(fputs(line,g_log)>=0 && fputc('\n',g_log)!=EOF && fflush(g_log)==0)
                 s_video_written+=len+1;
         }

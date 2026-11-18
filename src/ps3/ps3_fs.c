@@ -61,6 +61,7 @@ int ps3_fs_cleanup_legacy_diagnostics(void)
         "diagnostico_portadas.txt",
         "diagnostico_audio.txt",
         "diagnostico_snes.txt",
+        "diagnostico_pantalla_snes.txt",
         "diagnostico_usb_ntfs.txt",
         "cobra_startup_probe.txt",
         "cobra_selection_probe.txt",
@@ -103,7 +104,11 @@ int ps3_fs_cleanup_legacy_diagnostics(void)
                 if(n<=4 || n>=120)continue;
                 if(strncmp(ent.d_name,"diagnostico",11)!=0)continue;
                 if(strcmp(ent.d_name+n-4,".txt")!=0)continue;
+#if defined(SF_PS1_VIDEO_DIAG)
+                if(strcmp(ent.d_name,"diagnostico_pantalla_ps1.txt")==0)continue;
+#else
                 if(strcmp(ent.d_name,"diagnostico_pantalla_snes.txt")==0)continue;
+#endif
                 if(snprintf(full,sizeof(full),"%s/%s",SF_DATA_DIR,ent.d_name)>=(int)sizeof(full))continue;
                 if(sysFsStat(full,&st)!=0 || (st.st_mode & SF_S_IFMT)==SF_S_IFDIR)continue;
                 if(sysFsUnlink(full)==0)removed++;
