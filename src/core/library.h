@@ -6,7 +6,8 @@
 #include <stdint.h>
 #include "layout.h"   /* PLAT_* */
 
-#define LIB_MAX_GAMES   2000          /* per platform tab */
+#define LIB_MAX_GAMES   2000          /* untouched limits for PS1, PS2, PS3, BDISO, SNES */
+#define LIB_ARCADE_MAX_GAMES 10000  /* dedicated arcade-only backing storage */
 #define LIB_POOL_SIZE   (640 * 1024)  /* shared string pool */
 #define LIB_BUCKETS     27            /* 0 = '#', 1..26 = A..Z */
 #define LIB_MAX_DISCS   1024          /* discs of multi-disc games (all tabs) */
@@ -36,7 +37,8 @@ typedef struct {
 } Disc;
 
 typedef struct {
-    Game games[LIB_MAX_GAMES];
+    Game *games;              /* consoles -> original games_local; arcade -> dedicated 10k store */
+    Game games_local[LIB_MAX_GAMES];
     int count;
     int nhidden;              /* 1.1: hidden games, kept after the shown ones (games[count .. count + nhidden)) */
     int first[LIB_BUCKETS];   /* first index of each bucket, -1 if empty */
