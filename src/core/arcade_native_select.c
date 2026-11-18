@@ -190,7 +190,7 @@ int arcade_native_engine_select(const char *game_path,int original_engine,
     char code[96];
     int expected=0,found=0;
     int has_mame;
-    if(original_engine!=ARCADE_ENGINE_FBNEO ||
+    if(original_engine==ARCADE_ENGINE_MAME125 ||
        !rom_code(game_path,code,sizeof code)){
         set_reason(reason,reason_cap,"ORIGINAL_ROUTER_UNCHANGED");
         return original_engine;
