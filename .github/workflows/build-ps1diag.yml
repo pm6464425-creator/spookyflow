@@ -1,0 +1,73 @@
+name: Build PS1 Metal Slug X diagnostic engine
+on:
+  push:
+    branches:
+      - fix/metal-slug-x-start-diagnostic
+    paths:
+      - 'ps1diag/**'
+      - '.github/workflows/build-ps1diag.yml'
+  workflow_dispatch:
+
+jobs:
+  ps1-engine:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare compiler dependencies
+        run: |
+          sudo add-apt-repository multiverse -y
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq git curl make gcc python3 nvidia-cg-toolkit || true
+      - name: PS3 cross compiler
+        run: |
+          mkdir -p ps3dev
+          curl --fail --location --retry 3 \
+            "https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz" |
+            tar -xz -C ps3dev --strip-components=1
+          echo "PS3DEV=$GITHUB_WORKSPACE/ps3dev" >> "$GITHUB_ENV"
+          echo "PSL1GHT=$GITHUB_WORKSPACE/ps3dev" >> "$GITHUB_ENV"
+          echo "$GITHUB_WORKSPACE/ps3dev/bin" >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/ps3dev/ppu/bin" >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/ps3dev/spu/bin" >> "$GITHUB_PATH"
+      - name: Fetch exact PS1 source revision
+        run: |
+          git clone -b ps3 https://github.com/Calyps0man/pcsx_rearmed_for_ps3.git ps1-src
+          cd ps1-src
+          git checkout --detach cce9fc67f46a495d4746aa49cff8e3367a9a315e
+      - name: Apply isolated controller+TXT instrumentation
+        run: |
+          cp ps1diag/main.c ps1-src/ps3/src/main.c
+          cp ps1diag/msx_diag.c ps1diag/msx_diag.h ps1-src/ps3/src/
+          grep -q 'msx_diag_begin' ps1-src/ps3/src/main.c
+          grep -q 'diagnostico_metal_slug_x.txt' ps1-src/ps3/src/msx_diag.c
+          # Existing V15.54 writes aspect=1 and screen_w/h=100.
+          # This patch intentionally does not modify the PS1 video/audio source.
+          cat ps1-src/ps3/src/msx_diag.h
+      - name: Fix PS3 RSX callback compiler clobber
+        run: |
+          f="$PS3DEV/ppu/include/rsx/rsx_function_macros.h"
+          test -f "$f"
+          if ! grep -q '"memory"' "$f"; then
+            sed -i 's/"r31", "r0", "lr"/"r31", "r0", "lr", "memory"/' "$f"
+          fi
+          grep -q '"memory"' "$f"
+      - name: Build PS1 engine
+        env:
+          FE_CFLAGS: '-DAPP_DIR="/dev_hdd0/game/SPKF00001/USRDIR/PS1ENGINE"'
+        run: |
+          command -v ppu-gcc
+          command -v spu-gcc
+          command -v cgcomp
+          command -v cgc
+          cd ps1-src
+          bash ps3/build.sh PS1_ENGINE
+          test -s ps3/build/pkg/USRDIR/EBOOT.BIN
+          mkdir -p ../out
+          cp ps3/build/pkg/USRDIR/EBOOT.BIN ../out/PS1_ENGINE.SELF
+          sha256sum ../out/PS1_ENGINE.SELF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PS1-ENGINE-METAL-SLUG-X-DIAG
+          path: out/PS1_ENGINE.SELF
+          if-no-files-found: error
