@@ -37,6 +37,7 @@
 #include "sf_cobra_mount.h"
 #include "sf_ps2_mount.h"
 #include "sf_ps1_mount.h"
+#include "sf_ps1_engine.h"
 #include "sf_ps1_join.h"
 #include "sf_ps2_hen.h"
 #include "sf_bdiso_ntfs.h"
@@ -175,9 +176,43 @@ static int launch_via_webman(const char *request)
 static int launch_ps1_forensic(const char *path,int emulator)
 {
     int rc;
-    sf_ps1_video_diag_before_launch(path,emulator,"COBRA_NATIVE");
+    sf_ps1_video_diag_before_launch(path,emulator,"PSX_FULLBLEED_PPU_OR_SONY");
+    /* New user-mode graphics engine: full-screen 16:9 is calculated from
+     * the actual PS1 frame into the PS3 RSX. It has its own memory cards.
+     * The old Sony engine stays intact; explicit emulator preference 1
+     * retains the Sony native mounting behavior as a compatibility fallback.
+     * NTFS pointer indexes continue through the original webMAN backend. */
+    if(emulator!=1 && path && path[0]=='/' &&
+       ps3_fs_is_file(NULL,path) && !strstr(path,".ntfs[")) {
+        rc=sf_ps1_engine_ready();
+        if(rc==0) {
+            static char cue_alias[1200];
+            const char *launch_path=path;
+            const char *args[2];
+            int alias_rc=sf_ps1_fullbleed_cue_alias(path,cue_alias,sizeof cue_alias);
+            if(alias_rc==0) launch_path=cue_alias;
+            if(ps3_fs_is_file(NULL,launch_path)) {
+                log_printf("PS1_DIAG STAGE=NEW_NATIVE_RENDERER TARGET=PSXONPS3_FULLSCREEN "
+                           "ROM=%s original=%s alias_rc=%d width=110 height=110 aspect=16:9",
+                           launch_path,path,alias_rc);
+                args[0]=launch_path; /* PS3 supplies executable argv[0] */
+                args[1]=NULL;
+                ps3_audio_stop();
+                g_audio_released_for_launch=1;
+                log_printf("PS1_DIAG STAGE=PSX_SELF_SPAWN APP_TYPE=4 ROM=%s",launch_path);
+                /* On success the SpookyFlow process is replaced. */
+                sysProcessExitSpawn2(sf_ps1_engine_path(),args,NULL,NULL,0,1001,
+                                     SYS_PROCESS_SPAWN_STACK_SIZE_1M);
+                log_printf("PS1_DIAG STAGE=PSX_SELF_SPAWN RESULT=REJECTED "
+                           "FALLBACK=ORIGINAL_SONY_EMULATOR");
+                g_audio_released_for_launch=0;
+            }
+        } else
+            log_printf("PS1_DIAG STAGE=NEW_NATIVE_RENDERER RESULT=UNAVAILABLE rc=%d "
+                       "FALLBACK=SONY",rc);
+    }
     rc=sf_ps1_mount(path,emulator);
-    sf_ps1_video_diag_launch_result("COBRA_NATIVE",rc);
+    sf_ps1_video_diag_launch_result("COBRA_NATIVE_FALLBACK",rc);
     return rc;
 }
 static int launch_ps1_staged_forensic(void)

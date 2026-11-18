@@ -92,6 +92,8 @@ jobs:
             -o build-host/test_v15_52_border_measure
           ./build-host/test_v15_52_border_measure
           python3 tests/test_v15_52_screenshot_diag.py
+      - name: V15.53 PS1 independent source-built RSX video backend and original emulators preserved
+        run: python3 tests/test_v15_53_ps1_engine_integration.py
       - name: V15.44 all-platform game audio handoff and PS3 service cleanup - 20 forensic checks
         run: python3 tests/test_v15_44_audio_handoff.py
       - name: V15.45 isolate SpookyFlow UI sound to diagnose game silence + preserve audio TXT traces
@@ -400,6 +402,14 @@ jobs:
           # same refresh Apollo's CI does: newer sysutil.h from PSL1GHT master
           curl -sL https://github.com/ps3dev/PSL1GHT/raw/master/ppu/include/sysutil/sysutil.h -o ps3dev/ppu/include/sysutil/sysutil.h
 
+      - name: Install NVIDIA Cg shader compiler for independently built PS1 RSX engine
+        if: github.ref == 'refs/heads/fix/v15-53-ps1-integrated-true-fullbleed'
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nvidia-cg-toolkit
+          command -v cgc
+          test -x ps3dev/bin/cgcomp
+
       - name: Build PKG
         run: bash ci/build_ps3.sh
 
@@ -493,6 +503,22 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title 'SpookyFlow V15.52 — diagnóstico medible de franjas PS1' \
             --notes 'DIAGNOSTICO MEDIBLE, NO PARCHE DE SONY PS1 QUE ELIMINE FRANJAS. Conserva pSNES V15.50, audio, controles y PS1/PS2/PS3/BDISO. Informe unico /dev_hdd0/tmp/spookyflow/diagnostico_pantalla_ps1.txt. Si existe una captura real del juego en /dev_hdd0/tmp/spookyflow/captura_ps1.png, analiza pixeles negros en los cuatro lados, dimensiones, porcentaje de bandas, rectangulo activo y confianza. Ausente/invalido: no inventa mediciones. SpookyFlow NO observa automaticamente framebuffer de Sony, no atribuye las bandas a la fuente sin captura. El screenshot nunca se borra ni modifica. Limpieza solo de TXT antiguos; todos los juegos y partidas intactos. Pruebas host de pixeles, compilacion nativa y PKG verificado.'
+      - name: Publish V15.53 built-in PS1 native 16:9 full-bleed engine PKG
+        if: github.ref == 'refs/heads/fix/v15-53-ps1-integrated-true-fullbleed'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-53-ps1-integrated-true-fullbleed" --jq '.commit.sha')
+          if [ "$current" != "$GITHUB_SHA" ]; then echo "Superseded commit: not publishing"; exit 0; fi
+          pkg='SPOOKYFLOW_V15_53_PS1_PANTALLA_COMPLETA_REAL.pkg'
+          cp spookyflow.pkg "$pkg"
+          sha256sum "$pkg"
+          tag="spookyflow-v15-53-ps1-rsx-fullbleed-${GITHUB_SHA:0:8}"
+          gh release create "$tag" "$pkg" --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --prerelease \
+            --title 'SpookyFlow V15.53 — PS1 pantalla completa con motor grafico RSX' \
+            --notes 'V15.53 incluye en el MISMO PKG un motor PS1 abierto PSXonPS3/PCSX-ReARMed compilado y firmado APP SELF con codigo pinneado, salida RSX real a 16:9 y overscan centrado de 110 por ciento para eliminar bandas; SpookyFlow arranca directamente el juego seleccionado desde PSXISO. Los CUE con una BIN y alias regional se normalizan SOLO dentro de /dev_hdd0/tmp/spookyflow/ps1_fullbleed_cues, sin editar CUE ni BIN originales ni sus pistas. Unica salida diagnostica de SpookyFlow: diagnostico_pantalla_ps1.txt. Emulador Sony original sigue intacto y queda como fallback; la preferencia de emulador Netemu usa Sony por compatibilidad. Otros sistemas PS2/PS3/BDISO y SNES V15.50 quedan intactos, igual que caratulas, controles y audio de cada emulador. IMPORTANTE: el motor alternativo PS1 crea sus propias tarjetas en SPKF00001/USRDIR/PS1ENGINE/saves; no importa automaticamente tarjetas Sony VM1 existentes. No hay pruebas de hardware PS3 para este cambio; el paquete y el ejecutable integrados estan compilados y verificados tecnicamente.'
       - uses: actions/upload-artifact@v4
         with:
           name: spookyflow-pkg-${{ env.sha_name }}

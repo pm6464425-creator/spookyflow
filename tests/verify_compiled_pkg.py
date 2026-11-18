@@ -85,6 +85,23 @@ def verify(package):
     assert "Disney Tarzan (Spain).png" in catalog, "Tarzan Spanish cover absent"
     assert "Disney's Tarzan (USA).png" in catalog, "Tarzan USA cover absent"
     print("PASS real bundled Libretro PS1 cover names:", len(catalog))
+    # V15.53: the actual launcher MUST contain the signed, directly spawnable
+    # native PS1 RSX engine, not only a source or a separate installer.
+    px = files.get("USRDIR/PS1ENGINE/PS1_ENGINE.SELF")
+    assert px is not None, "Missing built-in independent PS1 16:9 renderer SELF"
+    assert 150_000 <= len(px) <= 16_000_000
+    assert px[:4] == b"SCE\x00", "PS1 game engine not a PS3 signed SELF"
+    assert struct.unpack_from(">I",px,0x7c)[0]==4, "PS1 SELF must be APP type-4; NPDRM would not spawn"
+    pxhash=hashlib.sha256(px).hexdigest()
+    engheader=Path("src/ps3/sf_ps1_engine_hash.h").read_text()
+    assert ('#define SF_PS1_ENGINE_SELF_SHA256 "'+pxhash+'"') in engheader
+    assert ('#define SF_PS1_ENGINE_SIZE '+str(len(px))+'ULL') in engheader
+    assert 'k_sf_ps1_engine_hash[32]' in engheader
+    assert len(files["USRDIR/PS1ENGINE/ps1titles.txt"])>50000
+    assert b"GPL" in files["USRDIR/PS1ENGINE/LICENSE.txt"]
+    assert b"Calyps0man" in files["USRDIR/PS1ENGINE/SOURCE.txt"]
+    print("PASS V15.53 actual integrated source-built native PS1 FULL_16_9 RSX APP SELF:",len(px),pxhash)
+
     # V15.31: verify the exact new SNES case exists in the built PKG.
     snes_case = files.get("USRDIR/CASES/snes.png")
     assert snes_case is not None, "SNES case PNG missing from installer"

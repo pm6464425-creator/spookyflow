@@ -5,6 +5,7 @@
  * CUE with multiple tracks in one BIN is supported, other formats
  * return -41 to preserve the original webMAN fallback. */
 int sf_ps1_mount(const char *path,int emulator);
+int sf_ps1_fullbleed_cue_alias(const char *cue,char *out,size_t cap);
 /* Mount a completed cache-only merged image with its exact audio track table. */
 int sf_ps1_mount_staged(const char *path,const SfPs1Track *tracks,unsigned n);
 #endif

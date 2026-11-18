@@ -254,6 +254,17 @@ This bundle starts pSNES directly; webMAN and RetroArch are not used by SNES.
 LICENSE_NOTE
 end
 
+# --- integrated native PS1 RSX framebuffer: 16:9 + centered full-bleed -------
+# Pinned GPL PSXonPS3 frontend, built as a signed APP SELF, in THIS PKG.
+# Sony's encrypted PS1 system emulator is never patched or overwritten.
+say "V15.53: build native GPL PSXonPS3 PS3 engine with 16:9 full-bleed RSX"
+bash tools/build_ps1_fullbleed_engine.sh \
+  pkgfiles/USRDIR/PS1ENGINE \
+  /tmp/sf_psxonps3_v15_53_source
+test -s pkgfiles/USRDIR/PS1ENGINE/PS1_ENGINE.SELF
+test -s src/ps3/sf_ps1_engine_hash.h
+end
+
 # --- build ----------------------------------------------------------------------
 say "make pkg (SF_TLS=1, PS2 Classics mandatory)"
 make clean >/dev/null 2>&1 || true

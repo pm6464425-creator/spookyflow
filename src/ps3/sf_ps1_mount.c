@@ -15,6 +15,7 @@
 #include <string.h>
 #include <strings.h>
 #include <sys/stat.h>
+#include <sys/file.h>
 #include <errno.h>
 #include <ppu-lv2.h>
 
@@ -257,4 +258,62 @@ int sf_ps1_mount_staged(const char *path,const SfPs1Track *tracks,unsigned n)
     log_printf("PS1_DIAG STAGE=MULTIBIN_STAGED RESULT=VERIFIED "
                "TRACKS=%u IMAGE=%s",n,path);
     return mount_prepared();
+}
+
+/* Source media remains read-only. Private rewritten CUE for a single, fully
+ * validated BIN/CUE keeps every TRACK and INDEX line exactly as supplied. */
+int sf_ps1_fullbleed_cue_alias(const char *cue,char *out,size_t cap)
+{
+    static const char root[]=SF_DATA_DIR "/ps1_fullbleed_cues";
+    static char target[1200],basename[260];
+    const char *base,*p,*e;
+    unsigned h=2166136261u;
+    size_t i,j;
+    int changed=0,ok=1;
+    FILE *f;
+    if(!cue||!out||cap<4||!ends(cue,".cue"))return -1;
+    out[0]=0;
+    if(read_cue(cue)!=0 || !s_plan.num_tracks)return -2;
+    for(p=cue;*p;p++)h=(h^(unsigned char)*p)*16777619u;
+    base=strrchr(cue,'/');base=base?base+1:cue;
+    for(i=0;i<sizeof(basename)-1&&base[i];i++){
+        unsigned char ch=(unsigned char)base[i];
+        basename[i]=((ch>='a'&&ch<='z')||(ch>='A'&&ch<='Z')||
+          (ch>='0'&&ch<='9')||ch==' '||ch=='-'||ch=='_'||ch=='.')
+          ?(char)ch:'_';
+    }
+    basename[i]=0;
+    if(!basename[0]||snprintf(target,sizeof(target),"%s/%08x_%s",root,h,basename)
+         >=(int)sizeof(target)||strlen(target)>=cap)return -3;
+    if(sysFsMkdir(root,0777)!=0&&!ps3_fs_exists(root))return -4;
+    f=fopen(target,"wb");
+    if(!f)return -5;
+    p=s_text;
+    while(*p&&ok){
+        const char *a=p;
+        size_t len;
+        e=strchr(p,'\n');
+        len=e?(size_t)(e-p+1):strlen(p);
+        while(a<p+len&&(*a==' '||*a=='\t'))a++;
+        if(a+5<=p+len&&!strncasecmp(a,"FILE ",5)){
+            const char *q1=memchr(a,'"',(size_t)(p+len-a));
+            const char *q2=q1?memchr(q1+1,'"',(size_t)(p+len-q1-1)):NULL;
+            if(!q1||!q2||changed){ok=0;break;}
+            j=(size_t)(q1+1-p);
+            if(fwrite(p,1,j,f)!=j)ok=0;
+            j=strlen(s_plan.image);
+            if(ok&&fwrite(s_plan.image,1,j,f)!=j)ok=0;
+            j=(size_t)(p+len-q2);
+            if(ok&&fwrite(q2,1,j,f)!=j)ok=0;
+            changed=1;
+        }else if(fwrite(p,1,len,f)!=len)ok=0;
+        p+=len;
+    }
+    if(!changed||fflush(f)!=0)ok=0;
+    if(fclose(f)!=0)ok=0;
+    if(!ok){remove(target);return -6;}
+    memcpy(out,target,strlen(target)+1);
+    log_printf("PS1_DIAG STAGE=FULLBLEED_CUE_ALIAS RESULT=OK IMAGE=%s TRACKS=%u ORIGINAL=%s",
+                s_plan.image,s_plan.num_tracks,cue);
+    return 0;
 }
