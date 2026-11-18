@@ -91,7 +91,7 @@ jobs:
                     "pkgfiles/USRDIR/MAME125/mame125.SELF",
                     "pkgfiles/USRDIR/RELOAD.SELF"):
               v=Path(n).read_bytes()
-              assert v[:4]==b'SCE\\x00',n
+              assert v[:4]==b'SCE\x00',n
               p=struct.unpack_from('>Q',v,0x28)[0]
               assert struct.unpack_from('>I',v,p+12)[0]==4,n
           c=Path("pkgfiles/USRDIR/retroarch.cfg").read_text()
@@ -99,7 +99,7 @@ jobs:
           assert 'video_aspect_ratio = "1.777800"' in c
           assert 'FBNE00123' not in c
           m=Path("pkgfiles/USRDIR/ARCADE/arcade_engines.tsv").read_text()
-          assert sum(len(l.split("\\t"))==2 for l in m.splitlines() if not l.startswith("#"))>=6500
+          assert sum(len(l.split("\t"))==2 for l in m.splitlines() if not l.startswith("#"))>=6500
           print("PASS: native APP SELF type4, two motors, 16:9 config, DB")
           PY
       - name: Ensure original PS1, PS2, PS3, SNES, BDISO sources are untouched
