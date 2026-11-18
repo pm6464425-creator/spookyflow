@@ -42,7 +42,7 @@ def main():
             manifest.append(dict(path=path,size=sz,flags=flags))
             if (".self" in path.lower() or ".bin" in path.lower() or "retroarch.cfg" in path.lower() or "gamelist" in path.lower() or "game" in path.lower() or "license" in path.lower()):
                 print("POTENTIAL",path,sz,flags,flush=True)
-            if (flags&255)==4 or sz>24*1024*1024:continue
+            if (flags&255)==4 or sz>52*1024*1024:continue
             stem=path.lower()
             core=(
               stem.endswith("/cores/fb_neo.self")
@@ -52,6 +52,11 @@ def main():
               or stem.endswith("/retroarch.cfg")
               or stem.endswith("/db/games.db")
               or stem.endswith("/games.db")
+              or stem.endswith("/retro.db")
+              or stem.endswith("/mame125/init.ini")
+              or stem.endswith("/mame125/cfg/default.cfg")
+              or stem.endswith("/mame125/fonts/ui000-11.bdc")
+              or stem.endswith("/cores/autoconfig/sixaxis controller.cfg")
             )
             if not core:continue
             f.seek(dataoff+off)
