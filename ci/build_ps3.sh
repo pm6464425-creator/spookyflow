@@ -302,6 +302,15 @@ python3 tools/build_arcade_crc_manifest.py \
 test -s pkgfiles/USRDIR/ARCADE/fbneo_ps3_crc_manifest.tsv
 end
 
+# --- Actual MAME 0.125 NeoGeo BIOS + game ROM compatibility -----------------
+# Original MAME tag mame0125, not guessed from modern FBNeo filenames.
+# Only metadata is packaged, NEVER copyrighted BIOS or ROM file bytes.
+say "ARCADE: original MAME0.125 NeoGeo driver checksum table"
+python3 tools/build_arcade_mame0125_catalog.py \
+  --output pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv
+test -s pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv
+end
+
 # --- build ----------------------------------------------------------------------
 say "make pkg (SF_TLS=1, PS2 Classics mandatory)"
 make clean >/dev/null 2>&1 || true
