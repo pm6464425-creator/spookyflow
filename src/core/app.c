@@ -1480,6 +1480,7 @@ static void launch_disc(App *a, int disc)
             else if(rc==-91)app_show_toast(a,"ARCADE: falta un motor incluido");
             else if(rc==-92)app_show_toast(a,"ARCADE: falta configuracion del motor");
             else if(rc==-93)app_show_toast(a,"ARCADE: archivo ZIP no disponible");
+            else if(rc==-95)app_show_toast(a,"ARCADE: no se pudo crear diagnostico_mame.txt");
             else app_show_toast(a,"ARCADE: no se pudo iniciar el juego");
         }
         return;
