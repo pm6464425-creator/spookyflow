@@ -50,6 +50,7 @@ static int code_for_path(const char *path,char *code,size_t cap)
     const char *base,*p;
     size_t n,i;
     if(!path||strncmp(path,"/dev_hdd0/ARCADE/",sizeof("/dev_hdd0/ARCADE/")-1)!=0)return 0;
+    if(strstr(path,"/../") || strstr(path,"/./"))return 0;
     base=strrchr(path,'/');
     base=base?base+1:path;
     n=strlen(base);
