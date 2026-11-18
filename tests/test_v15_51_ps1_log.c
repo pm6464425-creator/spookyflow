@@ -1,4 +1,4 @@
-/* V15.51: exactly one PS1 report, append across XMB sessions, no stale SNES. */
+/* V15.52: exactly one PS1 report, append across XMB sessions, no stale SNES. */
 #include "log.h"
 #include <stdio.h>
 #include <assert.h>
@@ -27,15 +27,15 @@ int main(int argc,char **argv)
     f=fopen(argv[1],"rb");assert(f);
     n=fread(buf,1,sizeof(buf)-1,f);assert(!ferror(f));
     assert(fclose(f)==0);buf[n]=0;
-    assert(strstr(buf,"SPOOKYFLOW V15.51 - DIAGNOSTICO AVANZADO PANTALLA PS1"));
+    assert(strstr(buf,"SPOOKYFLOW V15.52 - DIAGNOSTICO AVANZADO PANTALLA PS1"));
     assert(strstr(buf,"XREGISTRY_READONLY=YES"));
     assert(strstr(buf,"MOUNT_PSX_7027"));
     assert(strstr(buf,"PS1_MOUNT RESULT=OK"));
     assert(strstr(buf,"SECOND_SESSION=YES"));
-    assert(strstr(buf,"NUEVA SESION - VIDEO PS1 V15.51"));
+    assert(strstr(buf,"NUEVA SESION - VIDEO PS1 V15.52"));
     assert(!strstr(buf,"SHOULD_NOT_LEAK"));
     assert(!strstr(buf,"SPOOKYFLOW V15.48"));
     remove(argv[1]);
-    puts("PASS V15.51 single persistent PS1 TXT; correct filter and no old SNES/audio/cover reports");
+    puts("PASS V15.52 single persistent PS1 TXT; correct filter and no old SNES/audio/cover reports");
     return 0;
 }

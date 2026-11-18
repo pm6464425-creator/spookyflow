@@ -16,7 +16,7 @@ static int g_echo;
 static size_t s_video_written;
 #if defined(SF_PS1_VIDEO_DIAG)
 static const char s_video_header[] =
-    "SPOOKYFLOW V15.51 - DIAGNOSTICO AVANZADO PANTALLA PS1\n"
+    "SPOOKYFLOW V15.52 - DIAGNOSTICO AVANZADO PANTALLA PS1\n"
     "Informe exclusivo PS1; registra valores verificados antes del montaje.\n"
     "SONY PS/PS2 UPSCALER: 0=OFF, 1=NORMAL 4:3, 2=PANTALLA COMPLETA 16:9.\n"
     "NO se modifica xRegistry.sys ni los emuladores PS1 del sistema.\n"
@@ -60,7 +60,7 @@ static int video_report_open(const char *path)
     } else s_video_written=(size_t)size;
     {
 #if defined(SF_PS1_VIDEO_DIAG)
-        static const char start[]="\n========== NUEVA SESION - VIDEO PS1 V15.51 ==========\n";
+        static const char start[]="\n========== NUEVA SESION - VIDEO PS1 V15.52 ==========\n";
 #else
         static const char start[]="\n========== NUEVA SESION - VIDEO SNES V15.48 ==========\n";
 #endif

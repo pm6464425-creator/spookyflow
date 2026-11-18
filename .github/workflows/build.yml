@@ -84,6 +84,14 @@ jobs:
             -o build-host/test_v15_51_ps1_log
           ./build-host/test_v15_51_ps1_log /tmp/sf_v15_51_single_ps1_video.txt
           python3 tests/test_v15_51_ps1_integration.py
+      - name: V15.52 real screenshot border measurements PS1
+        run: |
+          cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined \
+            -fno-omit-frame-pointer -Isrc/ps3 \
+            src/ps3/sf_ps1_border_measure.c tests/test_v15_52_border_measure.c \
+            -o build-host/test_v15_52_border_measure
+          ./build-host/test_v15_52_border_measure
+          python3 tests/test_v15_52_screenshot_diag.py
       - name: V15.44 all-platform game audio handoff and PS3 service cleanup - 20 forensic checks
         run: python3 tests/test_v15_44_audio_handoff.py
       - name: V15.45 isolate SpookyFlow UI sound to diagnose game silence + preserve audio TXT traces
@@ -469,25 +477,22 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title 'SpookyFlow V15.50 — SNES pantalla completa en motor grafico' \
             --notes 'V15.50 solo cambia el motor grafico pSNES firmado dentro del PKG y conserva V15.49, incluido audio, controles, caratulas, ROM, PS1/PS2/PS3/BDISO y un solo informe TXT. Parche PPC64 verificado por hash del ELF original: intercepta setScale de C2DUIVideo::updateScaling en el ejecutable pSNES durante el juego, amplia ambos ejes 12 por ciento centrados y vuelve a la funcion original. El resto de instrucciones se conservan byte a byte. Se recompila firma APP SELF y verifica descifrando nuevamente SHA256. Implica recorte de bordes para lograr pantalla sin franjas; requiere validacion visual en PS3 fisica; la compilacion valida integridad, no resultado HDMI.'
-      - name: Publish V15.51 PS1 native full-screen mode and advanced forensic report
-        if: github.ref == 'refs/heads/fix/v15-51-ps1-fullscreen-forensic'
+      - name: Publish V15.52 measured PS1-screen borders and single TXT
+        if: github.ref == 'refs/heads/fix/v15-52-ps1-real-pixel-border-diagnostic'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-51-ps1-fullscreen-forensic" --jq '.commit.sha')
-          if [ "$current" != "$GITHUB_SHA" ]; then
-            echo "Superseded commit: no release"
-            exit 0
-          fi
-          pkg='SPOOKYFLOW_V15_51_PS1_16_9_DIAGNOSTICO_AVANZADO.pkg'
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-52-ps1-real-pixel-border-diagnostic" --jq '.commit.sha')
+          if [ "$current" != "$GITHUB_SHA" ]; then echo "Superseded; no publication"; exit 0; fi
+          pkg='SPOOKYFLOW_V15_52_PS1_DIAGNOSTICO_BORDES_REALES.pkg'
           cp spookyflow.pkg "$pkg"
           sha256sum "$pkg"
-          tag="spookyflow-v15-51-ps1-native-169-${GITHUB_SHA:0:8}"
+          tag="spookyflow-v15-52-ps1-measured-borders-${GITHUB_SHA:0:8}"
           gh release create "$tag" "$pkg" --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" --prerelease \
-            --title 'SpookyFlow V15.51 — PS1 16:9 nativo y diagnóstico avanzado' \
-            --notes 'Conserva SNES V15.50 y audio/controles/portadas de PS1 PS2 PS3 BDISO sin cambios. Para pantalla completa PS1 usa el escalador oficial de Sony PS3: Ajustes > Ajustes de juego > PS / PS2 Mejorador de resolucion > Pantalla completa. No cambia el ajuste global automaticamente por seguridad; el usuario lo activa una vez en XMB. El nuevo /dev_hdd0/tmp/spookyflow/diagnostico_pantalla_ps1.txt verifica de forma solo lectura emuUpConvert 0 Off,1 Normal,2 Full, PS3 HD video, pasos de montaje Cobra, pistas CUE BIN y fallback webMAN. Elimina solamente antiguos informes TXT de la carpeta spookyflow, incluido diagnostico_pantalla_snes.txt; otros datos sin tocar. La visualizacion real requiere prueba en PS3, no se mide desde esta aplicacion.'
+            --title 'SpookyFlow V15.52 — diagnóstico medible de franjas PS1' \
+            --notes 'DIAGNOSTICO MEDIBLE, NO PARCHE DE SONY PS1 QUE ELIMINE FRANJAS. Conserva pSNES V15.50, audio, controles y PS1/PS2/PS3/BDISO. Informe unico /dev_hdd0/tmp/spookyflow/diagnostico_pantalla_ps1.txt. Si existe una captura real del juego en /dev_hdd0/tmp/spookyflow/captura_ps1.png, analiza pixeles negros en los cuatro lados, dimensiones, porcentaje de bandas, rectangulo activo y confianza. Ausente/invalido: no inventa mediciones. SpookyFlow NO observa automaticamente framebuffer de Sony, no atribuye las bandas a la fuente sin captura. El screenshot nunca se borra ni modifica. Limpieza solo de TXT antiguos; todos los juegos y partidas intactos. Pruebas host de pixeles, compilacion nativa y PKG verificado.'
       - uses: actions/upload-artifact@v4
         with:
           name: spookyflow-pkg-${{ env.sha_name }}

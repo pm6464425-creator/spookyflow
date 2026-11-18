@@ -1,4 +1,4 @@
-/* V15.51 PS1 only. Diagnose Sony's NATIVE PS1 full-screen upscaler and
+/* V15.52 PS1 only. Diagnose Sony's NATIVE PS1 full-screen upscaler and
  * SpookyFlow mount preflight, without changing system flash, PS1 audio,
  * VM1 save cards, BIOS, Cobra, or webMAN parameters. */
 #include <stdio.h>
@@ -51,7 +51,7 @@ static void inspect_video(const char *stage)
 }
 void sf_ps1_video_diag_startup(void)
 {
-    log_printf("ps1_video_diag: VERSION=V15.51 FORENSIC_TARGET=PS1_NATIVE_16_9");
+    log_printf("ps1_video_diag: VERSION=V15.52 FORENSIC_TARGET=PS1_NATIVE_16_9");
     log_printf("ps1_video_diag: SOURCE=SONY_PS3_GAME_SETTINGS_PS_UPSCALER");
     log_printf("ps1_video_diag: SYSTEM_UPSCALER=0_OFF_1_NORMAL_4_3_2_FULL_SCREEN_16_9");
     log_printf("ps1_video_diag: SAFETY=NO_FLASH_WRITE_NO_REGISTRY_UPDATE_NO_PS1_EMULATOR_PATCH");

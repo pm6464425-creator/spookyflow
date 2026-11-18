@@ -13,7 +13,7 @@ mk=get("Makefile")
 for k in ("-DSF_VIDEO_ONLY_DIAG=1","-DSF_PS1_VIDEO_DIAG=1"):
     assert k in mk
 assert 'SF_DATA_DIR "/diagnostico_pantalla_ps1.txt"' in platform
-assert 'SPOOKYFLOW V15.51 - DIAGNOSTICO AVANZADO PANTALLA PS1' in log
+assert 'SPOOKYFLOW V15.52 - DIAGNOSTICO AVANZADO PANTALLA PS1' in log
 assert 'strstr(buf,"PASSWORD")' not in reg
 assert '"/dev_flash2/etc/xRegistry.sys"' in video
 assert 'fopen(path,"rb")' in reg
@@ -51,4 +51,4 @@ for path,sha in {
     assert h==sha,(path,h,sha)
 assert 'make_self "$tmp/psnes_edge.elf" "$target"' in get("tools/build_psnes_plain_self.sh")
 assert "sf_snes_force_widescreen(rom_path)" in main
-print("PASS V15.51 PS1 Sony native 16:9 setting detection, one PS1 TXT, safe cleanup and unchanged working SNES/audio/launchers")
+print("PASS V15.52 PS1 Sony native 16:9 setting detection, one PS1 TXT, safe cleanup and unchanged working SNES/audio/launchers")

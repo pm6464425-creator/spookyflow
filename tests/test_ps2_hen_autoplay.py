@@ -27,7 +27,7 @@ checks={
  "17 native PS3 preserved": "a->host.launch_ps3" in a,
  "18 original PS1 preserved": "/mount_ps3%s?random=0" in old,
  "19 BDISO preserved": "a->host.launch_bdiso" in a,
- "20 PS1-only TXT after SNES video finished": "SPOOKYFLOW V15.51 - DIAGNOSTICO AVANZADO PANTALLA PS1" in l and 'strncmp(msg,"PS1_DIAG",8)' in l,
+ "20 PS1-only TXT after SNES video finished": "SPOOKYFLOW V15.52 - DIAGNOSTICO AVANZADO PANTALLA PS1" in l and 'strncmp(msg,"PS1_DIAG",8)' in l,
  "21 main SNES trace version": "snes: DIAG_STARTUP V15.40" in m,
  "22 CD conversion untouched": "cooked_cd_fill(&in,&cdstream,blk,readn)" in h,
  "23 CONFIG stage untouched": "ps2_stage_config(s_job.gameid)" in h,
