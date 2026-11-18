@@ -91,8 +91,7 @@ jobs:
           command -v cgcomp
           command -v cgc
           cd ps1-src
-          bash ps3/build.sh PS1_ENGINE
-          test -s ps3/build/pkg/USRDIR/EBOOT.BIN
+          # The .SELF is generated before the upstream script calls sfo/pkg, which are\n          # absent from this legacy compiler bundle. Accept that packaging failure only\n          # if the generated .SELF actually exists and has a valid SCE header.\n          bash ps3/build.sh PS1_ENGINE || test -s ps3/build/pkg/USRDIR/EBOOT.BIN\n          test -s ps3/build/pkg/USRDIR/EBOOT.BIN\n          test "$(head -c 3 ps3/build/pkg/USRDIR/EBOOT.BIN)" = "SCE"
           mkdir -p ../out
           cp ps3/build/pkg/USRDIR/EBOOT.BIN ../out/PS1_ENGINE.SELF
           sha256sum ../out/PS1_ENGINE.SELF
