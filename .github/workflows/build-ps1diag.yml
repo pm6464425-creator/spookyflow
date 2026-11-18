@@ -52,6 +52,36 @@ jobs:
             sed -i 's/"r31", "r0", "lr"/"r31", "r0", "lr", "memory"/' "$f"
           fi
           grep -q '"memory"' "$f"
+      - name: Make SPU edge-smoothing conversions compatible with older spu-gcc
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("ps1-src/ps3/spu/aa_kernel.h")
+          s=p.read_text()
+          anchor="static inline aa_vf aa_g(aa_vu p)"
+          assert s.count(anchor)==1
+          conversion="""static inline aa_vf aa_to_float(aa_vi a) {
+              return (aa_vf){ (float)a[0], (float)a[1], (float)a[2], (float)a[3] };
+          }
+          static inline aa_vi aa_to_int(aa_vf a) {
+              return (aa_vi){ (int32_t)a[0], (int32_t)a[1], (int32_t)a[2], (int32_t)a[3] };
+          }
+          """
+          s=s.replace(anchor,conversion+anchor)
+          pairs=[
+            ("__builtin_convertvector((aa_vi)((p >> 8) & 255u), aa_vf)","aa_to_float((aa_vi)((p >> 8) & 255u))"),
+            ("__builtin_convertvector((aa_vi)((m >> shift) & 255u), aa_vf)","aa_to_float((aa_vi)((m >> shift) & 255u))"),
+            ("__builtin_convertvector((aa_vi)((n >> shift) & 255u), aa_vf)","aa_to_float((aa_vi)((n >> shift) & 255u))"),
+            ("__builtin_convertvector(rr, aa_vi)","aa_to_int(rr)"),
+            ("__builtin_convertvector(gg, aa_vi)","aa_to_int(gg)"),
+            ("__builtin_convertvector(bb, aa_vi)","aa_to_int(bb)"),
+          ]
+          for a,b in pairs:
+            assert s.count(a)==1,(a,s.count(a))
+            s=s.replace(a,b)
+          assert "__builtin_convertvector" not in s
+          p.write_text(s)
+          PY
       - name: Build PS1 engine
         env:
           FE_CFLAGS: '-DAPP_DIR="/dev_hdd0/game/SPKF00001/USRDIR/PS1ENGINE"'
