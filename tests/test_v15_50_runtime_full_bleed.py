@@ -17,7 +17,7 @@ for data in cases:
     except ValueError:pass
 source=p.read_text()
 for s in ["0x388100c0","0xc00100c0","0xc02100c4","0xec000372","0xec210372",
-          "0xd00100c0","0xd02100c4","wrong","BASE_SHA","load_segment_for",
+          "0xd00100c0","0xd02100c4","Wrong version","BASE_SHA","load_segment_for",
           "execut", "CAVE_BYTES","branch(CAVE_VA+44,SITE_VA+4)"]:
     assert s in source,s
 shell=Path("tools/build_psnes_plain_self.sh").read_text()
