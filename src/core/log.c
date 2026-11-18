@@ -183,7 +183,11 @@ static int snes_launch_trace(const char *msg)
 
 int log_open(const char *path)
 {
-#if defined(SF_VIDEO_ONLY_DIAG)
+#if defined(SF_ARCADE_DIAG_ONLY)
+    (void)path;
+    if(g_log){fclose(g_log);g_log=NULL;}
+    return 0;
+#elif defined(SF_VIDEO_ONLY_DIAG)
     return video_report_open(path);
 #elif defined(SF_SINGLE_DIAG_FILE)
     FILE *prev = NULL;
@@ -271,7 +275,10 @@ void log_printf(const char *fmt, ...)
     va_end(ap);
     /* the library scan logs from a worker thread: serialize file writes */
     while (__sync_lock_test_and_set(&g_lock, 1)) { }
-#if defined(SF_VIDEO_ONLY_DIAG)
+#if defined(SF_ARCADE_DIAG_ONLY)
+    /* No old TXT: only arcade_diag.c writes diagnostico_mame.txt. */
+    (void)line;
+#elif defined(SF_VIDEO_ONLY_DIAG)
     if(g_log) {
         const char *msg=line+n;
         size_t len=strlen(line);
