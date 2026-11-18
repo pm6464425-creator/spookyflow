@@ -823,6 +823,7 @@ static void loading_update(App *a, float dt)
         }
         scanner_begin(&a->scanner, a->host.roots, a->host.nroots);
         scanner_set_reader(&a->scanner, a->host.read_at, a->host.fs_ctx);
+        scanner_set_arcade_page_reader(&a->scanner,a->host.arcade_fs_page);
         scanner_set_bdiso_pointer_filter(&a->scanner,a->host.ntfs_bdiso_online);
         a->scan_async = 0;
         a->scan_busy = 0;
