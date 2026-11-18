@@ -1,9 +1,9 @@
-name: SpookyFlow V15.61 Arcade direct folder and ROM identifiers
+name: SpookyFlow V15.62 Arcade title safety and realistic case
 on:
   workflow_dispatch:
   push:
     branches:
-      - feature/v15-61-arcade-root-and-identifiers
+      - fix/v15-62-arcade-display-cases
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
@@ -55,6 +55,6 @@ jobs:
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-61-ARCADE-IDENTIFICADOR-RAIZ
+          name: SPOOKYFLOW-V15-62-ARCADE-CAJA-REALISTA
           path: spookyflow.pkg
           if-no-files-found: error
