@@ -1467,8 +1467,21 @@ static void launch_disc(App *a, int disc)
         }
     }
     if (a->tab == PLAT_ARCADE) {
-        app_show_toast(a, "Arcade: biblioteca visual lista; emulador pendiente");
-        log_printf("arcade: launch intentionally disabled in visual-only first stage; ROM=%s",path);
+        /* Both native PS3 cores receive ROM path directly on X. No
+         * intermediate emulator chooser and no changes to console paths. */
+        int rc=a->host.launch_arcade ? a->host.launch_arcade(path) : -91;
+        if(rc==0){
+            sf_strlcpy(a->last_launch,name,sizeof(a->last_launch));
+            a->launched=1;
+            app_request_exit(a,"Arcade native engine handoff");
+        }else{
+            log_printf("arcade: direct launch failed rc=%d rom=%s",rc,path);
+            if(rc==-90)app_show_toast(a,"ARCADE: ROM no compatible con los motores PS3");
+            else if(rc==-91)app_show_toast(a,"ARCADE: falta un motor incluido");
+            else if(rc==-92)app_show_toast(a,"ARCADE: falta configuracion del motor");
+            else if(rc==-93)app_show_toast(a,"ARCADE: archivo ZIP no disponible");
+            else app_show_toast(a,"ARCADE: no se pudo iniciar el juego");
+        }
         return;
     }
     if (a->tab == PLAT_BDISO) {
