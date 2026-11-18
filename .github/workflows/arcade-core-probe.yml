@@ -1,0 +1,28 @@
+name: Arcade PS3 FBNeo MAME core investigation
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/v15-65-arcade-dual-launch
+    paths:
+      - 'tools/probe_fbneo_pkg.py'
+      - '.github/workflows/arcade-core-probe.yml'
+jobs:
+  inspect-upstream:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: Fetch official upstream release and inspect contained MAME / FBNeo cores
+        run: |
+          curl --retry 3 --retry-delay 5 --fail --location --silent --show-error \
+            "https://github.com/crystalct/FBNeoRLPlus/releases/download/v2.30/FBNeoRLPlus.New_v2.30_2021-04-27.pkg" \
+            -o /tmp/fbneorlplus-v2.30.pkg
+          ls -lh /tmp/fbneorlplus-v2.30.pkg
+          python3 tools/probe_fbneo_pkg.py /tmp/fbneorlplus-v2.30.pkg /tmp/fbneo_extracted
+          find /tmp/fbneo_extracted -type f | sort
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fbneo-mame-ps3-core-inspection
+          path: /tmp/fbneo_extracted
+          if-no-files-found: error
