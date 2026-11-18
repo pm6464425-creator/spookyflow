@@ -35,20 +35,45 @@ jobs:
           done
           (cd /tmp/sf-elf-audit/scetool && ./scetool -d /tmp/sf-elf-audit/files/USRDIR/EBOOT.BIN /tmp/sf-elf-audit/original.elf)
           printf '%s  %s\n' 6f621a419fc682af878b350e821b7906364c2f3712504bc5d96fe6b0cf5ebadf /tmp/sf-elf-audit/original.elf | sha256sum -c -
+          # scetool reconstructs the runtime ELF segments but omits non-loadable
+          # debugging/SYMTAB tail data. Make an ANALYSIS-ONLY padded clone so
+          # objdump can read valid .text sections. Never sign this cloned ELF.
+          python3 - <<'PY'
+          import pathlib,struct
+          p=pathlib.Path("/tmp/sf-elf-audit/original.elf")
+          raw=p.read_bytes()
+          out=bytearray(raw)
+          shoff=struct.unpack_from(">Q",raw,40)[0]
+          shent=struct.unpack_from(">H",raw,58)[0]
+          shnum=struct.unpack_from(">H",raw,60)[0]
+          assert shnum==36 and shent==64
+          need=len(out)
+          for i in range(shnum):
+              off=shoff+i*shent
+              typ=struct.unpack_from(">I",raw,off+4)[0]
+              sec_off=struct.unpack_from(">Q",raw,off+24)[0]
+              size=struct.unpack_from(">Q",raw,off+32)[0]
+              if typ not in (0,8) and size and sec_off:
+                  need=max(need,sec_off+size)
+          assert len(raw)<need<25_000_000
+          out.extend(b"\x00"*(need-len(out)))
+          pathlib.Path("/tmp/sf-elf-audit/inspect.elf").write_bytes(out)
+          print("PASS non-mutating disassembly clone: original",len(raw),"inspect",len(out))
+          PY
           ppu-readelf -W -l /tmp/sf-elf-audit/original.elf
           ppu-readelf -W -S /tmp/sf-elf-audit/original.elf | tail -55
-          ppu-nm -C /tmp/sf-elf-audit/original.elf > /tmp/sf-elf-audit/symbols.txt || true
-          ppu-readelf -W -s /tmp/sf-elf-audit/original.elf > /tmp/sf-elf-audit/readelf_symbols.txt || true
+          ppu-nm -C /tmp/sf-elf-audit/inspect.elf > /tmp/sf-elf-audit/symbols.txt || true
+          ppu-readelf -W -s /tmp/sf-elf-audit/inspect.elf > /tmp/sf-elf-audit/readelf_symbols.txt || true
           echo '== SYMTAB entry samples =='
           head -48 /tmp/sf-elf-audit/readelf_symbols.txt
           grep -Ei 'tiny3d_Project2D|C2DUIVideo::updateScaling|boot_log|S9xDeinitUpdate|sysLv2FsOpen|sysLv2FsWrite|printf|snprintf|TINY3DRenderer::' /tmp/sf-elf-audit/readelf_symbols.txt | head -95 || true
           echo '== PPC64 C2DUIVideo updateScaling code (verified original offsets) =='
-          ppu-objdump -d -C --start-address=0x1df280 --stop-address=0x1df720 /tmp/sf-elf-audit/original.elf | head -420
+          ppu-objdump -d -C --start-address=0x1df280 --stop-address=0x1df720 /tmp/sf-elf-audit/inspect.elf | sed -n '1,420p'
           echo '== PPC64 Tiny3D_Project2D code =='
-          ppu-objdump -d -C --start-address=0x2c2800 --stop-address=0x2c2d30 /tmp/sf-elf-audit/original.elf | head -400
+          ppu-objdump -d -C --start-address=0x2c2800 --stop-address=0x2c2d30 /tmp/sf-elf-audit/inspect.elf | sed -n '1,400p'
           python3 - <<'PY'
           import subprocess,re
-          p="/tmp/sf-elf-audit/original.elf"
+          p="/tmp/sf-elf-audit/inspect.elf"
           symbols=open("/tmp/sf-elf-audit/symbols.txt").read().splitlines()
           goals=["C2DUIVideo::updateScaling(","tiny3d_Project2D","boot_log(", "S9xDeinitUpdate(","TINY3DRenderer::flip("]
           for goal in goals:
