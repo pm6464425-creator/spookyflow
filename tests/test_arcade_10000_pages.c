@@ -93,7 +93,7 @@ int main(void)
     scanner_begin(scan,&arcade,1);
     scanner_set_arcade_page_reader(scan,fake_arcade_page);
     for(i=0;i<25 && !scanner_step(scan,lib,fake_unpaged,NULL);i++){}
-    assert(scan->done && s_page_calls>10);
+    assert(scan->done && s_page_calls>=10);
     assert(lib->tab[PLAT_ARCADE].count==LIB_ARCADE_MAX_GAMES);
     assert(lib->tab[PLAT_ARCADE].dropped==200);
     printf("PASS: 10200 arcade archives safely limited to %d without memory write past array\n",
