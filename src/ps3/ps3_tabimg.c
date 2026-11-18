@@ -28,7 +28,7 @@ extern const unsigned int g_case_png_size[PLAT_COUNT];
 
 static void load_one(int plat)
 {
-    static const char *const names[PLAT_COUNT] = { "ps1.png", "ps2.png", "ps3.png", "bdiso.png", "snes.png" };
+    static const char *const names[PLAT_COUNT] = { "ps1.png", "ps2.png", "ps3.png", "bdiso.png", "snes.png", "arcade.png" };
     char path[160];
     pngData png;
     unsigned char *rgba = NULL;
@@ -130,7 +130,7 @@ static void load_one(int plat)
             w += 4; h += 4;
         }
     }
-    const int texid = plat == PLAT_BDISO ? TEX_TAB_BDISO : plat == PLAT_SNES ? TEX_TAB_SNES : TEX_TAB_PS1 + plat;
+    const int texid = plat == PLAT_ARCADE ? TEX_TAB_ARCADE : plat == PLAT_BDISO ? TEX_TAB_BDISO : plat == PLAT_SNES ? TEX_TAB_SNES : TEX_TAB_PS1 + plat;
     if (tintable) {
         /* single-color logo: keep only alpha so the UI can tint it (dark on the white pill) */
         size_t i, n = (size_t)w * h;
@@ -160,6 +160,7 @@ static const float k_case_geo[PLAT_COUNT][6] = {
     { 270.0f, 340.0f,  0.0f, 30.0f, 260.0f, 300.0f },
     { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f }, /* BDISO keeps its independent PS3-derived case */
     { 275.0f, 250.0f, 18.0f, 42.0f, 240.0f, 168.0f }, /* SNES physical case + exact window */
+    { 360.0f, 530.0f, 50.0f, 52.0f, 291.0f, 430.0f }, /* Arcade portrait case: real visible 291:430 window */
 };
 
 static int load_case(int plat, const char *path)
@@ -168,11 +169,13 @@ static int load_case(int plat, const char *path)
     unsigned char *rgba;
     u32 x, y, w, h;
     const float *g = k_case_geo[plat];
-    const int texid = plat == PLAT_SNES ? TEX_CASE_SNES : TEX_CASE_PS1 + plat;
+    const int texid = plat == PLAT_ARCADE ? TEX_CASE_ARCADE : plat == PLAT_SNES ? TEX_CASE_SNES : TEX_CASE_PS1 + plat;
     memset(&png, 0, sizeof(png));
     /* SNES packaged default, user custom case in SF_CASES_DIR always wins. */
     if (plat == PLAT_SNES && !ps3_fs_exists(path))
         path = "/dev_hdd0/game/" SF_APPID "/USRDIR/CASES/snes.png";
+    if (plat == PLAT_ARCADE && !ps3_fs_exists(path))
+        path = "/dev_hdd0/game/" SF_APPID "/USRDIR/CASES/arcade.png";
     if (ps3_fs_exists(path)) {
         ps3_decode_lock();
         if (pngLoadFromFile(path, &png) != 0 || !png.bmp_out) {
@@ -250,6 +253,8 @@ static void load_case_images(void)
     /* Load SNES alone using its own texture slot and horizontal case window. */
     if (!load_case(PLAT_SNES, SF_CASES_DIR "/snes.png"))
         log_printf("snes: plastic box unavailable; using flat cover fallback");
+    if (!load_case(PLAT_ARCADE, SF_CASES_DIR "/arcade.png"))
+        log_printf("arcade: transparent portrait case unavailable; plain artwork fallback");
 }
 
 /* ---- built-in Stage background (src/core/stage_data.c) ---- */
