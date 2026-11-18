@@ -45,6 +45,10 @@ typedef struct {
     void *ctx;
     const char *cache_dir;        /* NULL = no disk cache */
     uint16_t *(*pixels)(int slot);   /* slot texture memory (render.h r_cover_pixels) */
+    /* ARCADE ONLY: verified source PNG/JPEG -> small 320x448 baseline JPEG.
+     * Each output is <=180 KiB. The callback returns malloc'd bytes. */
+    int (*arcade_compact_jpeg)(void *ctx,const uint8_t *src,uint32_t src_len,
+                               uint8_t **jpg,uint32_t *jpg_len);
 } CoverIO;
 
 typedef struct {
