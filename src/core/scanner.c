@@ -112,7 +112,6 @@ void scanner_begin(Scanner *s, const ScanRoot *roots, int nroots)
     memset(s, 0, sizeof(*s));
     s->roots = roots;
     s->nroots = nroots;
-    arcade_catalog_init(); /* arcade only; missing catalogue keeps raw ROM titles */
 }
 
 void scanner_set_reader(Scanner *s, ReadAtFn rd, void *ctx)
