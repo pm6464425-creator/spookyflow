@@ -605,7 +605,7 @@ static void download_start(App *a, int automatic)
      * serial / regional Libretro lookups. PS2, PS3 and BDISO stay offline
      * automatically; manual Download Missing Covers still scans all tabs. */
     for (t = 0; t < PLAT_COUNT; t++) {
-        if (automatic && t != PLAT_SNES && t != PLAT_PS1) continue;
+        if (automatic && t != PLAT_SNES && t != PLAT_PS1 && t != PLAT_ARCADE) continue;
         for (i = 0; i < a->lib->tab[t].count; i++)
             if (!(a->lib->tab[t].games[i].flags & GAME_DEMO)) n++;
     }
@@ -618,7 +618,7 @@ static void download_start(App *a, int automatic)
         for (i = 0; i < a->lib->tab[t].count; i++) {
             const Game *g = &a->lib->tab[t].games[i];
             CoverDlItem *it;
-            if (automatic && t != PLAT_SNES && t != PLAT_PS1) continue;
+            if (automatic && t != PLAT_SNES && t != PLAT_PS1 && t != PLAT_ARCADE) continue;
             if (g->flags & GAME_DEMO) continue;
             it = &d->item[d->n++];
             it->plat = t;
