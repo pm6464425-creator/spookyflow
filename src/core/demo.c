@@ -223,11 +223,18 @@ static const DemoGame k_ps3[] = {
     {"Zone of the Enders HD Collection (USA).iso", "Action", 1, 2, 7000},
 };
 
+/* Visual previews only. No ROM images or arcade emulator are bundled. */
+static const DemoGame k_arcade[] = {
+    {"Neo Bomberman.zip", "Arcade", 0, 0, 0},
+    {"Metal Slug 3.zip", "Arcade", 0, 0, 0},
+};
+
 static const DemoGame *demo_list(int plat, int *n)
 {
     switch (plat) {
     case PLAT_PS1: *n = SF_ARRAY_LEN(k_ps1); return k_ps1;
     case PLAT_PS2: *n = SF_ARRAY_LEN(k_ps2); return k_ps2;
+    case PLAT_ARCADE: *n = SF_ARRAY_LEN(k_arcade); return k_arcade;
     default:       *n = SF_ARRAY_LEN(k_ps3); return k_ps3;
     }
 }
@@ -247,7 +254,10 @@ void demo_fill(Library *lib, int plat)
     for (i = 0; i < n; i++) {
         char path[160];
         /* demo "path" is just a label; launch only logs it */
-        sf_strlcpy(path, "demo:", sizeof(path));
+        if (plat == PLAT_ARCADE)
+            sf_strlcpy(path, "/dev_hdd0/game/SPKF00001/USRDIR/ARCADE/DEMOS/", sizeof(path));
+        else
+            sf_strlcpy(path, "demo:", sizeof(path));
         sf_strlcat(path, d[i].file, sizeof(path));
         lib_add(lib, plat, path, d[i].file, (uint64_t)d[i].mb * 1024u * 1024u,
                 d[i].genre, d[i].pmin, d[i].pmax, GAME_DEMO);
