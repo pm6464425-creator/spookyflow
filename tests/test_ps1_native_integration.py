@@ -19,7 +19,7 @@ chk={
 "PS1 no alteration before guard": "int rc=prepare(path,emulator);" in p and "if(rc!=0){" in p.split("int sf_ps1_mount(const char *path,int emulator)",1)[1].split("return mount_prepared();",1)[0] and "ps1_cobra_version(&v)" in p.split("static int mount_prepared(void)",1)[1].split("cobra_send_fake_disc_eject_event()",1)[0],
 "PS1 undo disc events on error": "if(ejected)(void)cobra_send_fake_disc_insert_event()" in p,
 "PS1 no fake success": 'PS1_DIAG STAGE=MOUNT_PSX_7027 SYS_RC=%d' in p and "if(rc!=0){rc=-44;goto fail;}" in p,
-"PS1 no extra TXT": 'fopen(' not in p.replace('fopen(path,"rb")',''),
+"PS1 no extra TXT; only read-only original source plus private CUE alias": 'fopen(' not in p.replace('fopen(path,"rb")','').replace('fopen(target,"wb")','') and 'SF_DATA_DIR "/ps1_fullbleed_cues"' in p,
 "PS1 supports PSXISO and PSXGAMES": "/PSXISO/" in p and "/PSXGAMES/" in p,
 "PS1 no 2048 sectors": "st.st_size%2352" in p and "RESULT=UNSUPPORTED_SECTOR_OR_TRACK_LAYOUT" in p,
 "PS1 rejects multi-BIN": "++files!=1" in c,
