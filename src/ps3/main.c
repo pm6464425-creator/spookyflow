@@ -416,25 +416,37 @@ static int launch_arcade_native(const char *rom_path)
     const char *exe;
     int engine;
     sysFSStat stat;
+    /* A single report is rewritten on EVERY X press, even when the ROM,
+     * core, BIOS or configuration cannot be opened. The TXT is flushed
+     * before exitspawn so it survives the FBNeo "Wrong romset" screen. */
+    engine=arcade_engine_for_rom(rom_path);
+    exe=engine==ARCADE_ENGINE_MAME125 ? mame :
+        engine==ARCADE_ENGINE_FBNEO ? fbneo : NULL;
+    if(arcade_diag_begin(rom_path,engine,exe,reload,config)!=0){
+        log_printf("arcade: cannot open unique diagnostico_mame.txt");
+        return -95;
+    }
     if(!rom_path || !ps3_fs_is_file(NULL,rom_path)){
+        arcade_diag_event("ROM_ZIP_NO_ENCONTRADO",-93,rom_path);
         log_printf("arcade: direct launch aborted, ZIP missing path=%s",
                    rom_path?rom_path:"NULL");
         return -93;
     }
-    engine=arcade_engine_for_rom(rom_path);
     if(!engine){
+        arcade_diag_event("ROM_NO_IDENTIFICADA_EN_BD_PS3",-90,rom_path);
         log_printf("arcade: no compatible engine in frozen PS3 DB or not ZIP: %s",
                    rom_path);
         return -90;
     }
-    exe=engine==ARCADE_ENGINE_MAME125 ? mame : fbneo;
     if(sysFsStat(exe,&stat)!=0 || stat.st_size<1000000u ||
        !ps3_fs_is_file(NULL,reload)){
+        arcade_diag_event("MOTOR_O_RELOAD_NO_DISPONIBLE",-91,exe);
         log_printf("arcade: verified APP SELF/RELOAD absent engine=%d path=%s",
                    engine,exe);
         return -91;
     }
     if(!ps3_fs_is_file(NULL,config)){
+        arcade_diag_event("CONFIG_16_9_NO_ENCONTRADA",-92,config);
         log_printf("arcade: fullscreen RetroArch config missing: %s",config);
         return -92;
     }
@@ -449,12 +461,16 @@ static int launch_arcade_native(const char *rom_path)
                engine==ARCADE_ENGINE_MAME125?"MAME125":"FBNeo");
     log_printf("arcade: SPAWN_FULL_SCREEN=true aspect=16:9 rom=%s exe=%s",
                rom_path,exe);
+    /* The emulator's runtime screen cannot be intercepted by the prior
+     * process. The durable TXT records this precise handoff boundary. */
+    arcade_diag_event("INTENTANDO_INICIAR_MOTOR_PS3",0,exe);
     /* Correct audio handoff is required before replacing the process. */
     ps3_audio_stop();
     g_audio_released_for_launch=1;
     sysProcessExitSpawn2(exe,args,NULL,NULL,0,1001,
                          SYS_PROCESS_SPAWN_STACK_SIZE_1M);
     /* Reaching this point means LV2 rejected the process replacement. */
+    arcade_diag_event("PS3_RECHAZO_SPAWN",-94,exe);
     log_printf("arcade: APP_SELF_SPAWN_RETURNED error; restoring launcher audio");
 #if !SF_V15_45_AUDIO_ISOLATION_TEST
     ps3_audio_start();
