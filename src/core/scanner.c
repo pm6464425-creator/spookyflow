@@ -341,7 +341,7 @@ static void arcade_set_safe_title(Library *lib,int index,const char *rom,
         if(len>4 && sf_ends_with_i(stem,".zip"))stem[len-4]=0;
         else if(len>3 && sf_ends_with_i(stem,".7z"))stem[len-3]=0;
         if(arcade_title_valid(stem))sf_strlcpy(safe,stem,sizeof safe);
-        else snprintf(safe,sizeof safe,"ROM %s",stem);
+        else sf_strlcpy(safe,"ROM sin identificar",sizeof safe);
         lib_set_title(lib,PLAT_ARCADE,index,safe);
     }
 }
