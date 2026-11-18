@@ -13,8 +13,8 @@ def main(root):
              '#define APP_DIR   "/dev_hdd0/game/SPKF00001/USRDIR/PS1ENGINE"')
     once(com,'#define APP_TITLE "PCSX-ReARMed for PS3"',
              '#define APP_TITLE "SpookyFlow PS1 Graphics Engine"')
-    once(m,'static int app_main(void)\n{',
-           'static char sf_ps1_rom_arg[1100];\nstatic int app_main(void)\n{')
+    once(m,'static void run_game(const char *path)',
+           'static char sf_ps1_rom_arg[1100];\nstatic void run_game(const char *path)')
     once(m,'    config_game_begin(game_name);       /* its own settings (configs/<game>.ini), if it has them */',
           '''    config_game_begin(game_name);       /* its own settings (configs/<game>.ini), if it has them */
     if (sf_ps1_rom_arg[0]) {
