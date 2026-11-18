@@ -21,6 +21,24 @@ int main(void)
     engine=arcade_native_engine_select(ROOT "kof2002.zip",
               ARCADE_ENGINE_MAME125,r,sizeof r);
     assert(engine==ARCADE_ENGINE_MAME125);
-    puts("PASS unrelated arcade platforms unchanged, no re-routing non-FBNeo games");
+    /* Modern BIOS must keep FBNeo for KOF2002; never choose MAME blindly. */
+    assert(rename(ROOT "neogeo.zip",ROOT "neogeo_old_backup.zip")==0);
+    assert(rename(ROOT "neogeo_modern.zip",ROOT "neogeo.zip")==0);
+    engine=arcade_native_engine_select(ROOT "kof2002.zip",
+              ARCADE_ENGINE_FBNEO,r,sizeof r);
+    assert(engine==ARCADE_ENGINE_FBNEO);
+    assert(strstr(r,"MODERN_CORRECT"));
+    assert(rename(ROOT "neogeo.zip",ROOT "neogeo_modern.zip")==0);
+    assert(rename(ROOT "neogeo_old_backup.zip",ROOT "neogeo.zip")==0);
+    /* Simulate missing one declared chip with metadata-only ZIP fixture. */
+    assert(rename(ROOT "kof2002.zip",ROOT "kof2002_full_backup.zip")==0);
+    assert(rename(ROOT "kof2002_missing.zip",ROOT "kof2002.zip")==0);
+    engine=arcade_native_engine_select(ROOT "kof2002.zip",
+              ARCADE_ENGINE_FBNEO,r,sizeof r);
+    assert(engine==ARCADE_ENGINE_NONE);
+    assert(strstr(r,"CRC_MISMATCH"));
+    assert(rename(ROOT "kof2002.zip",ROOT "kof2002_missing.zip")==0);
+    assert(rename(ROOT "kof2002_full_backup.zip",ROOT "kof2002.zip")==0);
+    puts("PASS modern BIOS=>FBNeo; missing chip=>no unsafe launch; unrelated arcade unchanged");
     return 0;
 }
