@@ -37,7 +37,7 @@ static int fake_arcade_page(void *ctx,const char *dir,FsEntry *out,int max,int o
             if(index==0)strcpy(out[n].name,"gng.zip");
             else if(index==1)strcpy(out[n].name,"ghouls.zip");
             else if(index==2)strcpy(out[n].name,"wh1.zip");
-            else snprintf(out[n].name,sizeof(out[n].name,"arcade%05d.%s",index,index%7==0?"7z":"zip");
+            else snprintf(out[n].name,sizeof(out[n].name),"arcade%05d.%s",index,index%7==0?"7z":"zip");
             out[n].size=1000+(uint64_t)index*17u;
         }
         n++;
@@ -61,7 +61,7 @@ int main(void)
     Scanner *scan=(Scanner *)calloc(1,sizeof(*scan));
     const ScanRoot arcade={PLAT_ARCADE,"/dev_hdd0/ARCADE",SRC_HDD_ISO_DIR};
     const ScanRoot ps3={PLAT_PS3,"/dev_hdd0/PS3ISO",SRC_HDD_ISO_DIR};
-    int cycles,i,n,hidden;
+    int cycles,i,hidden;
     assert(lib && scan);
     lib_clear(lib);
     s_total=7500;
