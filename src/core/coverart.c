@@ -22,7 +22,7 @@ enum { F_SF_DL = 0, F_COUNT = 1 };
 static const char *const k_folders[F_COUNT] = { COVER_DL_DIR };
 
 static const char *const k_exts[] = { ".JPG", ".PNG", ".jpg", ".png" };
-static const char *const k_plat_dir[PLAT_COUNT] = { "ps1", "ps2", "ps3", "bdiso", "snes" };
+static const char *const k_plat_dir[PLAT_COUNT] = { "ps1", "ps2", "ps3", "bdiso", "snes", "arcade" };
 
 #define CVR_HEADER 16
 #define CVR_VERSION 6     /* source-policy change: invalidate old cached 320x176 sidecar icons */
@@ -45,7 +45,8 @@ void cover_tex_size(int plat, int *w, int *h)
     switch (plat) {
     case PLAT_PS1: *w = 384; *h = 384; break;   /* square jewel case */
     case PLAT_PS2: *w = 320; *h = 448; break;
-    case PLAT_SNES: *w = 384; *h = 268; break; /* horizontal SNES */   /* tall DVD case */
+    case PLAT_SNES: *w = 384; *h = 268; break; /* horizontal SNES */
+    case PLAT_ARCADE: *w = 300; *h = 448; break; /* portrait Neo Geo MVS cover */   /* tall DVD case */
     default:       *w = 384; *h = 448; break;   /* Blu-ray case */
     }
 }
@@ -167,7 +168,7 @@ int cover_candidates(int plat, const char *game_path, int is_dir, const char *id
     }
     /* SNES: accept user-supplied ROM-pack artwork from its COVERS folder,
        without changing the strict PS1/PS2/PS3/BDISO artwork policy. */
-    if (plat == PLAT_SNES && slash) {
+    if ((plat == PLAT_SNES || plat == PLAT_ARCADE) && slash) {
         char covers[COVER_PATH_MAX];
         size_t dir_len=(size_t)(slash-game_path);
         if (dir_len+8<sizeof(covers)) {
@@ -243,8 +244,8 @@ static void cover_process_impl(const uint8_t *rgba, int w, int h, float aspect,
     /* never cut anything off: a cover close to the case shape is stretched
      * slightly to fill it (as ManaGunZ does); something very different (a
      * wide banner) is shown whole on the dark backdrop */
-    fit = !cinema_fill && ratio > COVER_STRETCH_MAX;
-    if (cinema_fill) {
+    fit = (cinema_fill == 2) || (!cinema_fill && ratio > COVER_STRETCH_MAX);
+    if (cinema_fill == 1) {
         /* BDISO movie posters are never stretched and never letterboxed.
          * Crop from the center to match the exact visible 2:3 case window.
          * Examples: a wide movie poster loses its side edges; a too-tall
@@ -662,7 +663,7 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
     if (!L->probed) probe(L);
 
     sf_strlcpy(id, j->id, sizeof(id));
-    if (!id[0] && j->plat != PLAT_SNES) discid_read(j->plat, j->path, j->is_dir, L->io.read_at, L->io.ctx, id, sizeof(id));
+    if (!id[0] && j->plat != PLAT_SNES && j->plat != PLAT_ARCADE) discid_read(j->plat, j->path, j->is_dir, L->io.read_at, L->io.ctx, id, sizeof(id));
     *year = 0;                     /* no release-year source for now (the cache keeps the field) */
 
     cand = (CoverCand *)malloc(sizeof(CoverCand) * COVER_MAX_CANDS);
@@ -733,7 +734,10 @@ static int load_job(CoverLoader *L, const CoverJob *j, int tw, int th, char *src
                 if(j->plat==PLAT_BDISO)
                     cover_diag("DECOD_OK","path=%s %dx%d",f,w,h);
                 if (w > 0 && h > 0 && w <= COVER_SRC_MAX_DIM && h <= COVER_SRC_MAX_DIM) {
-                    if(j->plat == PLAT_BDISO)
+                    if(j->plat == PLAT_ARCADE)
+                        cover_process_impl(rgba,w,h,cover_art_aspect(j->plat),
+                                           (uint16_t *)L->scratch,tw,th,2); /* NEVER stretch or crop */
+                    else if(j->plat == PLAT_BDISO)
                         cover_process_fill(rgba,w,h,cover_art_aspect(j->plat),
                                            (uint16_t *)L->scratch,tw,th);
                     else
