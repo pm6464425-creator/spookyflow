@@ -1288,7 +1288,9 @@ static void draw_cover(const App *a, int plat, const Game *g, const CoverPos *p,
             d_rect_grad(win.x, win.y, win.w, win.h, shade(col_mul(cc, g_light_top), b, pa), shade(col_mul(cc, g_light_bot), b, pa));
             /* BDISO's only branding is its subtle Blu-ray overlay on the
              * PS3 case below. Other platforms keep their normal title strip. */
-            if (plat != PLAT_BDISO) {
+            if (plat != PLAT_BDISO && plat != PLAT_ARCADE) {
+                /* Arcade's realistic plastic case already contains its own
+                 * polished top label. Do not draw a second cheap black banner. */
                 d_rect(win.x, win.y, win.w, win.h * 0.085f,
                        shade(TH_CASE_HEADER, b, pa * 0.85f));
                 d_text_fit(&g_font_main, win.x + d_xu(win.h * 0.025f), win.y + win.h * 0.045f, win.h * 0.050f,
