@@ -1,0 +1,62 @@
+name: Audit original pSNES 7.2 ELF for safe in-place runtime telemetry
+on:
+  push:
+    branches: [fix/v15-50-psnes-runtime-graphics-probe]
+    paths: [.github/workflows/audit-original-elf-v15-50.yml]
+  workflow_dispatch:
+jobs:
+  original-elf-forensics:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 25
+    env:
+      TOOLCHAIN_URL: https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: tc
+        with:
+          path: ps3dev
+          key: ps3dev-https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz-v1
+      - if: steps.tc.outputs.cache-hit != 'true'
+        run: curl -fLsS --retry 3 "$TOOLCHAIN_URL" | tar xz -C ./
+      - name: Decrypt original pinned pSNES EBOOT for read-only symbol/segment audit
+        run: |
+          set -euo pipefail
+          export PATH="$PWD/ps3dev/bin:$PWD/ps3dev/ppu/bin:$PATH"
+          mkdir -p /tmp/sf-elf-audit
+          curl -fLsS --retry 3 https://github.com/theheroGAC/pemu-ps3/releases/download/7.2/psnes.pkg -o /tmp/sf-elf-audit/psnes.pkg
+          printf '%s  %s\n' 9c7a5f3eae36b08ef6fa0715b61daee343160eac33c3d03fa30ccbe41fc8f7fc /tmp/sf-elf-audit/psnes.pkg | sha256sum -c -
+          python3 tools/bundle_psnes.py --pkg /tmp/sf-elf-audit/psnes.pkg --out /tmp/sf-elf-audit/files --header /tmp/sf-elf-audit/filelist.h
+          git clone -q --depth 1 https://github.com/naehrwert/scetool /tmp/sf-elf-audit/scetool
+          make -s -C /tmp/sf-elf-audit/scetool -j2 CC=g++ LDFLAGS=-lz >/tmp/sf-elf-audit/scetool_make.log 2>&1
+          mkdir -p /tmp/sf-elf-audit/scetool/data
+          for f in keys ldr_curves vsh_curves; do
+            curl -fLsS --retry 3 "https://raw.githubusercontent.com/aldostools/IRISMAN/91ac4e820e76fb9c1bbf9ec0cdd7592deb35f70d/rawseciso/data/$f" -o "/tmp/sf-elf-audit/scetool/data/$f"
+          done
+          (cd /tmp/sf-elf-audit/scetool && ./scetool -d /tmp/sf-elf-audit/files/USRDIR/EBOOT.BIN /tmp/sf-elf-audit/original.elf)
+          printf '%s  %s\n' 6f621a419fc682af878b350e821b7906364c2f3712504bc5d96fe6b0cf5ebadf /tmp/sf-elf-audit/original.elf | sha256sum -c -
+          ppu-readelf -W -l /tmp/sf-elf-audit/original.elf
+          ppu-readelf -W -S /tmp/sf-elf-audit/original.elf | tail -55
+          ppu-nm -C /tmp/sf-elf-audit/original.elf > /tmp/sf-elf-audit/symbols.txt
+          grep -Ei 'tiny3d_Project2D|C2DUIVideo::updateScaling|boot_log|sf_runtime_video|S9xDeinitUpdate|sysLv2FsOpen|sysLv2FsWrite|sysLv2FsClose|printf|snprintf|TINY3DRenderer::' /tmp/sf-elf-audit/symbols.txt | head -95 || true
+          python3 - <<'PY'
+          import subprocess,re
+          p="/tmp/sf-elf-audit/original.elf"
+          symbols=open("/tmp/sf-elf-audit/symbols.txt").read().splitlines()
+          goals=["C2DUIVideo::updateScaling(","tiny3d_Project2D","boot_log(", "S9xDeinitUpdate(","TINY3DRenderer::flip("]
+          for goal in goals:
+              s=[x for x in symbols if goal in x and re.match(r"^[0-9a-fA-F]{8,16} [A-Za-z] ",x)]
+              print("SYMBOL QUERY",goal,"matches",s[:4])
+              if not s: continue
+              start=int(s[0].split()[0],16)
+              cmd=["ppu-objdump","-C","-d","--start-address="+hex(start),"--stop-address="+hex(start+320),p]
+              out=subprocess.run(cmd,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True).stdout
+              print("DISASSEMBLY",goal,"start",hex(start),"\n",out[:19000])
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v15-50-verified-original-psnes72-elf
+          path: |
+            /tmp/sf-elf-audit/original.elf
+            /tmp/sf-elf-audit/symbols.txt
+          retention-days: 7
