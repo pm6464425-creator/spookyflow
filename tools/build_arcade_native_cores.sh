@@ -72,21 +72,20 @@ PY
   make_self "$patched" "$dest" >"$tmp/sign-$file.log" 2>&1 || {
     tail -25 "$tmp/sign-$file.log";exit 1;
   }
-  (cd "$sceto" && ./scetool -d "$(realpath "$dest")" "$tmp/$file.roundtrip.elf") \
+  # Resolve the SELF from the project workspace BEFORE changing cwd
+  # to scetool. A relative path here silently prevented ELF revalidation.
+  absolute_self="$(realpath "$dest")"
+  (cd "$sceto" && ./scetool -d "$absolute_self" "$tmp/$file.roundtrip.elf") \
     > "$tmp/roundtrip-$file.log" 2>&1 || {
       tail -25 "$tmp/roundtrip-$file.log";exit 1;
     }
-  if test -s "$tmp/$file.roundtrip.elf"; then
-    cmp "$patched" "$tmp/$file.roundtrip.elf"
-    echo "PASS: native Arcade APP SELF decrypted ELF byte-identical"
-  else
-    echo "WARN: scetool returned without producing roundtrip ELF for $rel"
-    echo "SCETOOL RE-CHECK OUTPUT:"
-    tail -25 "$tmp/roundtrip-$file.log" || true
-    # Older PS3 make_self/scetool combinations cannot inspect large
-    # re-signed SELF files. Check type 4 and size below instead.
-    test -s "$dest"
-  fi
+  test -s "$tmp/$file.roundtrip.elf" || {
+    echo "FATAL: scetool roundtrip ELF missing for $rel"
+    tail -25 "$tmp/roundtrip-$file.log"
+    exit 1
+  }
+  cmp "$patched" "$tmp/$file.roundtrip.elf"
+  echo "PASS: native Arcade APP SELF decrypted ELF byte-identical"
   python3 - "$dest" <<'PY'
 from pathlib import Path
 import sys,struct
