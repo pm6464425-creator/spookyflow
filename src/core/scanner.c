@@ -300,6 +300,52 @@ static int bd_movie_pointer_duplicate(const Library *lib,const char *name)
     return -1;
 }
 
+/* Arcade-only safety: reject orphaned version fragments such as "16)" and
+ * "17. prototype)" as titles. Never let a malformed DAT entry hide the
+ * actual ROM name. No console platform invokes this code. */
+static int arcade_title_valid(const char *title)
+{
+    unsigned letters=0, digits=0;
+    int brackets=0;
+    const unsigned char *s=(const unsigned char *)title;
+    size_t n=0;
+    if(!s || !*s) return 0;
+    while(*s && n++<TITLE_MAX*2u){
+        if(*s=='(')brackets++;
+        if(*s==')' && --brackets<0)return 0;
+        if((*s>='a'&&*s<='z')||(*s>='A'&&*s<='Z')||*s>=128)letters++;
+        if(*s>='0'&&*s<='9')digits++;
+        s++;
+    }
+    if(*s || brackets!=0) return 0;
+    /* Numeric titles like 1942 or 720 are genuine arcade games. */
+    return letters>=2 || (letters==0 && digits>=3);
+}
+static void arcade_set_safe_title(Library *lib,int index,const char *rom,
+                                  const char *candidate)
+{
+    const char *display;
+    if(candidate && arcade_title_valid(candidate)){
+        if(lib_set_title(lib,PLAT_ARCADE,index,candidate)==0){
+            display=lib_title(lib,&lib->tab[PLAT_ARCADE].games[index]);
+            if(arcade_title_valid(display))return;
+        }
+    }
+    /* Unknown or malformed title: preserve the original ROM stem.
+     * Prefix only truly malformed stems, so digits such as 1942 stay intact.
+     * This is a display fallback, NEVER a ZIP/7z rename. */
+    {
+        char stem[FS_NAME_MAX], safe[FS_NAME_MAX+8];
+        size_t len=strlen(rom);
+        sf_strlcpy(stem,rom,sizeof stem);
+        if(len>4 && sf_ends_with_i(stem,".zip"))stem[len-4]=0;
+        else if(len>3 && sf_ends_with_i(stem,".7z"))stem[len-3]=0;
+        if(arcade_title_valid(stem))sf_strlcpy(safe,stem,sizeof safe);
+        else snprintf(safe,sizeof safe,"ROM %s",stem);
+        lib_set_title(lib,PLAT_ARCADE,index,safe);
+    }
+}
+
 static void scan_iso_dir(Scanner *s, Library *lib, int plat, const char *dir, int n, int depth)
 {
     int i, j, ncue = 0;
@@ -328,15 +374,7 @@ static void scan_iso_dir(Scanner *s, Library *lib, int plat, const char *dir, in
                 int gi = lib_add(lib, plat, path, e->name, e->size, NULL, 0, 0, 0);
                 if (gi >= 0) {
                     s->found[plat]++;
-                    if (title && title[0]) lib_set_title(lib, plat, gi, title);
-                    else if (sf_ends_with_i(e->name, ".7z")) {
-                        /* title_clean() only strips .zip; avoid ".7z" in UI. */
-                        char plain[FS_NAME_MAX];
-                        size_t ln=strlen(e->name);
-                        sf_strlcpy(plain,e->name,sizeof plain);
-                        if(ln>=3 && ln<sizeof plain)plain[ln-3]=0;
-                        lib_set_title(lib, plat, gi, plain);
-                    }
+                    arcade_set_safe_title(lib,gi,e->name,title);
                     log_printf("arcade: ROM_FOUND original=%s title=%s bytes=%llu",
                                e->name,lib_title(lib,&lib->tab[plat].games[gi]),
                                (unsigned long long)e->size);
