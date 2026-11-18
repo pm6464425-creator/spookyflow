@@ -6,6 +6,28 @@
 #include <stdlib.h>
 #include <string.h>
 
+/* Only ARCADE uses this separate memory; all five consoles retain their
+ * original 2000 fixed Game slots and original 640-KB string pool. */
+#define ARCADE_POOL_SIZE (4u * 1024u * 1024u)
+#define ARCADE_OFFSET_FLAG 0x80000000u
+static Game s_arcade_games[LIB_ARCADE_MAX_GAMES];
+static char s_arcade_pool[ARCADE_POOL_SIZE];
+static uint32_t s_arcade_pool_used = 1;
+
+static uint32_t arcade_pool_add(Library *lib, const char *s)
+{
+    size_t n = strlen(s) + 1;
+    uint32_t off;
+    if(n == 1) return 0;
+    if((size_t)s_arcade_pool_used+n > ARCADE_POOL_SIZE){
+        lib->pool_full=1; return 0;
+    }
+    off=s_arcade_pool_used;
+    memcpy(s_arcade_pool+off,s,n);
+    s_arcade_pool_used+=(uint32_t)n;
+    return ARCADE_OFFSET_FLAG | off;
+}
+
 void lib_clear(Library *lib)
 {
     int p;
@@ -13,7 +35,11 @@ void lib_clear(Library *lib)
     lib->pool_used = 1;           /* offset 0 is the empty string */
     lib->pool_full = 0;
     lib->ndiscs = 0;
-    for (p = 0; p < PLAT_COUNT; p++) lib_clear_tab(lib, p);
+    s_arcade_pool_used = 1;
+    for (p = 0; p < PLAT_COUNT; p++) {
+        lib->tab[p].games = p == PLAT_ARCADE ? s_arcade_games : lib->tab[p].games_local;
+        lib_clear_tab(lib,p);
+    }
 }
 
 void lib_clear_tab(Library *lib, int plat)
@@ -44,14 +70,22 @@ int lib_add(Library *lib, int plat, const char *path, const char *raw_name, uint
     char title[TITLE_MAX], id[TITLEID_MAX];
     if (plat < 0 || plat >= PLAT_COUNT) return -1;
     gl = &lib->tab[plat];
-    if (gl->count >= LIB_MAX_GAMES) { gl->dropped++; return -1; }
+    if (gl->count >= (plat == PLAT_ARCADE ? LIB_ARCADE_MAX_GAMES : LIB_MAX_GAMES)) {
+        gl->dropped++; return -1;
+    }
     title_clean(raw_name, title, sizeof(title));
     title_extract_id(raw_name, id, sizeof(id));
     g = &gl->games[gl->count];
     memset(g, 0, sizeof(*g));
-    g->title = pool_add(lib, title);
-    g->path = pool_add(lib, path);
-    g->id = pool_add(lib, id);
+    if (plat == PLAT_ARCADE) {
+        g->title = arcade_pool_add(lib,title);
+        g->path = arcade_pool_add(lib,path);
+        g->id = arcade_pool_add(lib,id);
+    } else {
+        g->title = pool_add(lib,title);
+        g->path = pool_add(lib,path);
+        g->id = pool_add(lib,id);
+    }
     if (lib->pool_full) { gl->dropped++; return -1; }
     g->size = size;
     g->genre = genre;
@@ -65,6 +99,10 @@ int lib_add(Library *lib, int plat, const char *path, const char *raw_name, uint
 
 const char *lib_str(const Library *lib, uint32_t off)
 {
+    if (off & ARCADE_OFFSET_FLAG) {
+        uint32_t i = off & ~ARCADE_OFFSET_FLAG;
+        return i < s_arcade_pool_used ? s_arcade_pool+i : "";
+    }
     if (off >= lib->pool_used) return "";
     return lib->pool + off;
 }
@@ -83,7 +121,7 @@ int lib_set_title(Library *lib, int plat, int index, const char *title)
     g=&lib->tab[plat].games[index];
     if(strcmp(lib_title(lib,g),clean)==0)return 0;
     oldoff=g->title;
-    off=pool_add(lib,clean);
+    off=plat==PLAT_ARCADE ? arcade_pool_add(lib,clean) : pool_add(lib,clean);
     if(!off || off==oldoff)return -1;
     g->title=off;
     g->bucket=(uint8_t)title_bucket(clean,0);
@@ -145,7 +183,7 @@ int lib_apply_hidden(Library *lib, int plat, int (*hidden)(void *ctx, const Libr
                      int show_all)
 {
     GameList *gl = &lib->tab[plat];
-    static Game tmp[LIB_MAX_GAMES];      /* one thread (the main one) */
+    static Game tmp[LIB_ARCADE_MAX_GAMES]; /* supports Arcade 10k; console counts unchanged */
     int total = gl->count + gl->nhidden, i, nv = 0, nh = 0;
     if (!hidden || gl->demo) return 0;
     for (i = 0; i < total; i++) {
