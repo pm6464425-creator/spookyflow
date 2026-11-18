@@ -27,6 +27,9 @@
 #ifndef ARCADE_NATIVE_BIOS_PATH
 #define ARCADE_NATIVE_BIOS_PATH "/dev_hdd0/ARCADE/neogeo.zip"
 #endif
+#ifndef ARCADE_NATIVE_ROM_ROOT
+#define ARCADE_NATIVE_ROM_ROOT "/dev_hdd0/ARCADE/"
+#endif
 #define ARC_MAX_ZIP 512
 #define ARC_TAIL_SIZE 65557u
 
@@ -123,7 +126,7 @@ static int rom_code(const char *path,char *out,size_t max)
     const char *p;
     size_t i,n;
     if(!path || !out || max<4)return 0;
-    if(strncmp(path,"/dev_hdd0/ARCADE/",sizeof("/dev_hdd0/ARCADE/")-1))return 0;
+    if(strncmp(path,ARCADE_NATIVE_ROM_ROOT,sizeof(ARCADE_NATIVE_ROM_ROOT)-1))return 0;
     if(strstr(path,"/../") || strstr(path,"/./"))return 0;
     p=strrchr(path,'/');p=p?p+1:path;
     n=strlen(p);
