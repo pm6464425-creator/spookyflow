@@ -265,6 +265,14 @@ test -s pkgfiles/USRDIR/PS1ENGINE/PS1_ENGINE.SELF
 test -s src/ps3/sf_ps1_engine_hash.h
 end
 
+# --- Arcade-only titles, created from official FBNeo Arcade DAT ----------------
+# Identifies short .zip/.7z names, and is separate from all console engines.
+say "Arcade shortnames: generate authentic FinalBurn Neo title map"
+python3 tools/build_arcade_catalog.py \
+  --output pkgfiles/USRDIR/ARCADE/arcade_titles.tsv --min-count 4000
+test -s pkgfiles/USRDIR/ARCADE/arcade_titles.tsv
+end
+
 # --- build ----------------------------------------------------------------------
 say "make pkg (SF_TLS=1, PS2 Classics mandatory)"
 make clean >/dev/null 2>&1 || true
