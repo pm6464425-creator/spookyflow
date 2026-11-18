@@ -10,6 +10,13 @@ jobs:
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
+      - name: Check Arcade settings compatibility (reproduces original black-screen crash)
+        run: |
+          gcc -std=c99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
+            -fsanitize=address,undefined -fno-omit-frame-pointer -Isrc/core \
+            src/core/settings.c src/core/util.c tests/test_arcade_settings_sixth.c \
+            -o /tmp/test_arcade_settings_sixth
+          /tmp/test_arcade_settings_sixth
       - name: Set up PS3 SDK
         run: |
           echo "PS3DEV=$GITHUB_WORKSPACE/ps3dev" >> "$GITHUB_ENV"
