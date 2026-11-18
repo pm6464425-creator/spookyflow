@@ -64,7 +64,7 @@ def verify(package):
     assert be64(data, 0x18) == len(data), "Declared PKG size differs from actual file"
     assert data[0x30:0x60].startswith(b"UP0001-SPKF00001"), "Application content ID changed"
     count = be32(data, 0x14)
-    assert 2 <= count <= 100, "Invalid item count"
+    assert 2 <= count <= 180, "Invalid item count"  # 100 original + Arcade-only dual engines and config
     decrypted = decrypt_debug_pkg(data)
     table_end = count * 32
     files = {}
