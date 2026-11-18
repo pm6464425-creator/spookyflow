@@ -68,7 +68,7 @@ jobs:
           head -48 /tmp/sf-elf-audit/readelf_symbols.txt
           grep -Ei 'tiny3d_Project2D|C2DUIVideo::updateScaling|boot_log|S9xDeinitUpdate|sysLv2FsOpen|sysLv2FsWrite|printf|snprintf|TINY3DRenderer::' /tmp/sf-elf-audit/readelf_symbols.txt | head -95 || true
           echo '== PPC64 C2DUIVideo updateScaling code (verified original offsets) =='
-          ppu-objdump -d -C --start-address=0x1df280 --stop-address=0x1df720 /tmp/sf-elf-audit/inspect.elf | sed -n '1,420p'
+          ppu-objdump -d -C --start-address=0x1df700 --stop-address=0x1dfd00 /tmp/sf-elf-audit/inspect.elf | sed -n '1,450p'
           echo '== PPC64 Tiny3D_Project2D code =='
           ppu-objdump -d -C --start-address=0x2c2800 --stop-address=0x2c2d30 /tmp/sf-elf-audit/inspect.elf | sed -n '1,400p'
           python3 - <<'PY'
