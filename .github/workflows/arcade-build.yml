@@ -1,9 +1,9 @@
-name: SpookyFlow V15.62 Arcade title safety and realistic case
+name: SpookyFlow V15.63 Arcade 10000 ROMs paging
 on:
   workflow_dispatch:
   push:
     branches:
-      - fix/v15-62-arcade-display-cases
+      - fix/v15-63-arcade-10000-rom-paged-scan
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
@@ -23,6 +23,13 @@ jobs:
             src/core/*.c tests/test_arcade_identification.c tests/null_render.c \
             -lm -lpthread -o /tmp/test_arcade_identification
           /tmp/test_arcade_identification
+      - name: Verify Arcade 7500 ZIP scans, 10000-game boundary and original console limit
+        run: |
+          gcc -std=c99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
+            -fsanitize=address,undefined -fno-omit-frame-pointer -Isrc/core \
+            src/core/*.c tests/test_arcade_10000_pages.c tests/null_render.c \
+            -lm -lpthread -o /tmp/test_arcade_10000_pages
+          /tmp/test_arcade_10000_pages
       - name: Set up PS3 SDK
         run: |
           echo "PS3DEV=$GITHUB_WORKSPACE/ps3dev" >> "$GITHUB_ENV"
@@ -55,6 +62,6 @@ jobs:
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-62-ARCADE-CAJA-REALISTA
+          name: SPOOKYFLOW-V15-63-ARCADE-10000-ROM-CAPACITY
           path: spookyflow.pkg
           if-no-files-found: error
