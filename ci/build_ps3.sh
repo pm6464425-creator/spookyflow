@@ -293,6 +293,15 @@ test -s pkgfiles/USRDIR/MAME125/mame125.SELF
 test -s pkgfiles/USRDIR/ARCADE/arcade_engines.tsv
 end
 
+# --- ARCADE ONLY: authentic old PS3 FBNeo driver ROM CRC manifest ---------
+# The user's screen showed "Wrong romset". Diagnose exact per-chip CRC,
+# missing ZIP members and clone/BIOS dependencies. No changes to ROMs.
+say "ARCADE: freeze the exact FBNeo PS3 CRC manifest for single MAME TXT"
+python3 tools/build_arcade_crc_manifest.py \
+  --output pkgfiles/USRDIR/ARCADE/fbneo_ps3_crc_manifest.tsv
+test -s pkgfiles/USRDIR/ARCADE/fbneo_ps3_crc_manifest.tsv
+end
+
 # --- build ----------------------------------------------------------------------
 say "make pkg (SF_TLS=1, PS2 Classics mandatory)"
 make clean >/dev/null 2>&1 || true
