@@ -31,6 +31,7 @@
 #include "snes_name_match.h"
 #include "sf_snes_bundle.h"
 #include "arcade_engine.h"
+#include "arcade_diag.h"
 #include "sf_snes_diag.h"
 #include "sf_snes_screen.h"
 #include "sf_video_diag.h"
@@ -582,7 +583,11 @@ int main(int argc, const char *argv[])
     /* Create a persistent trace BEFORE any graphics, pad, audio or UI work.
      * This separates an early startup freeze from a Cobra mount freeze. */
     ps3_fs_mkdirs();
-#if defined(SF_PS1_VIDEO_DIAG)
+#if defined(SF_ARCADE_DIAG_ONLY)
+    /* Delete only retired diagnostic files, never ROMs or covers. 
+     * Preserve the last MAME TXT until the next X press overwrites it. */
+    (void)ps3_fs_cleanup_legacy_diagnostics();
+#elif defined(SF_PS1_VIDEO_DIAG)
     {
         int removed=ps3_fs_cleanup_legacy_diagnostics();
         int diag_rc=log_open(SF_DIAG_SINGLE_PATH);
@@ -658,7 +663,9 @@ int main(int argc, const char *argv[])
     rc = ui_upload_textures(g_scratch, sizeof(g_scratch));
     if (rc != 0) log_printf("render: texture upload failed (%d)", rc);
     setup_screen();
-#if defined(SF_PS1_VIDEO_DIAG)
+#if defined(SF_ARCADE_DIAG_ONLY)
+    /* Native Arcade reports are generated only on X. */
+#elif defined(SF_PS1_VIDEO_DIAG)
     sf_ps1_video_diag_startup();
 #elif defined(SF_VIDEO_ONLY_DIAG)
     sf_video_diag_startup();
