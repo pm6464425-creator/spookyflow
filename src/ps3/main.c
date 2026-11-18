@@ -593,6 +593,7 @@ int main(int argc, const char *argv[])
 
     memset(&host, 0, sizeof(host));
     host.fs_list = ps3_fs_list;
+    host.arcade_fs_page = ps3_fs_list_arcade_page;
     host.settings_path = SF_SETTINGS_PATH;
     host.prepare = ps3_load_tab_images;
     host.run_async = run_async;
