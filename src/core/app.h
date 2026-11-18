@@ -132,6 +132,9 @@ typedef struct {
      * background texture (ui_set_background_image). 0 = loaded. */
     const char *bg_dir;
     int (*load_bg_image)(const char *path);
+    /* ARCADE ONLY: enumerate large HDD directories in 1024-item pages.
+     * NULL preserves original scanner behavior for every legacy platform. */
+    FsListPageFn arcade_fs_page;
 } AppHost;
 
 typedef struct {
