@@ -31,6 +31,7 @@
 #include "snes_name_match.h"
 #include "sf_snes_bundle.h"
 #include "arcade_engine.h"
+#include "arcade_native_select.h"
 #include "arcade_diag.h"
 #include "sf_snes_diag.h"
 #include "sf_snes_screen.h"
@@ -415,17 +416,27 @@ static int launch_arcade_native(const char *rom_path)
     const char *args[12];
     const char *exe;
     int engine;
+    char compat_reason[160];
     sysFSStat stat;
     /* A single report is rewritten on EVERY X press, even when the ROM,
      * core, BIOS or configuration cannot be opened. The TXT is flushed
      * before exitspawn so it survives the FBNeo "Wrong romset" screen. */
-    engine=arcade_engine_for_rom(rom_path);
+    /* Detect the exact MAME0125-era NeoGeo BIOS and prove by original
+     * MAME0.125 chip CRCs whether the selected ZIP belongs to that engine.
+     * Keep FBNeo for modern BIOS and all unrelated arcade games. */
+    engine=arcade_native_engine_select(rom_path,
+            arcade_engine_for_rom(rom_path),compat_reason,sizeof compat_reason);
     exe=engine==ARCADE_ENGINE_MAME125 ? mame :
         engine==ARCADE_ENGINE_FBNEO ? fbneo : NULL;
     if(arcade_diag_begin(rom_path,engine,exe,reload,config)!=0){
         log_printf("arcade: cannot open unique diagnostico_mame.txt");
         return -95;
     }
+    arcade_diag_event("RUTA_ARCADE_BIOS_Y_ROMSET_CRC",engine,compat_reason);
+    log_printf("arcade: automatic engine=%s reason=%s rom=%s",
+               engine==ARCADE_ENGINE_MAME125?"MAME0125":
+               engine==ARCADE_ENGINE_FBNEO?"FBNeo":"NONE",
+               compat_reason,rom_path?rom_path:"(null)");
     if(!rom_path || !ps3_fs_is_file(NULL,rom_path)){
         arcade_diag_event("ROM_ZIP_NO_ENCONTRADO",-93,rom_path);
         log_printf("arcade: direct launch aborted, ZIP missing path=%s",
