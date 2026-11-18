@@ -466,7 +466,10 @@ static int launch_arcade_native(const char *rom_path)
     args[2]="-s";args[3]=saves;
     args[4]="-c";args[5]=config;
     args[6]="-S";args[7]=states;
-    args[8]="-L";args[9]=exe;
+    /* Match the verified FBNeoRLPlus PS3 direct-launch argument convention:
+     * the -L loader argument is the installed fb_neo.SELF even when the
+     * independently spawned executable is MAME125/mame125.SELF. */
+    args[8]="-L";args[9]=fbneo;
     args[10]="-v";args[11]=NULL;
     log_printf("arcade: SELECT engine=%s source=FBNeoRLPlus_v2.30_DB",
                engine==ARCADE_ENGINE_MAME125?"MAME125":"FBNeo");
