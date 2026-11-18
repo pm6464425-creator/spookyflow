@@ -168,6 +168,48 @@ int ps3_fs_list(void *ctx, const char *dir, FsEntry *out, int max)
     return n;
 }
 
+/* Arcade-only paged HDD listing: keep the original ps3_fs_list() untouched.
+ * Offsets count valid names, not bytes and not batches; reopening the small
+ * directory handle allows 7000-10000 ROMs without a giant array in RAM. */
+int ps3_fs_list_arcade_page(void *ctx,const char *dir,FsEntry *out,int max,int offset)
+{
+    static const char root[]="/dev_hdd0/ARCADE";
+    const size_t prefix=sizeof(root)-1;
+    s32 fd;
+    sysFSDirent ent;
+    u64 nread=0;
+    int seen=0,n=0,skipped=0;
+    char path[SCAN_PATH_MAX];
+    (void)ctx;
+    if(!dir || strncmp(dir,root,prefix)!=0 ||
+       (dir[prefix]!='\0' && dir[prefix]!='/') ||
+       !out || max<=0 || offset<0) return -1;
+    if(sysFsOpendir(dir,&fd)!=0)return -1;
+    while(n<max){
+        sysFSStat st;
+        size_t len;
+        if(sysFsReaddir(fd,&ent,&nread)!=0 || nread==0)break;
+        if(ent.d_name[0]=='.' &&
+           (ent.d_name[1]=='\0' ||
+            (ent.d_name[1]=='.' && ent.d_name[2]=='\0')))continue;
+        len=strlen(ent.d_name);
+        if(len>=FS_NAME_MAX){skipped++;continue;}
+        if(seen++<offset)continue;
+        memcpy(out[n].name,ent.d_name,len+1);
+        out[n].is_dir=0;
+        out[n].size=0;
+        if(snprintf(path,sizeof(path),"%s/%s",dir,ent.d_name)<(int)sizeof(path) &&
+           sysFsStat(path,&st)==0){
+            out[n].is_dir=(st.st_mode & SF_S_IFMT)==SF_S_IFDIR;
+            out[n].size=out[n].is_dir ? 0 : (uint64_t)st.st_size;
+        }else out[n].is_dir=ent.d_type==SF_DT_DIR;
+        n++;
+    }
+    sysFsClosedir(fd);
+    if(skipped)log_printf("arcade: skipped=%d long filenames dir=%s",skipped,dir);
+    return n;
+}
+
 /* ---- small file operations (PS2 config picker) ---- */
 int ps3_fs_is_file(void *ctx, const char *path)
 {
