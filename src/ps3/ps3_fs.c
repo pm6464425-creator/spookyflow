@@ -45,6 +45,22 @@ void ps3_fs_mkdirs(void)
             (st.st_mode & SF_S_IFMT) != SF_S_IFDIR)
             log_printf("snes: failed to create ROM directory /dev_hdd0/SNES");
     }
+    /* ARCADE is an independent user ROM folder in the HDD root, beside SNES.
+     * Never delete, rename or overwrite user-provided ROMs and artwork. */
+    if (sysFsMkdir("/dev_hdd0/ARCADE", 0777) != 0) {
+        sysFSStat st;
+        if (sysFsStat("/dev_hdd0/ARCADE", &st) != 0 ||
+            (st.st_mode & SF_S_IFMT) != SF_S_IFDIR)
+            log_printf("arcade: could not create /dev_hdd0/ARCADE");
+    }
+    /* Optional original cover scans: /dev_hdd0/ARCADE/COVERS/<rom name>.png
+     * The scanner ignores COVERS as a game folder. */
+    if (sysFsMkdir("/dev_hdd0/ARCADE/COVERS", 0777) != 0) {
+        sysFSStat st;
+        if (sysFsStat("/dev_hdd0/ARCADE/COVERS", &st) != 0 ||
+            (st.st_mode & SF_S_IFMT) != SF_S_IFDIR)
+            log_printf("arcade: could not create /dev_hdd0/ARCADE/COVERS");
+    }
     /* Dedicated processed SNES covers, alongside the existing cache folders. */
     sysFsMkdir(SF_COVERS_DIR "/snes", 0777);
 }
