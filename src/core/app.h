@@ -135,6 +135,8 @@ typedef struct {
     /* ARCADE ONLY: enumerate large HDD directories in 1024-item pages.
      * NULL preserves original scanner behavior for every legacy platform. */
     FsListPageFn arcade_fs_page;
+    /* Only ARCADE: choose and spawn embedded native PS3 MAME/FBNeo core. */
+    int (*launch_arcade)(const char *zip_path);
 } AppHost;
 
 typedef struct {
