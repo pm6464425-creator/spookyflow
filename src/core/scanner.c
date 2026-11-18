@@ -17,6 +17,8 @@ static const ScanRoot k_roots[] = {
     { PLAT_PS3, "/dev_hdd0/GAMEZ",    SRC_HDD_GAME_FOLDERS },
     { PLAT_BDISO, "/dev_hdd0/BDISO", SRC_HDD_ISO_DIR },
     { PLAT_SNES, "/dev_hdd0/SNES", SRC_HDD_ISO_DIR },
+    { PLAT_ARCADE, "/dev_hdd0/ARCADE", SRC_HDD_ISO_DIR },
+    { PLAT_ARCADE, "/dev_hdd0/ROMS/ARCADE", SRC_HDD_ISO_DIR },
     { PLAT_PS3, NTFS_INDEX_DIR,        SRC_NTFS_INDEX },       /* NTFS drives (PS3 + PS1), via webMAN */
 };
 
@@ -57,6 +59,7 @@ const ScanRoot *scanner_roots_with_usb_native(const ScanRoot *base, int nbase,
         { "GAMEZ", PLAT_PS3, SRC_HDD_GAME_FOLDERS }, { "PS2ISO", PLAT_PS2, SRC_HDD_ISO_DIR },
         { "PSXISO", PLAT_PS1, SRC_HDD_ISO_DIR }, { "PSXGAMES", PLAT_PS1, SRC_HDD_ISO_DIR },
         { "BDISO", PLAT_BDISO, SRC_HDD_ISO_DIR }, { "SNES", PLAT_SNES, SRC_HDD_ISO_DIR },
+        { "ARCADE", PLAT_ARCADE, SRC_HDD_ISO_DIR },
     };
     enum { NU = (int)(sizeof(k_usb) / sizeof(k_usb[0])), MAXR = 32 + SCAN_USB_PORTS * NU };
     static ScanRoot roots[MAXR];
@@ -310,8 +313,20 @@ static void scan_iso_dir(Scanner *s, Library *lib, int plat, const char *dir, in
         if (e->name[0] == '.' ) continue;
         if (e->is_dir) {
             if (plat == PLAT_BDISO && sf_stricmp(e->name,"COVERS") == 0) continue;
+            if (plat == PLAT_ARCADE && sf_stricmp(e->name,"COVERS") == 0) continue;
             if (depth == 0 && s->qn < SCAN_QUEUE_MAX && join(path, sizeof(path), dir, e->name))
                 sf_strlcpy(s->queue[s->qn++], path, SCAN_PATH_MAX);
+            continue;
+        }
+        if (plat == PLAT_ARCADE) {
+            /* Arcade sets: show only archive ROMs, never COVERS/ images as games.
+             * Playing is deliberately disabled until a compatible emulator exists. */
+            if ((sf_ends_with_i(e->name, ".zip") || sf_ends_with_i(e->name, ".7z")) &&
+                join(path, sizeof(path), dir, e->name) &&
+                lib_add(lib, plat, path, e->name, e->size, NULL, 0, 0, 0) >= 0) {
+                s->found[plat]++;
+                log_printf("arcade: ROM_FOUND path=%s bytes=%llu", path, (unsigned long long)e->size);
+            }
             continue;
         }
         if (plat == PLAT_SNES) {
