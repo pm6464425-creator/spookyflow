@@ -37,8 +37,15 @@ jobs:
           printf '%s  %s\n' 6f621a419fc682af878b350e821b7906364c2f3712504bc5d96fe6b0cf5ebadf /tmp/sf-elf-audit/original.elf | sha256sum -c -
           ppu-readelf -W -l /tmp/sf-elf-audit/original.elf
           ppu-readelf -W -S /tmp/sf-elf-audit/original.elf | tail -55
-          ppu-nm -C /tmp/sf-elf-audit/original.elf > /tmp/sf-elf-audit/symbols.txt
-          grep -Ei 'tiny3d_Project2D|C2DUIVideo::updateScaling|boot_log|sf_runtime_video|S9xDeinitUpdate|sysLv2FsOpen|sysLv2FsWrite|sysLv2FsClose|printf|snprintf|TINY3DRenderer::' /tmp/sf-elf-audit/symbols.txt | head -95 || true
+          ppu-nm -C /tmp/sf-elf-audit/original.elf > /tmp/sf-elf-audit/symbols.txt || true
+          ppu-readelf -W -s /tmp/sf-elf-audit/original.elf > /tmp/sf-elf-audit/readelf_symbols.txt || true
+          echo '== SYMTAB entry samples =='
+          head -48 /tmp/sf-elf-audit/readelf_symbols.txt
+          grep -Ei 'tiny3d_Project2D|C2DUIVideo::updateScaling|boot_log|S9xDeinitUpdate|sysLv2FsOpen|sysLv2FsWrite|printf|snprintf|TINY3DRenderer::' /tmp/sf-elf-audit/readelf_symbols.txt | head -95 || true
+          echo '== PPC64 C2DUIVideo updateScaling code (verified original offsets) =='
+          ppu-objdump -d -C --start-address=0x1df280 --stop-address=0x1df720 /tmp/sf-elf-audit/original.elf | head -420
+          echo '== PPC64 Tiny3D_Project2D code =='
+          ppu-objdump -d -C --start-address=0x2c2800 --stop-address=0x2c2d30 /tmp/sf-elf-audit/original.elf | head -400
           python3 - <<'PY'
           import subprocess,re
           p="/tmp/sf-elf-audit/original.elf"
