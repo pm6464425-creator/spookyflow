@@ -1282,7 +1282,9 @@ static void draw_cover(const App *a, int plat, const Game *g, const CoverPos *p,
         if (no_cover) {
             const char *title = lib_title(a->lib, g);
             float hue = (float)(sf_hash(title) & 0xFFFF) / 65535.0f;
-            uint32_t cc = sf_hsv(hue, 0.42f, 0.58f, 255);
+            uint32_t cc = plat == PLAT_ARCADE
+                ? 0x222232FFu /* ARCADE only: dark graphite instead of random flat plastic */
+                : sf_hsv(hue, 0.42f, 0.58f, 255);
             d_rect_grad(win.x, win.y, win.w, win.h, shade(col_mul(cc, g_light_top), b, pa), shade(col_mul(cc, g_light_bot), b, pa));
             /* BDISO's only branding is its subtle Blu-ray overlay on the
              * PS3 case below. Other platforms keep their normal title strip. */
@@ -1294,6 +1296,16 @@ static void draw_cover(const App *a, int plat, const Game *g, const CoverPos *p,
             }
             d_text_box(&g_font_main, win.x + win.w * 0.5f, win.y + win.h * 0.40f, win.w * 0.84f, h * 0.068f, 4,
                        shade(0xFFFFFFF0u, b, pa), title);
+            if (plat == PLAT_ARCADE) {
+                /* Keep the exact original ZIP name discoverable even when the
+                 * catalog title is missing. No impact on other categories. */
+                const char *full = lib_path(a->lib, g);
+                const char *file = strrchr(full, '/');
+                file = file ? file + 1 : full;
+                d_text_fit(&g_font_main, win.x + win.w * 0.5f, win.y + win.h * 0.83f,
+                           h * 0.026f, shade(0xCFC7DDFFu, b, pa),
+                           file, ALIGN_CENTER, win.w * 0.90f);
+            }
         }
     }
     if (art > 0.0f) {
