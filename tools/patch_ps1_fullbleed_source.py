@@ -50,6 +50,28 @@ def main(root):
         strcpy(sf_ps1_rom_arg,argv[1]); /* verified path from SpookyFlow */
     }
     if (sysThreadCreate(&t, app_thread, NULL, 1000, APP_STACK, THREAD_JOINABLE, (char *)"pcsx main") != 0''')
+    aa=root/"ps3/spu/aa_kernel.h"
+    s=aa.read_text()
+    old='static inline aa_vf aa_g(aa_vu p) { return __builtin_convertvector((aa_vi)((p >> 8) & 255u), aa_vf); }'
+    assert s.count(old)==1
+    helpers='''/* GCC 4.x spu-gcc supports the native SPU vector conversion intrinsics
+ * but not the newer __builtin_convertvector. Keep the host-test path. */
+#if defined(__SPU__)
+#include <spu_intrinsics.h>
+#define AA_FLOAT(v) spu_convtf((aa_vi)(v), 0)
+#define AA_INT(v) spu_convts((aa_vf)(v), 0)
+#else
+#define AA_FLOAT(v) __builtin_convertvector((v), aa_vf)
+#define AA_INT(v) __builtin_convertvector((v), aa_vi)
+#endif
+'''
+    s=s.replace(old,helpers+'static inline aa_vf aa_g(aa_vu p) { return AA_FLOAT((aa_vi)((p >> 8) & 255u)); }')
+    s=s.replace('__builtin_convertvector((aa_vi)((m >> shift) & 255u), aa_vf)','AA_FLOAT((aa_vi)((m >> shift) & 255u))')
+    s=s.replace('__builtin_convertvector((aa_vi)((n >> shift) & 255u), aa_vf)','AA_FLOAT((aa_vi)((n >> shift) & 255u))')
+    for name in ('rr','gg','bb'):
+        s=s.replace('__builtin_convertvector('+name+', aa_vi)','AA_INT('+name+')')
+    assert s.count('__builtin_convertvector')==3 # comment + two host intrinsics
+    aa.write_text(s)
     s=m.read_text()
     assert 'sf_ps1_rom_arg' in s and 'cfg.aspect=ASPECT_FULL' in s
     print("PASS pinned GPL PSXonPS3: one-arg direct-game launch, real RSX fullbleed 16:9, no emulator-core/audio/pad patches")
