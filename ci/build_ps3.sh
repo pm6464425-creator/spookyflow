@@ -185,6 +185,16 @@ python3 tools/build_snes_boxart_catalog.py \
 test -s pkgfiles/USRDIR/snes_boxart_names.txt
 end
 
+# --- ARCADE ONLY: verified community-maintained flyer/boxart filenames --------
+# Match original ZIP short code via the official FBNeo DAT and check published
+# FBNeo/MAME thumbnail indexes BEFORE attempting a network download on PS3.
+# Never package high-resolution PNGs; PS3 resizes to baseline JPG <=180 KiB.
+say "ARCADE: verified FBNeo + MAME boxart filename index, by ROM shortname"
+python3 tools/build_arcade_cover_index.py \
+  --output pkgfiles/USRDIR/ARCADE/arcade_boxart_index.tsv --min-count 2000
+test -s pkgfiles/USRDIR/ARCADE/arcade_boxart_index.tsv
+end
+
 # V15.35: boxfront scans only. Title screens, logos and gameplay
 # thumbnails are NEVER packaged as alternative SNES covers.
 # Multiple authentic retail regions/editions come from the verified boxart
