@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <stdarg.h>
 #include <unistd.h>
 #include <sys/stat.h>
@@ -596,6 +597,7 @@ static void run_game(const char *path)
     video_begin(); video_clear(0xff000000); video_present();
     if (!retro_load_game(&gi)) {
         logf_("load failed\n");
+        msx_diag_end();
         config_game_end();
         log_game_end();
         return;
@@ -792,12 +794,68 @@ static void run_game(const char *path)
     log_game_end();
 }
 
+/* SpookyFlow may pass a direct ROM path (argv) or a one-time launch ticket.
+ * Preserve the original emulator game-list behaviour if neither is present. */
+static char sf_direct_rom[1024];
+static int sf_is_rom_path(const char *p)
+{
+    const char *dot = strrchr(p,'.');
+    if (!dot || !strchr(p,'/')) return 0;
+    return !strcasecmp(dot,".cue") || !strcasecmp(dot,".bin") ||
+           !strcasecmp(dot,".iso") || !strcasecmp(dot,".img") ||
+           !strcasecmp(dot,".chd") || !strcasecmp(dot,".pbp") ||
+           !strcasecmp(dot,".ccd") || !strcasecmp(dot,".mdf");
+}
+static int sf_take_rom(const char *value)
+{
+    char b[sizeof(sf_direct_rom)];
+    size_t n;
+    const char *p=value;
+    if (!p) return 0;
+    while (*p==' ' || *p=='\t') p++;
+    if (!strncasecmp(p,"path=",5)) p+=5;
+    else if (!strncasecmp(p,"rom=",4)) p+=4;
+    while (*p==' ' || *p=='\t' || *p=='\"') p++;
+    snprintf(b,sizeof b,"%s",p);
+    b[strcspn(b,"\r\n")]=0;
+    n=strlen(b);
+    while (n && (b[n-1]=='\"' || b[n-1]==' ' || b[n-1]=='\t')) b[--n]=0;
+    if (!sf_is_rom_path(b)) return 0;
+    snprintf(sf_direct_rom,sizeof sf_direct_rom,"%s",b);
+    return 1;
+}
+static void sf_pick_launch(int argc, char **argv)
+{
+    int i;
+    static const char *tickets[] = {
+        APP_DIR "/launch.txt",
+        APP_DIR "/launch_ps1.txt",
+        APP_DIR "/ps1_launch.txt",
+        "/dev_hdd0/tmp/spookyflow/ps1_launch.txt",
+        "/dev_hdd0/tmp/spookyflow/launch_ps1.txt",
+        "/dev_hdd0/tmp/spookyflow/ps1_game.txt",
+        "/dev_hdd0/tmp/spookyflow/ps1_path.txt",
+    };
+    /* The PS3 spawn API can supply the selected game as argv[0] or argv[1]. */
+    for (i=0; i<argc && i<32; i++) if (argv && sf_take_rom(argv[i])) return;
+    for (i=0; i<(int)(sizeof(tickets)/sizeof(tickets[0])); i++) {
+        FILE *f=fopen(tickets[i],"r");
+        char line[1024];
+        int got=0;
+        if (!f) continue;
+        while (fgets(line,sizeof line,f)) if (sf_take_rom(line)) { got=1; break; }
+        fclose(f);
+        if (got) { remove(tickets[i]); return; } /* consume successful ticket only */
+    }
+}
+
 static int app_main(void)
 {
     mkdir(APP_DIR "/system", 0777); mkdir(APP_DIR "/saves", 0777);
     mkdir(APP_DIR "/states", 0777); mkdir(APP_DIR "/roms", 0777); mkdir(APP_DIR "/logs", 0777);
     mkdir(APP_DIR "/dumps", 0777);   /* made here, long before a hang report may need it */
     msx_diag_clean_previous();
+    msx_diag_boot(sf_direct_rom);
     log_open();
     logf_("%s " APP_VERSION ", built " __DATE__ " " __TIME__ "\n", APP_TITLE);
     watchdog_start();
@@ -824,7 +882,10 @@ static int app_main(void)
     retro_init();
     hooks_init();
 
-    while (!app_exit_requested) {
+    if (sf_direct_rom[0]) {
+        logf_("SpookyFlow direct PS1 game: %s\n", sf_direct_rom);
+        run_game(sf_direct_rom);
+    } else while (!app_exit_requested) {
         const char *game = menu_run();
         if (!game) break;
         config_save();
@@ -860,7 +921,7 @@ int main(int argc, char **argv)
 {
     sys_ppu_thread_t t;
     u64 ret;
-    (void)argc; (void)argv;
+    sf_pick_launch(argc, argv);
     if (sysThreadCreate(&t, app_thread, NULL, 1000, APP_STACK, THREAD_JOINABLE, (char *)"pcsx main") != 0 &&
         sysThreadCreate(&t, app_thread, NULL, 1000, 1024 * 1024, THREAD_JOINABLE, (char *)"pcsx main") != 0)
         return app_main();   /* should not happen; run on the small stack */
