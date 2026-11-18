@@ -160,7 +160,7 @@ static const float k_case_geo[PLAT_COUNT][6] = {
     { 270.0f, 340.0f,  0.0f, 30.0f, 260.0f, 300.0f },
     { 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f }, /* BDISO keeps its independent PS3-derived case */
     { 275.0f, 250.0f, 18.0f, 42.0f, 240.0f, 168.0f }, /* SNES physical case + exact window */
-    { 360.0f, 530.0f, 50.0f, 52.0f, 291.0f, 430.0f }, /* Arcade portrait case: real visible 291:430 window */
+    { 360.0f, 530.0f, 51.0f, 76.0f, 293.0f, 418.0f }, /* ARCADE only: photo-real transparent case with exactly aligned poster aperture */
 };
 
 static int load_case(int plat, const char *path)
