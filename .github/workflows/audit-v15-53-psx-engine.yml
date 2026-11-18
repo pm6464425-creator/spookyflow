@@ -1,0 +1,53 @@
+name: V15.53 audit pinned PSXonPS3 native PS3 build
+on:
+  push:
+    branches: [fix/v15-53-ps1-integrated-true-fullbleed]
+    paths: [.github/workflows/audit-v15-53-psx-engine.yml, tools/build_ps1_fullbleed_engine.sh, tools/patch_ps1_fullbleed_source.py]
+  workflow_dispatch:
+jobs:
+  build-psx-engine:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    env:
+      TOOLCHAIN_URL: https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        id: tc
+        with:
+          path: ps3dev
+          key: ps3dev-https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz-v1
+      - if: steps.tc.outputs.cache-hit != 'true'
+        run: curl -fLsS --retry 3 "$TOOLCHAIN_URL" | tar xz -C ./
+      - name: Prepare pinned PS3 toolchain and NVIDIA Cg
+        run: |
+          set -euo pipefail
+          export PS3DEV="$PWD/ps3dev"
+          export PSL1GHT="$PS3DEV"
+          export PATH="$PS3DEV/bin:$PS3DEV/ppu/bin:$PS3DEV/spu/bin:$PATH"
+          ppu-gcc --version | head -1
+          command -v spu-gcc
+          command -v ppu-gcc
+          command -v make_self
+          command -v cgcomp || true
+          ls -l "$PSL1GHT/ppu/include/rsx/rsx_function_macros.h" || true
+          sudo sed -i 's/^# deb /deb /g' /etc/apt/sources.list || true
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nvidia-cg-toolkit
+          command -v cgc
+          command -v cgcomp
+      - name: Compile native PCSX PS3 engine with direct ROM argv and forced 16:9 game quad
+        run: |
+          set -euo pipefail
+          export PS3DEV="$PWD/ps3dev"
+          export PSL1GHT="$PS3DEV"
+          export PATH="$PS3DEV/bin:$PS3DEV/ppu/bin:$PS3DEV/spu/bin:$PATH"
+          bash tools/build_ps1_fullbleed_engine.sh "$PWD/pkgfiles/USRDIR/PS1ENGINE" /tmp/psxonps3-audit
+      - uses: actions/upload-artifact@v4
+        with:
+          name: v15-53-psxengine-app-self-build
+          path: |
+            pkgfiles/USRDIR/PS1ENGINE/PS1_ENGINE.SELF
+            pkgfiles/USRDIR/PS1ENGINE/ps1titles.txt
+            src/ps3/sf_ps1_engine_hash.h
+          retention-days: 7
