@@ -43,8 +43,7 @@ int sf_ps1_analyze_rgba(const unsigned char *pixels,unsigned w,unsigned h,
     if(!o)return -1;
     memset(o,0,sizeof(*o));
     if(!pixels || w<100 || h<100 || w>4096 || h>2160 ||
-       (size_t)w>SIZE_MAX/4u || pitch<(uint64_t)w*4u ||
-       (size_t)pitch>SIZE_MAX/h)return -1;
+       pitch<(uint64_t)w*4u || pitch>65536u)return -1; /* max 141 MB for 2160 rows */
     o->width=w;o->height=h;
     while(o->top<h/3 && dark_row(pixels,w,pitch,o->top,0))o->top++;
     while(o->bottom<h/3 && dark_row(pixels,w,pitch,h-1-o->bottom,0))o->bottom++;
