@@ -169,6 +169,9 @@ int cover_candidates(int plat, const char *game_path, int is_dir, const char *id
     }
     /* SNES: accept user-supplied ROM-pack artwork from its COVERS folder,
        without changing the strict PS1/PS2/PS3/BDISO artwork policy. */
+    if (plat == PLAT_ARCADE && name[0] &&
+        strncmp(game_path,"/dev_hdd0/ARCADE/",16)==0)
+        n=add(out,n,max,"/dev_hdd0/ARCADE/COVERS","/",name);
     if (plat == PLAT_ARCADE && strstr(game_path, "/USRDIR/ARCADE/DEMOS/") && name[0])
         n=add(out,n,max,"/dev_hdd0/game/SPKF00001/USRDIR/ARCADE/COVERS","/",name);
     if ((plat == PLAT_SNES || plat == PLAT_ARCADE) && slash) {
@@ -1346,7 +1349,7 @@ void cover_dl_run(CoverDl *d)
                                    arcade_code,(unsigned)len,converted);
                         continue; /* never save heavyweight PNG/JPG */
                     }
-                    snprintf(dest,sizeof(dest),"%s/%s.jpg",COVER_DL_DIR,arcade_code);
+                    snprintf(dest,sizeof(dest),"/dev_hdd0/ARCADE/COVERS/%s.jpg",arcade_code);
                     if(io->write_file &&
                        io->write_file(io->ctx,dest,jpeg,jlen,"",0)==0) {
                         got=1;
