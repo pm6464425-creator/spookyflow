@@ -283,6 +283,16 @@ python3 tools/build_arcade_catalog.py \
 test -s pkgfiles/USRDIR/ARCADE/arcade_titles.tsv
 end
 
+# --- ARCADE native dual-engine runtime; separate from five console engines ---
+# Only game shortnames in v2.30 PS3 DB are eligible; actual ZIP compatibility
+# still depends on correct matching original ROM set and optional external BIOS.
+say "Arcade-only FBNeo + MAME0.125 native PS3 cores, signed APP SELF, 16:9"
+bash tools/build_arcade_native_cores.sh
+test -s pkgfiles/USRDIR/cores/fb_neo.SELF
+test -s pkgfiles/USRDIR/MAME125/mame125.SELF
+test -s pkgfiles/USRDIR/ARCADE/arcade_engines.tsv
+end
+
 # --- build ----------------------------------------------------------------------
 say "make pkg (SF_TLS=1, PS2 Classics mandatory)"
 make clean >/dev/null 2>&1 || true
