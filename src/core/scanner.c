@@ -1,5 +1,6 @@
 /* scanner.c - incremental library scanner. */
 #include "scanner.h"
+#include "arcade_catalog.h"
 #include "title.h"
 #include "movie_spanish.h"
 #include "log.h"
@@ -18,7 +19,6 @@ static const ScanRoot k_roots[] = {
     { PLAT_BDISO, "/dev_hdd0/BDISO", SRC_HDD_ISO_DIR },
     { PLAT_SNES, "/dev_hdd0/SNES", SRC_HDD_ISO_DIR },
     { PLAT_ARCADE, "/dev_hdd0/ARCADE", SRC_HDD_ISO_DIR },
-    { PLAT_ARCADE, "/dev_hdd0/ROMS/ARCADE", SRC_HDD_ISO_DIR },
     { PLAT_PS3, NTFS_INDEX_DIR,        SRC_NTFS_INDEX },       /* NTFS drives (PS3 + PS1), via webMAN */
 };
 
@@ -113,6 +113,7 @@ void scanner_begin(Scanner *s, const ScanRoot *roots, int nroots)
     memset(s, 0, sizeof(*s));
     s->roots = roots;
     s->nroots = nroots;
+    arcade_catalog_init(); /* arcade only; missing catalogue keeps raw ROM titles */
 }
 
 void scanner_set_reader(Scanner *s, ReadAtFn rd, void *ctx)
@@ -322,10 +323,26 @@ static void scan_iso_dir(Scanner *s, Library *lib, int plat, const char *dir, in
             /* Arcade sets: show only archive ROMs, never COVERS/ images as games.
              * Playing is deliberately disabled until a compatible emulator exists. */
             if ((sf_ends_with_i(e->name, ".zip") || sf_ends_with_i(e->name, ".7z")) &&
-                join(path, sizeof(path), dir, e->name) &&
-                lib_add(lib, plat, path, e->name, e->size, NULL, 0, 0, 0) >= 0) {
-                s->found[plat]++;
-                log_printf("arcade: ROM_FOUND path=%s bytes=%llu", path, (unsigned long long)e->size);
+                join(path, sizeof(path), dir, e->name)) {
+                const char *title = arcade_catalog_title(e->name);
+                /* IDs remain tied to the ORIGINAL ZIP/7z basename for covers
+                 * and later emulation. Only the visible title is translated. */
+                int gi = lib_add(lib, plat, path, e->name, e->size, NULL, 0, 0, 0);
+                if (gi >= 0) {
+                    s->found[plat]++;
+                    if (title && title[0]) lib_set_title(lib, plat, gi, title);
+                    else if (sf_ends_with_i(e->name, ".7z")) {
+                        /* title_clean() only strips .zip; avoid ".7z" in UI. */
+                        char plain[FS_NAME_MAX];
+                        size_t ln=strlen(e->name);
+                        sf_strlcpy(plain,e->name,sizeof plain);
+                        if(ln>=3 && ln<sizeof plain)plain[ln-3]=0;
+                        lib_set_title(lib, plat, gi, plain);
+                    }
+                    log_printf("arcade: ROM_FOUND original=%s title=%s bytes=%llu",
+                               e->name,lib_title(lib,&lib->tab[plat].games[gi]),
+                               (unsigned long long)e->size);
+                }
             }
             continue;
         }
