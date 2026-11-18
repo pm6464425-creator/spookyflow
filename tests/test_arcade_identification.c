@@ -14,11 +14,12 @@ static int fake_list(void *ctx,const char *dir,FsEntry *out,int max)
 {
     int n=0;
     (void)ctx;
-    if(max<7)return -1;
+    if(max<9)return -1;
 #define ADD(N,D,S) do{strcpy(out[n].name,N);out[n].is_dir=D;out[n].size=S;n++;}while(0)
     if(!strcmp(dir,"/dev_hdd0/ARCADE")){
         ADD("gng.zip",0,155000); ADD("ghouls.zip",0,1571000);
         ADD("wh1.zip",0,4688000); ADD("unknown.7z",0,4688000);
+        ADD("16).zip",0,555); ADD("17. prototype).zip",0,444);
         ADD("COVERS",1,0); ADD("nested",1,0); ADD("unrelated.txt",0,17);
     }else if(!strcmp(dir,"/dev_hdd0/ARCADE/nested")) {
         ADD("pacman.zip",0,14000);
@@ -34,7 +35,7 @@ int main(int argc,char **argv)
     static const ScanRoot roots[]={{PLAT_ARCADE,"/dev_hdd0/ARCADE",SRC_HDD_ISO_DIR}};
     Scanner *s=(Scanner *)calloc(1,sizeof *s);
     Library *lib=(Library *)calloc(1,sizeof *lib);
-    int n=0,i, gng=0,ghouls=0,wh1=0,pacman=0,other=0;
+    int n=0,i, gng=0,ghouls=0,wh1=0,pacman=0,other=0, malformed=0;
     const ScanRoot *r;
     assert(s && lib);
     r=scanner_default_roots(&n);
@@ -52,8 +53,8 @@ int main(int argc,char **argv)
     scanner_begin(s,roots,1);
     for(i=0;i<20;i++)if(scanner_step(s,lib,fake_list,NULL))break;
     assert(s->done);
-    assert(s->found[PLAT_ARCADE]==5);
-    assert(lib->tab[PLAT_ARCADE].count==5);
+    assert(s->found[PLAT_ARCADE]==7);
+    assert(lib->tab[PLAT_ARCADE].count==7);
     for(i=0;i<lib->tab[PLAT_ARCADE].count;i++){
         const Game *g=&lib->tab[PLAT_ARCADE].games[i];
         const char *p=lib_path(lib,g),*t=lib_title(lib,g);
@@ -62,10 +63,16 @@ int main(int argc,char **argv)
         if(strstr(p,"/wh1.zip")){wh1++;assert(strstr(t,"World Heroes"));}
         if(strstr(p,"/pacman.zip")){pacman++;assert(strstr(t,"Pac"));}
         if(strstr(p,"/unknown.7z")){other++;assert(strcmp(t,"unknown")==0);}
+        if(strstr(p,"/16).zip") || strstr(p,"/17. prototype).zip")){
+            malformed++;
+            assert(strcmp(t,"ROM sin identificar")==0);
+        }
+        assert(strcmp(t,"16)")!=0 && strcmp(t,"15)")!=0 &&
+               strcmp(t,"17. prototype)")!=0);
     }
-    assert(gng==1 && ghouls==1 && wh1==1 && pacman==1 && other==1);
+    assert(gng==1 && ghouls==1 && wh1==1 && pacman==1 && other==1 && malformed==2);
     for(i=0;i<PLAT_COUNT;i++)if(i!=PLAT_ARCADE)assert(lib->tab[i].count==0);
-    printf("PASS: Arcade direct folder, 5 ROMs, no COVERS, ZIP+7z, official names=%d, other platforms untouched\n",arcade_catalog_count());
+    printf("PASS: Arcade direct folder, 7 ROMs, malformed names neutralized, no COVERS, ZIP+7z, official names=%d, other platforms untouched\n",arcade_catalog_count());
     free(s);free(lib);
     return 0;
 }
