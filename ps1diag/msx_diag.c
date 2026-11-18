@@ -13,7 +13,7 @@
 #define DDIR "/dev_hdd0/tmp/spookyflow"
 #define DFILE DDIR "/diagnostico_metal_slug_x.txt"
 static FILE *df;
-static int active, prev_raw=-1, prev_core=-1;
+static int active, target_game, prev_raw=-1, prev_core=-1;
 static unsigned physical_start, core_start, core_calls, blocked_calls;
 static u64 summary_us;
 
@@ -42,6 +42,7 @@ void msx_diag_clean_previous(void)
     d=opendir(DDIR); if (!d) return;
     while ((e=readdir(d))) {
         if (!old_diagnostic(e->d_name)) continue;
+        if (strlen(e->d_name)+sizeof(DDIR)>=sizeof p) continue;
         snprintf(p,sizeof p,"%s/%s",DDIR,e->d_name);
         remove(p);
     }
@@ -54,12 +55,15 @@ static int is_metal_slug_x(const char *name)
         if (isalnum((unsigned char)name[i]))
             b[j++]=(char)tolower((unsigned char)name[i]);
     b[j]=0;
-    return strstr(b,"metalslugx")!=NULL;
+    return strstr(b,"metalslugx")!=NULL ||
+           strstr(b,"slus01212")!=NULL || strstr(b,"sles03575")!=NULL ||
+           strstr(b,"slpm86456")!=NULL || strstr(b,"slps02600")!=NULL ||
+           strstr(b,"slps03449")!=NULL || strstr(b,"scps45490")!=NULL;
 }
 void msx_diag_begin(const char *name,const char *path)
 {
     if (df) { fclose(df); df=NULL; }
-    active=is_metal_slug_x(name);
+    active=1; target_game=is_metal_slug_x(name);
     physical_start=core_start=core_calls=blocked_calls=0;
     prev_raw=prev_core=-1; summary_us=0;
     if (!active) return;
@@ -68,10 +72,11 @@ void msx_diag_begin(const char *name,const char *path)
     if (!df) return;
     say("SpookyFlow Metal Slug X - START diagnostic");
     say("Game: %s | image: %s",name,path);
+    say("Target recognized=%d; digital pad only if 1",target_game);
     say("Log overwritten at each new Metal Slug X launch");
     say("Raw controller input and libretro START are logged separately");
 }
-int msx_diag_active(void) { return active; }
+int msx_diag_active(void) { return target_game; }
 void msx_diag_virtual_pad(const char *type)
 {
     if (active) say("Virtual PS1 controller port 1: %s",type);
@@ -79,7 +84,7 @@ void msx_diag_virtual_pad(const char *type)
 void msx_diag_poll(const pad_state_t *p,int blocked)
 {
     int s; u64 us;
-    if (!active) return;
+    if (!active || !target_game) return;
     s=!!(p->buttons & PAD_START);
     if (s!=prev_raw) {
         if(s) physical_start++;
@@ -96,7 +101,7 @@ void msx_diag_poll(const pad_state_t *p,int blocked)
 }
 void msx_diag_core_start(int start,int blocked)
 {
-    if (!active) return;
+    if (!active || !target_game) return;
     core_calls++;
     if(blocked) blocked_calls++;
     if(start!=prev_core) {
