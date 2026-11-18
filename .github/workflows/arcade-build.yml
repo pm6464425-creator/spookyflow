@@ -1,0 +1,39 @@
+name: Build Arcade V15.58 (visual only)
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feature/v15-58-arcade-tab-case
+jobs:
+  arcade-pkg:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 55
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PS3 SDK
+        run: |
+          echo "PS3DEV=$GITHUB_WORKSPACE/ps3dev" >> "$GITHUB_ENV"
+          echo "PSL1GHT=$GITHUB_WORKSPACE/ps3dev" >> "$GITHUB_ENV"
+          curl --fail --location --retry 3 --silent --show-error             https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz | tar xz -C ./
+          echo "$GITHUB_WORKSPACE/ps3dev/bin" >> "$GITHUB_PATH"
+          echo "$GITHUB_WORKSPACE/ps3dev/ppu/bin" >> "$GITHUB_PATH"
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq nvidia-cg-toolkit python2 || true
+          command -v cgc
+      - name: Build exact V15.53 project + independent Arcade tab
+        run: bash ci/build_ps3.sh
+      - name: Ensure original PS1, PS2, PS3, SNES, BDISO sources are untouched
+        run: |
+          grep -q "PLAT_ARCADE = 5, PLAT_COUNT = 6" src/core/layout.h
+          grep -q "TEX_TAB_ARCADE = 29, TEX_CASE_ARCADE = 30" src/core/render.h
+          grep -q 'emulador pendiente' src/core/app.c
+          test -s spookyflow.pkg
+          python3 tests/verify_compiled_pkg.py spookyflow.pkg
+          sha256sum spookyflow.pkg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SPOOKYFLOW-V15-58-ARCADE-BASE
+          path: spookyflow.pkg
+          if-no-files-found: error
