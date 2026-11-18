@@ -223,11 +223,15 @@ int arcade_native_engine_select(const char *game_path,int original_engine,
     if(expected>0){
         char message[150];
         snprintf(message,sizeof message,
-                 "MAME0125_ZIP_CRC_MISMATCH %d_OF_%d MATCH",
+                 "NEOGEO_OLD_BIOS_MAME0125_CRC_MISMATCH %d_OF_%d",
                  found,expected);
         set_reason(reason,reason_cap,message);
-    }else{
-        set_reason(reason,reason_cap,"MAME0125_GAME_NOT_IN_ORIGINAL_DRIVER");
+        /* FBNeo also requires three modern BIOS CRCs that are not present.
+         * Do not hand off to a core that will certainly reject this set. */
+        return ARCADE_ENGINE_NONE;
     }
+    set_reason(reason,reason_cap,"MAME0125_GAME_NOT_IN_ORIGINAL_DRIVER");
+    /* Other arcade boards are unaffected; unfamiliar NeoGeo shortnames
+     * remain with their originally selected engine for compatibility. */
     return original_engine;
 }
