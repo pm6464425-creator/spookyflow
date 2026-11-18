@@ -1,9 +1,9 @@
-name: SpookyFlow V15.63 Arcade 10000 ROMs paging
+name: SpookyFlow V15.64 Arcade smart lightweight community boxart
 on:
   workflow_dispatch:
   push:
     branches:
-      - fix/v15-63-arcade-10000-rom-paged-scan
+      - feature/v15-64-arcade-covers-smart
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
@@ -30,6 +30,13 @@ jobs:
             src/core/*.c tests/test_arcade_10000_pages.c tests/null_render.c \
             -lm -lpthread -o /tmp/test_arcade_10000_pages
           /tmp/test_arcade_10000_pages
+      - name: Verify Arcade shortname URLs, compact JPG saving, manual covers and unknown ROM safety
+        run: |
+          gcc -std=c99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
+            -fsanitize=address,undefined -fno-omit-frame-pointer -Isrc/core \
+            src/core/*.c tests/test_arcade_cover_source.c tests/null_render.c \
+            -lm -lpthread -o /tmp/test_arcade_cover_source
+          /tmp/test_arcade_cover_source
       - name: Set up PS3 SDK
         run: |
           echo "PS3DEV=$GITHUB_WORKSPACE/ps3dev" >> "$GITHUB_ENV"
@@ -44,6 +51,21 @@ jobs:
           command -v cgc
       - name: Build exact V15.53 project + independent Arcade tab
         run: bash ci/build_ps3.sh
+      - name: Verify compiled Arcade flyer source index contains real published image names
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          f=Path("pkgfiles/USRDIR/ARCADE/arcade_boxart_index.tsv")
+          data=f.read_text(encoding="utf-8")
+          entries=[ln.split("\t") for ln in data.splitlines() if ln and not ln.startswith("#")]
+          assert len(entries)>=2000, len(entries)
+          assert all(len(row)==3 and row[0] for row in entries)
+          indexed=dict((row[0],row[1:]) for row in entries)
+          for name in ("gng","ghouls","mslug3","sf2","wh1"):
+              if name in indexed:
+                  assert any(v.endswith(".png") for v in indexed[name]),(name,indexed[name])
+          print("PASS: verified Libretro arcade mappings",len(entries),"index bytes",f.stat().st_size)
+          PY
       - name: Validate official FBNeo ROM-name catalogue and real ROM scanning
         run: |
           test -s pkgfiles/USRDIR/ARCADE/arcade_titles.tsv
@@ -62,6 +84,6 @@ jobs:
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-63-ARCADE-10000-ROM-CAPACITY
+          name: SPOOKYFLOW-V15-64-ARCADE-CARATULAS-AVANZADAS
           path: spookyflow.pkg
           if-no-files-found: error
