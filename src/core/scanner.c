@@ -120,6 +120,12 @@ void scanner_set_reader(Scanner *s, ReadAtFn rd, void *ctx)
     s->rd_ctx = ctx;
 }
 
+void scanner_set_arcade_page_reader(Scanner *s, FsListPageFn reader)
+{
+    s->arcade_page_list = reader;
+    s->arcade_page_offset = 0;
+}
+
 void scanner_set_bdiso_pointer_filter(Scanner *s, int (*online)(const unsigned char *, size_t))
 {
     s->ntfs_bdiso_online = online;
@@ -548,23 +554,41 @@ static void scan_folders(Scanner *s, Library *lib, int plat, const char *dir, in
     }
 }
 
-static void process(Scanner *s, Library *lib, const ScanRoot *r, const char *dir, int depth, FsListFn list, void *ctx)
+/* Return 1 only when ARCADE has another page in this same directory.
+ * Legacy platform listing/scan calls and their 4096-entry buffers stay
+ * entirely unchanged. */
+static int process(Scanner *s, Library *lib, const ScanRoot *r, const char *dir,
+                   int depth, FsListFn list, void *ctx)
 {
-    int n = list(ctx, dir, s_ent, SCAN_DIR_MAX);
-    s->dirs_listed++;
-    if (n < 0) {
-        if (depth == 0) log_printf("scan: %s not found", dir);
-        else { log_printf("scan: cannot open %s", dir); s->errors++; }
-        return;
+    int arcade_paged=(r->plat==PLAT_ARCADE && s->arcade_page_list!=NULL);
+    int offset=arcade_paged ? s->arcade_page_offset : 0;
+    int n=arcade_paged
+        ? s->arcade_page_list(ctx,dir,s_ent,SCAN_ARCADE_PAGE_SIZE,offset)
+        : list(ctx,dir,s_ent,SCAN_DIR_MAX);
+    if(!offset)s->dirs_listed++;
+    if(n<0){
+        if(depth==0)log_printf("scan: %s not found",dir);
+        else {log_printf("scan: cannot open %s",dir);s->errors++;}
+        if(arcade_paged)s->arcade_page_offset=0;
+        return 0;
     }
-    if (n >= SCAN_DIR_MAX) log_printf("scan: %s has more than %d entries; extra ignored", dir, SCAN_DIR_MAX);
-    log_printf("scan: %s (%d entries)", dir, n);
-    switch (r->kind) {
-    case SRC_HDD_GAME_FOLDERS: if (depth == 0) scan_folders(s, lib, r->plat, dir, n); break;
-    case SRC_NTFS_INDEX: if (depth == 0) scan_ntfs_index(s, lib, dir, n); break;
+    if(!arcade_paged && n>=SCAN_DIR_MAX)
+        log_printf("scan: %s has more than %d entries; extra ignored",dir,SCAN_DIR_MAX);
+    if(arcade_paged)
+        log_printf("arcade: scan page=%d files=%d dir=%s",offset/SCAN_ARCADE_PAGE_SIZE,n,dir);
+    else log_printf("scan: %s (%d entries)",dir,n);
+    switch(r->kind){
+    case SRC_HDD_GAME_FOLDERS: if(depth==0)scan_folders(s,lib,r->plat,dir,n); break;
+    case SRC_NTFS_INDEX: if(depth==0)scan_ntfs_index(s,lib,dir,n); break;
     case SRC_HDD_ISO_DIR:
-    default: scan_iso_dir(s, lib, r->plat, dir, n, depth); break;
+    default:scan_iso_dir(s,lib,r->plat,dir,n,depth);break;
     }
+    if(arcade_paged && n==SCAN_ARCADE_PAGE_SIZE){
+        s->arcade_page_offset+=n;
+        return 1; /* same directory, next page */
+    }
+    if(arcade_paged)s->arcade_page_offset=0;
+    return 0;
 }
 
 int scanner_step(Scanner *s, Library *lib, FsListFn list, void *ctx)
@@ -574,12 +598,10 @@ int scanner_step(Scanner *s, Library *lib, FsListFn list, void *ctx)
     if (s->root_i >= s->nroots) { s->done = 1; return 1; }
     r = &s->roots[s->root_i];
     if (s->phase == 0) {
-        s->qn = 0; s->qi = 0;
-        process(s, lib, r, r->path, 0, list, ctx);
-        s->phase = 1;
+        if(s->arcade_page_offset==0){s->qn=0; s->qi=0;}
+        if(!process(s,lib,r,r->path,0,list,ctx))s->phase=1;
     } else if (s->qi < s->qn) {
-        process(s, lib, r, s->queue[s->qi], 1, list, ctx);
-        s->qi++;
+        if(!process(s,lib,r,s->queue[s->qi],1,list,ctx))s->qi++;
     } else {
         s->root_i++;
         s->phase = 0;
