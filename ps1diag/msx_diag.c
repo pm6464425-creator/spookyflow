@@ -48,6 +48,17 @@ void msx_diag_clean_previous(void)
     }
     closedir(d);
 }
+void msx_diag_boot(const char *launch)
+{
+    mkdir(DDIR,0777);
+    df=fopen(DFILE,"w");
+    if(!df) return;
+    say("SpookyFlow PS1 engine started");
+    say("Direct-launch target: %s",launch && *launch ? launch : "(none/unknown)");
+    say("Waiting to start a PS1 game; this file will be replaced on game load");
+    fclose(df); df=NULL;
+}
+
 static int is_metal_slug_x(const char *name)
 {
     char b[512]; size_t i,j=0;
