@@ -28,7 +28,8 @@ enum {
     TEX_LIVE0 = 24, TEX_LIVE1 = 25,           /* 0.9.6: r_snapshot: what is on screen, small and blurred */
     TEX_TAB_BDISO = 26, TEX_TAB_SNES = 27, /* isolated images, original 0..25 unchanged */
     TEX_CASE_SNES = 28, /* independent SNES 3D box, never aliases a game or stage texture */
-    TEX_COUNT_FIXED = 29
+    TEX_TAB_ARCADE = 29, TEX_CASE_ARCADE = 30, /* arcade-only assets: no PS1/PS2/PS3/SNES/BDISO texture overwritten */
+    TEX_COUNT_FIXED = 31
 };
 
 /* Cover art: R_COVER_SLOTS textures TEX_COVER0 + slot, one per cover cache
