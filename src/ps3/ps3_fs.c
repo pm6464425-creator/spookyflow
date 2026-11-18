@@ -74,6 +74,7 @@ int ps3_fs_cleanup_legacy_diagnostics(void)
         "log.txt",
         "diagnostico.txt", /* previous V15.22 PS2-only report, superseded */
         "diagnostico_ps1.txt", /* old PS1 TXT retired by SNES diagnostic */
+        "diagnostico_pantalla_ps1.txt", /* V15.52 legacy PS1 screen diagnostic */
         "diagnostico_portadas.txt",
         "diagnostico_audio.txt",
         "diagnostico_snes.txt",
@@ -101,7 +102,7 @@ int ps3_fs_cleanup_legacy_diagnostics(void)
         if((st.st_mode & SF_S_IFMT)==SF_S_IFDIR) continue;
         if(sysFsUnlink(path)==0)removed++;
     }
-#ifdef SF_VIDEO_ONLY_DIAG
+#if defined(SF_ARCADE_DIAG_ONLY) || defined(SF_VIDEO_ONLY_DIAG)
     /* User asked to remove all old diagnostics, not user data.
      * Enumerate only this folder and unlink ONLY diagnostico*.txt,
      * skipping the live report, non-regular entries and all subfolders. */
@@ -120,7 +121,11 @@ int ps3_fs_cleanup_legacy_diagnostics(void)
                 if(n<=4 || n>=120)continue;
                 if(strncmp(ent.d_name,"diagnostico",11)!=0)continue;
                 if(strcmp(ent.d_name+n-4,".txt")!=0)continue;
-#if defined(SF_PS1_VIDEO_DIAG)
+#if defined(SF_ARCADE_DIAG_ONLY)
+                /* Preserve the ONE report through app restarts; a new X
+                 * overwrites it, without ever growing the folder. */
+                if(strcmp(ent.d_name,"diagnostico_mame.txt")==0)continue;
+#elif defined(SF_PS1_VIDEO_DIAG)
                 if(strcmp(ent.d_name,"diagnostico_pantalla_ps1.txt")==0)continue;
 #else
                 if(strcmp(ent.d_name,"diagnostico_pantalla_snes.txt")==0)continue;
