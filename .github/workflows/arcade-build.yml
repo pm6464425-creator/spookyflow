@@ -1,9 +1,9 @@
-name: SpookyFlow V15.64 Arcade smart lightweight community boxart
+name: SpookyFlow V15.65 Arcade two native PS3 engines direct launch
 on:
   workflow_dispatch:
   push:
     branches:
-      - feature/v15-64-arcade-covers-smart
+      - feature/v15-65-arcade-dual-launch
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
@@ -37,6 +37,14 @@ jobs:
             src/core/*.c tests/test_arcade_cover_source.c tests/null_render.c \
             -lm -lpthread -o /tmp/test_arcade_cover_source
           /tmp/test_arcade_cover_source
+      - name: Verify Arcade direct auto-engine routing by code and isolation
+        run: |
+          gcc -std=c99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            -DARCADE_ENGINE_MAP_PATH='"tests/fixtures/arcade_engines.tsv"' \
+            -Isrc/core src/core/arcade_engine.c tests/test_arcade_engine_router.c \
+            -o /tmp/test_arcade_engine_router
+          /tmp/test_arcade_engine_router
       - name: Set up PS3 SDK
         run: |
           echo "PS3DEV=$GITHUB_WORKSPACE/ps3dev" >> "$GITHUB_ENV"
@@ -74,16 +82,40 @@ jobs:
             src/core/*.c tests/test_arcade_identification.c tests/null_render.c \
             -lm -lpthread -o /tmp/test_arcade_identification_full
           /tmp/test_arcade_identification_full full
+      - name: Verify native arcade core signatures and 16:9 configuration
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import struct
+          for n in ("pkgfiles/USRDIR/cores/fb_neo.SELF",
+                    "pkgfiles/USRDIR/MAME125/mame125.SELF",
+                    "pkgfiles/USRDIR/RELOAD.SELF"):
+              v=Path(n).read_bytes()
+              assert v[:4]==b'SCE\\x00',n
+              p=struct.unpack_from('>Q',v,0x28)[0]
+              assert struct.unpack_from('>I',v,p+12)[0]==4,n
+          c=Path("pkgfiles/USRDIR/retroarch.cfg").read_text()
+          assert 'video_fullscreen = "true"' in c
+          assert 'video_aspect_ratio = "1.777800"' in c
+          assert 'FBNE00123' not in c
+          m=Path("pkgfiles/USRDIR/ARCADE/arcade_engines.tsv").read_text()
+          assert sum(len(l.split("\\t"))==2 for l in m.splitlines() if not l.startswith("#"))>=6500
+          print("PASS: native APP SELF type4, two motors, 16:9 config, DB")
+          PY
       - name: Ensure original PS1, PS2, PS3, SNES, BDISO sources are untouched
         run: |
           grep -q "PLAT_ARCADE = 5, PLAT_COUNT = 6" src/core/layout.h
           grep -q "TEX_TAB_ARCADE = 29, TEX_CASE_ARCADE = 30" src/core/render.h
-          grep -q 'emulador pendiente' src/core/app.c
+          grep -q 'a->host.launch_arcade(path)' src/core/app.c
+          grep -q 'host.launch_arcade = launch_arcade_native;' src/ps3/main.c
+          test -s pkgfiles/USRDIR/cores/fb_neo.SELF
+          test -s pkgfiles/USRDIR/MAME125/mame125.SELF
+          test -s pkgfiles/USRDIR/ARCADE/arcade_engines.tsv
           test -s spookyflow.pkg
           python3 tests/verify_compiled_pkg.py spookyflow.pkg
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-64-ARCADE-CARATULAS-AVANZADAS
+          name: SPOOKYFLOW-V15-65-ARCADE-LANZADOR-DUAL-PS3
           path: spookyflow.pkg
           if-no-files-found: error
