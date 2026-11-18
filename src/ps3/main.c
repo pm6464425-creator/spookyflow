@@ -30,6 +30,7 @@
 #include "ps3_platform.h"
 #include "snes_name_match.h"
 #include "sf_snes_bundle.h"
+#include "arcade_engine.h"
 #include "sf_snes_diag.h"
 #include "sf_snes_screen.h"
 #include "sf_video_diag.h"
@@ -389,6 +390,78 @@ static void setup_screen(void)
  * pSNES retains its own /dev_hdd0/game/PSNE00001/USRDIR resources, prepared
  * safely by sf_psnes_prepare; no webMAN, RetroArch, or external PKG needed.
  */
+/* V15.65 ARCADE ONLY: native FBNeo/MAME 0.125 engines from verified
+ * FBNeo Retro Loader Plus v2.30 release, bundled in this SpookyFlow PKG.
+ * Uses exactly the argv format of upstream c_fbaRL::LaunchFBACore().
+ * No separate XMB app, no webMAN MOD, no menu/selector handoff.
+ * The cores must be signed APP SELF (type 4) and have SpookyFlow-specific
+ * paths in their ELF, with all companion resources in our USRDIR.
+ */
+static int launch_arcade_native(const char *rom_path)
+{
+    static const char fbneo[]=
+        "/dev_hdd0/game/SPKF00001/USRDIR/cores/fb_neo.SELF";
+    static const char mame[]=
+        "/dev_hdd0/game/SPKF00001/USRDIR/MAME125/mame125.SELF";
+    static const char reload[]=
+        "/dev_hdd0/game/SPKF00001/USRDIR/RELOAD.SELF";
+    static const char config[]=
+        "/dev_hdd0/game/SPKF00001/USRDIR/retroarch.cfg";
+    static const char saves[]=
+        "/dev_hdd0/game/SPKF00001/USRDIR/cores/savefiles";
+    static const char states[]=
+        "/dev_hdd0/game/SPKF00001/USRDIR/cores/savestates";
+    const char *args[12];
+    const char *exe;
+    int engine;
+    sysFSStat stat;
+    if(!rom_path || !ps3_fs_is_file(NULL,rom_path)){
+        log_printf("arcade: direct launch aborted, ZIP missing path=%s",
+                   rom_path?rom_path:"NULL");
+        return -93;
+    }
+    engine=arcade_engine_for_rom(rom_path);
+    if(!engine){
+        log_printf("arcade: no compatible engine in frozen PS3 DB or not ZIP: %s",
+                   rom_path);
+        return -90;
+    }
+    exe=engine==ARCADE_ENGINE_MAME125 ? mame : fbneo;
+    if(sysFsStat(exe,&stat)!=0 || stat.st_size<1000000u ||
+       !ps3_fs_is_file(NULL,reload)){
+        log_printf("arcade: verified APP SELF/RELOAD absent engine=%d path=%s",
+                   engine,exe);
+        return -91;
+    }
+    if(!ps3_fs_is_file(NULL,config)){
+        log_printf("arcade: fullscreen RetroArch config missing: %s",config);
+        return -92;
+    }
+    args[0]=rom_path;
+    args[1]=reload;
+    args[2]="-s";args[3]=saves;
+    args[4]="-c";args[5]=config;
+    args[6]="-S";args[7]=states;
+    args[8]="-L";args[9]=exe;
+    args[10]="-v";args[11]=NULL;
+    log_printf("arcade: SELECT engine=%s source=FBNeoRLPlus_v2.30_DB",
+               engine==ARCADE_ENGINE_MAME125?"MAME125":"FBNeo");
+    log_printf("arcade: SPAWN_FULL_SCREEN=true aspect=16:9 rom=%s exe=%s",
+               rom_path,exe);
+    /* Correct audio handoff is required before replacing the process. */
+    ps3_audio_stop();
+    g_audio_released_for_launch=1;
+    sysProcessExitSpawn2(exe,args,NULL,NULL,0,1001,
+                         SYS_PROCESS_SPAWN_STACK_SIZE_1M);
+    /* Reaching this point means LV2 rejected the process replacement. */
+    log_printf("arcade: APP_SELF_SPAWN_RETURNED error; restoring launcher audio");
+#if !SF_V15_45_AUDIO_ISOLATION_TEST
+    ps3_audio_start();
+#endif
+    g_audio_released_for_launch=0;
+    return -94;
+}
+
 static int launch_snes_psnes(const char *rom_path)
 {
     static const char exe[] =
@@ -620,6 +693,7 @@ int main(int argc, const char *argv[])
     host.launch_ps3 = sf_cobra_mount_ps3;
     host.launch_bdiso = launch_bdiso;
     host.launch_snes = launch_snes_psnes;
+    host.launch_arcade = launch_arcade_native;
     host.diag_ps3_select = sf_cobra_diag_selection;
     host.read_wm_config = read_wm_config;
     host.read_at = ps3_read_at;
