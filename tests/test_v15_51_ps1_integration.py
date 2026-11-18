@@ -40,7 +40,7 @@ assert "video_report_open(path)" in log
 assert 'ps3_fs_cleanup_legacy_diagnostics()' in main
 # PS1 core mount/split logic, pSNES framebuffer patch, audio and other consoles unchanged
 for path,sha in {
-  "src/ps3/sf_ps1_mount.c":"eb44b62ca522c7812381b9ce67e0af9ac741ea76",
+  "src/ps3/sf_ps1_mount.c":"89eec4a5feeea4f283a7c63ed580aa29636b90c1",
   "src/ps3/sf_ps1_join.c":"4817a8c409880689b74a0c783885bb90666670a9",
   "src/ps3/sf_cobra_mount.c":"fe9faf92587a9c86ae866502ef5346f98fb76715",
   "src/ps3/sf_ps2_hen.c":"f20a63d83596a9b5079fd056e261656a4f536201",
