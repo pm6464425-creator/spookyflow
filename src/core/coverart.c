@@ -2,6 +2,7 @@
 #include "coverart.h"
 #include "ps1_name_match.h"
 #include "snes_name_match.h"
+#include "arcade_boxart.h"
 #include "layout.h"
 #include "log.h"
 #include "cover_diag.h"
@@ -1066,6 +1067,7 @@ void cover_dl_run(CoverDl *d)
     size_t ps1_catalog_len=0;
     char *snes_catalog=NULL;
     size_t snes_catalog_len=0;
+    ArcadeBoxartIndex arcade_boxart={0};
     char (*urls)[COVER_URL_MAX] = (char (*)[COVER_URL_MAX])malloc((size_t)COVER_DL_URLS * COVER_URL_MAX);
     if (!buf || !urls || !io || !d->http) {
         sf_strlcpy(d->note, "Not enough memory to download", sizeof(d->note));
@@ -1075,6 +1077,14 @@ void cover_dl_run(CoverDl *d)
         return;
     }
     if (io->mkdir) io->mkdir(io->ctx, COVER_DL_DIR);
+    /* ARCADE only: load actual, verified Libretro FBNeo+MAME filenames.
+     * No guessed remote filenames, no scans of Sony/Nintendo databases. */
+    for(i=0;i<d->n;i++)if(d->item[i].plat==PLAT_ARCADE)break;
+    if(i<d->n){
+        int entries=arcade_boxart_index_load(&arcade_boxart,io);
+        log_printf("arcade: VERIFIED_BOXART_INDEX=%d path=%s",
+                   entries,ARCADE_BOXART_INDEX);
+    }
     /* On a manual retry, previous failed movie downloads must be retried.
      * This is not an API-key feature; public movie sources work without one. */
     if (!d->auto_mode && io->reset_movie_attempts)
@@ -1133,6 +1143,7 @@ void cover_dl_run(CoverDl *d)
         int nu, u, got = 0, neterr = 0, writeerr = 0, offline = 1, not_found_only = 1;
         int snes_landscape_saved=0, snes_portrait_saved=0;
         int ps1_title_url_index=-1,valid_serial=0,ps1_special=0;
+        char arcade_code[96]="";
         char ps1_special_url[COVER_URL_MAX]="";
         char miss_path[COVER_PATH_MAX]="";
         /* Movies have no PS3 game Title ID. Previously they always landed
@@ -1165,7 +1176,7 @@ void cover_dl_run(CoverDl *d)
             }
             goto next;
         }
-        if (!it->id[0] && it->plat != PLAT_SNES)
+        if (!it->id[0] && it->plat != PLAT_SNES && it->plat != PLAT_ARCADE)
             discid_read(it->plat,it->path,it->is_dir,io->read_at,io->ctx,
                         it->id,sizeof(it->id));
         valid_serial=id_ok(it->id);
@@ -1198,7 +1209,11 @@ void cover_dl_run(CoverDl *d)
         if(valid_serial)
             snprintf(miss_path,sizeof(miss_path),"%s/%s.missing",
                      COVER_DL_DIR,it->id);
-        if (!valid_serial && it->plat!=PLAT_PS1 && it->plat!=PLAT_SNES) {
+        if(it->plat==PLAT_ARCADE &&
+           arcade_boxart_rom_code(it->path,arcade_code,sizeof arcade_code))
+            snprintf(miss_path,sizeof(miss_path),"%s/arcade_%s.missing",
+                     COVER_DL_DIR,arcade_code);
+        if (!valid_serial && it->plat!=PLAT_PS1 && it->plat!=PLAT_SNES && it->plat!=PLAT_ARCADE) {
             it->state=DL_NOID;d->n_noid++;goto next;
         }
         if (d->auto_mode && it->plat!=PLAT_PS1 &&
@@ -1209,8 +1224,13 @@ void cover_dl_run(CoverDl *d)
          * is absent or the serial's cover does not exist, try the exact
          * original CUE filename in Libretro's regional Named_Boxarts.
          * No title guessing and NO effect on PS2, PS3 or BDISO. */
-        nu=ps1_special ? 0 :
-           (valid_serial ? cover_dl_urls(it->plat,it->id,urls,COVER_DL_URLS) : 0);
+        nu=it->plat==PLAT_ARCADE ?
+           arcade_boxart_urls(&arcade_boxart,it->path,urls,COVER_DL_URLS) :
+           (ps1_special ? 0 :
+            (valid_serial ? cover_dl_urls(it->plat,it->id,urls,COVER_DL_URLS) : 0));
+        if(it->plat==PLAT_ARCADE)
+            log_printf("arcade: VERIFIED_SEARCH rom=%s code=%s available_sources=%d",
+                       it->path,arcade_code,nu);
         if(it->plat==PLAT_PS1) {
             int matched=0;
             char real_cover_name[256];
@@ -1270,6 +1290,11 @@ void cover_dl_run(CoverDl *d)
                 log_printf("snes: NO_VERIFIED_BOXART_NAME rom=%s",it->path);
         }
         if(nu<=0) {
+            if(it->plat==PLAT_ARCADE){
+                it->state=DL_MISSING;d->n_missing++;
+                log_printf("arcade: NO_VERIFIED_ART rom=%s (manual COVERS still supported)",it->path);
+                goto next;
+            }
             if(it->plat==PLAT_SNES)
                 log_printf("snes: NO_COVER_URL path=%s",it->path);
             it->state=DL_NOID;d->n_noid++;
@@ -1307,6 +1332,34 @@ void cover_dl_run(CoverDl *d)
             if (st < 0) { neterr = 1; log_printf("covers: %s: %s", url, st == COVER_HTTP_DNS ? "name not found (no internet?)" : st == COVER_HTTP_BIG ? "too big" : "no connection"); continue; }
             if (st == 200 && len > 64 && is_image(buf, len, &png)) {
                 char f[COVER_PATH_MAX];
+                if(it->plat==PLAT_ARCADE) {
+                    uint8_t *jpeg=NULL;
+                    uint32_t jlen=0;
+                    char dest[COVER_PATH_MAX];
+                    int converted=io->arcade_compact_jpeg ?
+                         io->arcade_compact_jpeg(io->ctx,buf,len,&jpeg,&jlen) : -1;
+                    if(converted!=0 || !jpeg || jlen<256 || jlen>184320u ||
+                       !arcade_code[0]) {
+                        free(jpeg);
+                        writeerr=1;
+                        log_printf("arcade: COMPACT_JPEG_ERROR code=%s input=%u bytes conversion=%d",
+                                   arcade_code,(unsigned)len,converted);
+                        continue; /* never save heavyweight PNG/JPG */
+                    }
+                    snprintf(dest,sizeof(dest),"%s/%s.jpg",COVER_DL_DIR,arcade_code);
+                    if(io->write_file &&
+                       io->write_file(io->ctx,dest,jpeg,jlen,"",0)==0) {
+                        got=1;
+                        log_printf("arcade: COVER_SAVED code=%s compressed=%uB source=%s input=%uB",
+                                   arcade_code,(unsigned)jlen,url,(unsigned)len);
+                    }else{
+                        writeerr=1;
+                        log_printf("arcade: COVER_WRITE_FAIL file=%s",dest);
+                    }
+                    free(jpeg);
+                    if(got)break;
+                    continue;
+                }
                 if(it->plat==PLAT_SNES) {
                     int orient=png ? snes_png_orientation_bytes(buf,len) : 0;
                     if(orient==0) {
@@ -1392,7 +1445,7 @@ void cover_dl_run(CoverDl *d)
                 snprintf(f, sizeof(f), "%s.none", stem);
                 io->remove(io->ctx, f);
             }
-        } else if (writeerr && it->plat==PLAT_SNES) {
+        } else if (writeerr && (it->plat==PLAT_SNES || it->plat==PLAT_ARCADE)) {
             /* A 200 OK body with failed disk write is a storage error, NOT a
              * missing online cover. Do not poison 404 cache or retry falsely. */
             it->state=DL_ERROR; d->n_error++;
@@ -1441,6 +1494,7 @@ void cover_dl_run(CoverDl *d)
                d->cancel ? " (stopped)" : "");
     log_printf("snes: DOWNLOAD_SUMMARY inspected=%d added=%d missing=%d already=%d failed=%d",
                d->n,d->n_got,d->n_missing,d->n_have,d->n_error);
+    arcade_boxart_index_free(&arcade_boxart);
     free(snes_catalog);
     free(ps1_catalog);
     free(buf); free(urls);
