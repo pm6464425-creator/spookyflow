@@ -7,7 +7,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifndef ARCADE_DB
 #define ARCADE_DB "/dev_hdd0/game/SPKF00001/USRDIR/ARCADE/arcade_titles.tsv"
+#endif
 #define ARCADE_MAX_DATA (1600L*1024L)
 #define ARCADE_MAX_ENTRIES 16000
 typedef struct { const char *rom; const char *title; } ArcadeEntry;
