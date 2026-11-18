@@ -33,7 +33,7 @@ checks={
  "19 single diagnostics only": 'SF_DATA_DIR "/diagnostico_snes.txt"' in platform,
  "20 logs exact attempted and recovered name": "RESULT=RECOVERED" in resolver and
     "EXPECTED=%s FOUND=%s" in resolver,
- "21 native SNES launch errors kept in same targeted report": 'snes_launch_trace(msg)' in log and '"PS1_DIAG"' not in log,
+ "21 new PS1 TXT excludes prior SNES traces": 'snes_launch_trace(msg)' in log and 'strncmp(msg,"PS1_DIAG",8)' in log and 'SF_PS1_VIDEO_DIAG' in log,
  "22 keep existing webMAN fallback": "a->host.launch(cmd)" in app,
 }
 for k,v in checks.items():print(("PASS" if v else "FAIL"),k)
