@@ -1,9 +1,9 @@
-name: SpookyFlow V15.65 Arcade two native PS3 engines direct launch
+name: SpookyFlow V15.66 Arcade single MAME root-cause diagnosis
 on:
   workflow_dispatch:
   push:
     branches:
-      - feature/v15-65-arcade-dual-launch
+      - fix/v15-66-arcade-mame-single-diagnostic
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
@@ -45,6 +45,43 @@ jobs:
             -Isrc/core src/core/arcade_engine.c tests/test_arcade_engine_router.c \
             -o /tmp/test_arcade_engine_router
           /tmp/test_arcade_engine_router
+      - name: Verify Arcade single TXT and exact ZIP CRC audit (no ROM writes)
+        run: |
+          python3 - <<'PY'
+          import zipfile,zlib
+          from pathlib import Path
+          path=Path('/tmp/gng.zip')
+          files={'good.bin':b'GOOD1234','wrong.bin':b'NOT_MATCHING'}
+          with zipfile.ZipFile(path,'w',zipfile.ZIP_STORED) as z:
+              for n,data in files.items():z.writestr(n,data)
+          crc=zlib.crc32(files['good.bin'])
+          manifest=Path('/tmp/arcade_test_manifest.tsv')
+          manifest.write_text('# generated test\n'
+              'gng\t\t\t@\t-\t-\n'
+              f'gng\t\t\tgood.bin\t{crc:08x}\t{len(files["good.bin"])}\n'
+              'gng\t\t\twrong.bin\t11111111\t12\n'
+              'gng\t\t\tmissing.bin\t22222222\t10\n')
+          import hashlib
+          Path('/tmp/gng.sha256').write_text(hashlib.sha256(path.read_bytes()).hexdigest())
+          print("TEST ZIP",path.stat().st_size,"bytes, wrong CRC + missing file")
+          PY
+          gcc -std=gnu99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            '-DSF_ARCADE_DIAG_PATH="/tmp/diagnostico_mame.txt"' \
+            '-DSF_ARCADE_ROM_MANIFEST="/tmp/arcade_test_manifest.tsv"' \
+            -Isrc/core src/core/arcade_diag.c tests/test_arcade_single_diag.c \
+            -o /tmp/test_arcade_single_diag
+          /tmp/test_arcade_single_diag /tmp/gng.zip /tmp/gng.zip
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          data=Path('/tmp/diagnostico_mame.txt').read_text()
+          assert 'MANIFEST_CRC_INCORRECTOS=1' in data
+          assert 'MANIFEST_ROMS_FALTANTES=1' in data
+          assert 'FASE=INTENTANDO_INICIAR_MOTOR_PS3' not in data
+          assert hashlib.sha256(Path('/tmp/gng.zip').read_bytes()).hexdigest()==Path('/tmp/gng.sha256').read_text()
+          print("PASS: one overwritten MAME TXT, CRC mismatches and missing ROM diagnosed; ZIP unchanged")
+          PY
       - name: Set up PS3 SDK
         run: |
           echo "PS3DEV=$GITHUB_WORKSPACE/ps3dev" >> "$GITHUB_ENV"
@@ -102,6 +139,21 @@ jobs:
           assert sum(len(l.split("\t"))==2 for l in m.splitlines() if not l.startswith("#"))>=6500
           print("PASS: native APP SELF type4, two motors, 16:9 config, DB")
           PY
+      - name: Verify only Arcade creates a TXT; archived reports not regenerated
+        run: |
+          test -s pkgfiles/USRDIR/ARCADE/fbneo_ps3_crc_manifest.tsv
+          grep -q 'SF_ARCADE_DIAG_ONLY=1' Makefile
+          grep -q 'ps3_fs_cleanup_legacy_diagnostics' src/ps3/main.c
+          grep -q 'diagnostico_mame.txt' src/core/arcade_diag.h
+          python3 - <<'PY'
+          from pathlib import Path
+          lines=Path('pkgfiles/USRDIR/ARCADE/fbneo_ps3_crc_manifest.tsv').read_text().splitlines()
+          assert len(lines)>=30000
+          gng=[v for v in lines if v.startswith('gng\t')]
+          assert any('\t@\t' in v for v in gng)
+          assert any('\t' in v for v in gng)
+          print("PASS frozen PS3 FBNeo checksum map",len(lines),"entries, gng",len(gng))
+          PY
       - name: Ensure original PS1, PS2, PS3, SNES, BDISO sources are untouched
         run: |
           grep -q "PLAT_ARCADE = 5, PLAT_COUNT = 6" src/core/layout.h
@@ -116,6 +168,6 @@ jobs:
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-65-ARCADE-LANZADOR-DUAL-PS3
+          name: SPOOKYFLOW-V15-66-ARCADE-DIAGNOSTICO-MAME
           path: spookyflow.pkg
           if-no-files-found: error
