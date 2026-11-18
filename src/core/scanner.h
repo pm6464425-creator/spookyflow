@@ -36,6 +36,10 @@ typedef struct {
 
 /* List a directory. Return entry count (<= max), or -1 if it can't be opened. */
 typedef int (*FsListFn)(void *ctx, const char *dir, FsEntry *out, int max);
+/* Arcade-only paged listing. "offset" counts valid files/dirs, allowing
+ * directories with 7000+ ROM ZIPs without a 4096-entry truncation. */
+typedef int (*FsListPageFn)(void *ctx,const char *dir,FsEntry *out,int max,int offset);
+#define SCAN_ARCADE_PAGE_SIZE 1024
 
 enum { SRC_HDD_ISO_DIR = 0, SRC_HDD_GAME_FOLDERS = 1, SRC_NTFS_INDEX = 2 };
 
@@ -56,6 +60,8 @@ typedef struct {
     char queue[SCAN_QUEUE_MAX][SCAN_PATH_MAX];
     int qn, qi;
     int found[PLAT_COUNT];
+    FsListPageFn arcade_page_list; /* NULL leaves every original scanner untouched */
+    int arcade_page_offset;       /* current directory cursor; one 1024 ROM batch */
     int found_ntfs;                  /* of found[], games from NTFS drives */
     ReadAtFn rd;                     /* optional: read files (NTFS sizes and title IDs) */
     void *rd_ctx;
@@ -88,6 +94,7 @@ void  scanner_begin(Scanner *s, const ScanRoot *roots, int nroots);
 /* Let the scanner read files (call after scanner_begin). Without it, NTFS
  * games still show, but with no size and no title ID from their .SFO. */
 void  scanner_set_reader(Scanner *s, ReadAtFn rd, void *ctx);
+void  scanner_set_arcade_page_reader(Scanner *s, FsListPageFn reader);
 void  scanner_set_bdiso_pointer_filter(Scanner *s, int (*online)(const unsigned char *, size_t));
 
 /* 0.9.0: total size of the files under dir, every subfolder included (a
