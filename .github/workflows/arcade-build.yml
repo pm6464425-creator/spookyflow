@@ -1,9 +1,9 @@
-name: SpookyFlow V15.66 Arcade single MAME root-cause diagnosis
+name: SpookyFlow V15.67 Arcade auto MAME0125 compatible old NeoGeo BIOS
 on:
   workflow_dispatch:
   push:
     branches:
-      - fix/v15-66-arcade-mame-single-diagnostic
+      - fix/v15-67-arcade-mame0125-legacy-bios
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
@@ -142,6 +142,7 @@ jobs:
       - name: Verify only Arcade creates a TXT; archived reports not regenerated
         run: |
           test -s pkgfiles/USRDIR/ARCADE/fbneo_ps3_crc_manifest.tsv
+          test -s pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv
           grep -q 'SF_ARCADE_DIAG_ONLY=1' Makefile
           grep -q 'ps3_fs_cleanup_legacy_diagnostics' src/ps3/main.c
           grep -q 'diagnostico_mame.txt' src/core/arcade_diag.h
@@ -154,6 +155,24 @@ jobs:
           assert any('\t' in v for v in gng)
           print("PASS frozen PS3 FBNeo checksum map",len(lines),"entries, gng",len(gng))
           PY
+      - name: Verify KOF2002 old BIOS automatic MAME0.125 routing and 16:9
+        run: |
+          test -s pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv
+          mkdir -p /tmp/arcade_native_route_test
+          cp pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv /tmp/arcade_native_route_test/mame0125_neogeo.tsv
+          python3 tests/make_arcade_native_select_fixture.py
+          gcc -std=gnu99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
+            -fsanitize=address,undefined -fno-omit-frame-pointer \
+            '-DARCADE_NATIVE_ROM_ROOT="/tmp/arcade_native_route_test/"' \
+            '-DARCADE_NATIVE_BIOS_PATH="/tmp/arcade_native_route_test/neogeo.zip"' \
+            '-DARCADE_MAME125_CATALOG_PATH="/tmp/arcade_native_route_test/mame0125_neogeo.tsv"' \
+            -Isrc/core src/core/arcade_native_select.c tests/test_arcade_native_select.c \
+            -o /tmp/test_arcade_native_select
+          /tmp/test_arcade_native_select
+          grep -q 'arcade_native_engine_select(rom_path' src/ps3/main.c
+          grep -q 'arcade_diag_event("RUTA_ARCADE_BIOS_Y_ROMSET_CRC"' src/ps3/main.c
+          grep -q 'video_aspect_ratio = "1.777800"' pkgfiles/USRDIR/retroarch.cfg
+          echo "PASS: Auto MAME0125 KOF2002 original CRC + old BIOS; no modification to any game"
       - name: Ensure original PS1, PS2, PS3, SNES, BDISO sources are untouched
         run: |
           grep -q "PLAT_ARCADE = 5, PLAT_COUNT = 6" src/core/layout.h
@@ -168,6 +187,6 @@ jobs:
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-66-ARCADE-DIAGNOSTICO-MAME
+          name: SPOOKYFLOW-V15-67-ARCADE-MAME0125-NEOGEO-AUTOMATICO
           path: spookyflow.pkg
           if-no-files-found: error
