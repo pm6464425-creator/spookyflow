@@ -270,6 +270,9 @@ static void finish_library(App *a)
     if (a->lib->pool_full) log_printf("library: string pool full, some games skipped");
     for (t = 0; t < PLAT_COUNT; t++) {
         if (a->lib->tab[t].demo) continue;
+        /* ARCADE files are independent ROM sets, never PlayStation multi-disc
+         * images. Keep their original per-ZIP identity and cover linkage. */
+        if (t == PLAT_ARCADE) continue;
         {
             int merged = lib_group_discs(a->lib, t), i, d;
             if (merged > 0) log_printf("library: %s multi-disc games grouped (%d disc entries folded into their first disc)", k_plat_name[t], merged);
