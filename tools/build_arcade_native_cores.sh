@@ -44,7 +44,7 @@ for f in keys ldr_curves vsh_curves;do
     "https://raw.githubusercontent.com/aldostools/IRISMAN/91ac4e820e76fb9c1bbf9ec0cdd7592deb35f70d/rawseciso/data/$f" \
     -o "$sceto/data/$f"
 done
-mkdir -p pkgfiles/USRDIR/cores pkgfiles/USRDIR/MAME125/cfg pkgfiles/USRDIR/MAME125/fonts
+mkdir -p pkgfiles/USRDIR/cores/autoconfig pkgfiles/USRDIR/MAME125/cfg pkgfiles/USRDIR/MAME125/fonts
 for rel in "cores/fb_neo.SELF" "MAME125/mame125.SELF" "RELOAD.SELF";do
   input="$root/$rel"
   file="$(basename "$rel" .SELF)"
@@ -89,7 +89,7 @@ PY
 done
 cp "$root/MAME125/cfg/default.cfg" pkgfiles/USRDIR/MAME125/cfg/default.cfg
 cp "$root/MAME125/fonts/ui000-11.bdc" pkgfiles/USRDIR/MAME125/fonts/ui000-11.bdc
-cp "$root/cores/autoconfig/SixAxis Controller.cfg" "pkgfiles/USRDIR/cores/SixAxis Controller.cfg"
+cp "$root/cores/autoconfig/SixAxis Controller.cfg" "pkgfiles/USRDIR/cores/autoconfig/SixAxis Controller.cfg"
 # Use the original RetroArch config with the application identifier changed.
 # Keep every original control binding but force 16:9 full-frame output.
 python3 - "$root/retroarch.cfg" "$root/MAME125/init.ini" <<'PY'
