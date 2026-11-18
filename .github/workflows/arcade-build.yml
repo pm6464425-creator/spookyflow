@@ -1,9 +1,9 @@
-name: Build Arcade V15.58 (visual only)
+name: SpookyFlow V15.61 Arcade direct folder and ROM identifiers
 on:
   workflow_dispatch:
   push:
     branches:
-      - feature/v15-58-arcade-tab-case
+      - feature/v15-61-arcade-root-and-identifiers
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
@@ -17,6 +17,12 @@ jobs:
             src/core/settings.c src/core/util.c tests/test_arcade_settings_sixth.c \
             -o /tmp/test_arcade_settings_sixth
           /tmp/test_arcade_settings_sixth
+      - name: Verify /dev_hdd0/ARCADE ZIP/7z scanning and legacy fallback names
+        run: |
+          gcc -std=c99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration -Isrc/core \
+            src/core/*.c tests/test_arcade_identification.c tests/null_render.c \
+            -lm -lpthread -o /tmp/test_arcade_identification
+          /tmp/test_arcade_identification
       - name: Set up PS3 SDK
         run: |
           echo "PS3DEV=$GITHUB_WORKSPACE/ps3dev" >> "$GITHUB_ENV"
@@ -31,6 +37,14 @@ jobs:
           command -v cgc
       - name: Build exact V15.53 project + independent Arcade tab
         run: bash ci/build_ps3.sh
+      - name: Validate official FBNeo ROM-name catalogue and real ROM scanning
+        run: |
+          test -s pkgfiles/USRDIR/ARCADE/arcade_titles.tsv
+          gcc -std=c99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration -Isrc/core \
+            '-DARCADE_DB="pkgfiles/USRDIR/ARCADE/arcade_titles.tsv"' \
+            src/core/*.c tests/test_arcade_identification.c tests/null_render.c \
+            -lm -lpthread -o /tmp/test_arcade_identification_full
+          /tmp/test_arcade_identification_full full
       - name: Ensure original PS1, PS2, PS3, SNES, BDISO sources are untouched
         run: |
           grep -q "PLAT_ARCADE = 5, PLAT_COUNT = 6" src/core/layout.h
@@ -41,6 +55,6 @@ jobs:
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-58-ARCADE-BASE
+          name: SPOOKYFLOW-V15-61-ARCADE-IDENTIFICADOR-RAIZ
           path: spookyflow.pkg
           if-no-files-found: error
