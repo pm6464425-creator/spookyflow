@@ -9,6 +9,7 @@
 #include "ps3_platform.h"
 #include "sf_ps1_video_diag.h"
 #include "sf_ps1_registry.h"
+#include "sf_ps1_screenshot_diag.h"
 #include "log.h"
 
 #define PS1_XREGISTRY "/dev_flash2/etc/xRegistry.sys"
@@ -59,6 +60,7 @@ void sf_ps1_video_diag_startup(void)
     log_printf("ps1_video_diag: LIMITATION=PS1_EMULATOR_RUNS_AFTER_XMB_HANDOFF; NO_DIRECT_GAME_FRAMEBUFFER_OR_HDMI_PIXEL_MEASURE");
     inspect_video("APP_READY");
     inspect_scaler("APP_READY");
+    sf_ps1_screenshot_diagnose(); /* actual captured pixels, never extrapolate from XMB */
 }
 void sf_ps1_video_diag_before_launch(const char *path,int emulator,const char *backend)
 {
