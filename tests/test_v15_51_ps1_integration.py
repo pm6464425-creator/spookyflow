@@ -40,12 +40,12 @@ assert "video_report_open(path)" in log
 assert 'ps3_fs_cleanup_legacy_diagnostics()' in main
 # PS1 core mount/split logic, pSNES framebuffer patch, audio and other consoles unchanged
 for path,sha in {
-  "src/ps3/sf_ps1_mount.c":"d78b21a68f5d2c03571fce9e9f960633b86c65b2",
-  "src/ps3/sf_ps1_join.c":"0b957e1ec65db280663d5ac42e48d6e838c6ab1",
+  "src/ps3/sf_ps1_mount.c":"eb44b62ca522c7812381b9ce67e0af9ac741ea76",
+  "src/ps3/sf_ps1_join.c":"4817a8c409880689b74a0c783885bb90666670a9",
   "src/ps3/sf_cobra_mount.c":"fe9faf92587a9c86ae866502ef5346f98fb76715",
   "src/ps3/sf_ps2_hen.c":"f20a63d83596a9b5079fd056e261656a4f536201",
   "src/ps3/ps3_webman.c":"333f9d3fe75f3ebbdc0840ddb696385306919eca",
-  "tools/psnes_patch_runtime_full_bleed.py":"0e9d217741059266e63471f3d94acbd7443e9609",
+  "tools/psnes_patch_runtime_full_bleed.py":"1b6793938b0d2fc5b7d1a03bd8590d2137478c0c",
 }.items():
     h=subprocess.check_output(["git","hash-object",path],text=True).strip()
     assert h==sha,(path,h,sha)

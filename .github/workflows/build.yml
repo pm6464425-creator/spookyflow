@@ -72,6 +72,18 @@ jobs:
           python3 tests/test_v15_49_cfg_repair_integration.py
       - name: V15.50 pSNES in-process full-bleed graphics scale and PPC64 trampoline safety
         run: python3 tests/test_v15_50_runtime_full_bleed.py
+      - name: V15.51 PS1 registry and single video report tests
+        run: |
+          cc -std=c99 -O2 -Wall -Wextra -Werror -Isrc/ps3 \
+            src/ps3/sf_ps1_registry.c tests/test_v15_51_registry.c \
+            -o build-host/test_v15_51_registry
+          ./build-host/test_v15_51_registry /tmp/sf_v15_51_synthetic_registry.bin
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror \
+            -DSF_SINGLE_DIAG_FILE=1 -DSF_VIDEO_ONLY_DIAG=1 -DSF_PS1_VIDEO_DIAG=1 \
+            -Isrc/core src/core/log.c tests/test_v15_51_ps1_log.c \
+            -o build-host/test_v15_51_ps1_log
+          ./build-host/test_v15_51_ps1_log /tmp/sf_v15_51_single_ps1_video.txt
+          python3 tests/test_v15_51_ps1_integration.py
       - name: V15.44 all-platform game audio handoff and PS3 service cleanup - 20 forensic checks
         run: python3 tests/test_v15_44_audio_handoff.py
       - name: V15.45 isolate SpookyFlow UI sound to diagnose game silence + preserve audio TXT traces
@@ -457,6 +469,25 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title 'SpookyFlow V15.50 — SNES pantalla completa en motor grafico' \
             --notes 'V15.50 solo cambia el motor grafico pSNES firmado dentro del PKG y conserva V15.49, incluido audio, controles, caratulas, ROM, PS1/PS2/PS3/BDISO y un solo informe TXT. Parche PPC64 verificado por hash del ELF original: intercepta setScale de C2DUIVideo::updateScaling en el ejecutable pSNES durante el juego, amplia ambos ejes 12 por ciento centrados y vuelve a la funcion original. El resto de instrucciones se conservan byte a byte. Se recompila firma APP SELF y verifica descifrando nuevamente SHA256. Implica recorte de bordes para lograr pantalla sin franjas; requiere validacion visual en PS3 fisica; la compilacion valida integridad, no resultado HDMI.'
+      - name: Publish V15.51 PS1 native full-screen mode and advanced forensic report
+        if: github.ref == 'refs/heads/fix/v15-51-ps1-fullscreen-forensic'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-51-ps1-fullscreen-forensic" --jq '.commit.sha')
+          if [ "$current" != "$GITHUB_SHA" ]; then
+            echo "Superseded commit: no release"
+            exit 0
+          fi
+          pkg='SPOOKYFLOW_V15_51_PS1_16_9_DIAGNOSTICO_AVANZADO.pkg'
+          cp spookyflow.pkg "$pkg"
+          sha256sum "$pkg"
+          tag="spookyflow-v15-51-ps1-native-169-${GITHUB_SHA:0:8}"
+          gh release create "$tag" "$pkg" --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --prerelease \
+            --title 'SpookyFlow V15.51 — PS1 16:9 nativo y diagnóstico avanzado' \
+            --notes 'Conserva SNES V15.50 y audio/controles/portadas de PS1 PS2 PS3 BDISO sin cambios. Para pantalla completa PS1 usa el escalador oficial de Sony PS3: Ajustes > Ajustes de juego > PS / PS2 Mejorador de resolucion > Pantalla completa. No cambia el ajuste global automaticamente por seguridad; el usuario lo activa una vez en XMB. El nuevo /dev_hdd0/tmp/spookyflow/diagnostico_pantalla_ps1.txt verifica de forma solo lectura emuUpConvert 0 Off,1 Normal,2 Full, PS3 HD video, pasos de montaje Cobra, pistas CUE BIN y fallback webMAN. Elimina solamente antiguos informes TXT de la carpeta spookyflow, incluido diagnostico_pantalla_snes.txt; otros datos sin tocar. La visualizacion real requiere prueba en PS3, no se mide desde esta aplicacion.'
       - uses: actions/upload-artifact@v4
         with:
           name: spookyflow-pkg-${{ env.sha_name }}

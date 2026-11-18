@@ -14,7 +14,7 @@ app=src("src/core/app.c")
 mk=src("Makefile")
 allowlist={
  "diagnostico.txt", "log.txt","diagnostico_ps1.txt","diagnostico_portadas.txt","diagnostico_usb_ntfs.txt",
- "diagnostico_audio.txt","diagnostico_snes.txt",
+ "diagnostico_audio.txt","diagnostico_snes.txt","diagnostico_pantalla_snes.txt",
  "cobra_startup_probe.txt","cobra_selection_probe.txt","cobra_last_mount.txt",
  "cobra_trace.txt","cobra_previous_interruption.txt","ps2_hen_last.txt",
  "ps2_launcher_probe.txt","ps2_last_mount.txt","ps2_mount_trace.txt"
