@@ -59,7 +59,6 @@ const ScanRoot *scanner_roots_with_usb_native(const ScanRoot *base, int nbase,
         { "GAMEZ", PLAT_PS3, SRC_HDD_GAME_FOLDERS }, { "PS2ISO", PLAT_PS2, SRC_HDD_ISO_DIR },
         { "PSXISO", PLAT_PS1, SRC_HDD_ISO_DIR }, { "PSXGAMES", PLAT_PS1, SRC_HDD_ISO_DIR },
         { "BDISO", PLAT_BDISO, SRC_HDD_ISO_DIR }, { "SNES", PLAT_SNES, SRC_HDD_ISO_DIR },
-        { "ARCADE", PLAT_ARCADE, SRC_HDD_ISO_DIR },
     };
     enum { NU = (int)(sizeof(k_usb) / sizeof(k_usb[0])), MAXR = 32 + SCAN_USB_PORTS * NU };
     static ScanRoot roots[MAXR];
