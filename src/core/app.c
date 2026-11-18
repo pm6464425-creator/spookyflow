@@ -16,7 +16,7 @@
 
 static int sync_xmb_priority(App *a);
 
-static const char *const k_plat_name[PLAT_COUNT] = { "PS1", "PS2", "PS3", "BDISO", "SNES" };
+static const char *const k_plat_name[PLAT_COUNT] = { "PS1", "PS2", "PS3", "BDISO", "SNES", "ARCADE" };
 
 /* Cover cache loader: hand the game to the cover worker. Demo games keep
  * their drawn placeholder. */
@@ -256,7 +256,7 @@ static void finish_library(App *a)
     int t;
     for (t = 0; t < PLAT_COUNT; t++) {
         GameList *gl = &a->lib->tab[t];
-        if (gl->count == 0 && t != PLAT_BDISO && t != PLAT_SNES) {
+        if (gl->count == 0 && t != PLAT_BDISO && t != PLAT_SNES && t != PLAT_ARCADE) {
             demo_fill(a->lib, t);
             log_printf("library: %s has no games on HDD, showing demo library (%d titles)", k_plat_name[t], gl->count);
         } else {
@@ -1458,6 +1458,11 @@ static void launch_disc(App *a, int disc)
             app_show_toast(a, "No se pudo crear el diagnóstico; inicio cancelado");
             return;
         }
+    }
+    if (a->tab == PLAT_ARCADE) {
+        app_show_toast(a, "Arcade: biblioteca visual lista; emulador pendiente");
+        log_printf("arcade: launch intentionally disabled in visual-only first stage; ROM=%s",path);
+        return;
     }
     if (a->tab == PLAT_BDISO) {
         int rc;
