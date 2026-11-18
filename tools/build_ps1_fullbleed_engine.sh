@@ -20,6 +20,9 @@ if ! grep -q '"memory"' "$PSL1GHT/ppu/include/rsx/rsx_function_macros.h"; then
   patch -d "$PSL1GHT" -p1 --forward < "$src/psl1ght-patches/0001-rsx-context-callback-clobbers.patch"
 fi
 grep -q '"memory"' "$PSL1GHT/ppu/include/rsx/rsx_function_macros.h"
+# The already linked ELF is our needed artifact, not the upstream NPDRM PKG.
+# The old toolchain lacks upstream sfo, so skip ONLY its final pkg metadata.
+sed -i '/^sfo --title /,$d' "$src/ps3/build.sh"
 (
  cd "$src"
  JOBS=2 PS3DEV="$PS3DEV" PSL1GHT="$PSL1GHT" bash ps3/build.sh sf_ps1_native
