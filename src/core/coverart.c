@@ -168,6 +168,8 @@ int cover_candidates(int plat, const char *game_path, int is_dir, const char *id
     }
     /* SNES: accept user-supplied ROM-pack artwork from its COVERS folder,
        without changing the strict PS1/PS2/PS3/BDISO artwork policy. */
+    if (plat == PLAT_ARCADE && strstr(game_path, "/USRDIR/ARCADE/DEMOS/") && name[0])
+        n=add(out,n,max,"/dev_hdd0/game/SPKF00001/USRDIR/ARCADE/COVERS","/",name);
     if ((plat == PLAT_SNES || plat == PLAT_ARCADE) && slash) {
         char covers[COVER_PATH_MAX];
         size_t dir_len=(size_t)(slash-game_path);
