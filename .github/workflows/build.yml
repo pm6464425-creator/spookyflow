@@ -70,6 +70,8 @@ jobs:
             "build-host/test_v15_49_${mode}" build-host/snes1549
           done
           python3 tests/test_v15_49_cfg_repair_integration.py
+      - name: V15.50 pSNES in-process full-bleed graphics scale and PPC64 trampoline safety
+        run: python3 tests/test_v15_50_runtime_full_bleed.py
       - name: V15.44 all-platform game audio handoff and PS3 service cleanup - 20 forensic checks
         run: python3 tests/test_v15_44_audio_handoff.py
       - name: V15.45 isolate SpookyFlow UI sound to diagnose game silence + preserve audio TXT traces
@@ -439,6 +441,22 @@ jobs:
             --target "$GITHUB_SHA" --prerelease \
             --title 'SpookyFlow V15.49 — correccion de escritura FULL en PS3 HEN' \
             --notes 'Basado en el diagnostico real V15.48 (config writer rc=-6, escala FIT, TV 1920x1080). Corrige ruta de reemplazo de config.cfg: si falla fopen temporal o rename existente, crea respaldo verificable bajo /dev_hdd0/tmp/spookyflow, escribe solo los ajustes del config de pSNES, lee nuevamente para confirmar FULL, revierte el archivo anterior en caso de fallo y recupera el respaldo en el siguiente inicio si el CFG queda corrupto. Incluye códigos de etapa y errno en el único diagnostico_pantalla_snes.txt. Conserva mismo pSNES firmado V15.47, controles, audio, sistemas PS1/PS2/PS3/BDISO, ROMs, partidas y carátulas. Las pruebas host simulan que rename no reemplaza ficheros existentes y que la carpeta no deja crear un temporal. El efecto 16:9 se debe comprobar físicamente en PS3 HEN; el SHA no mide píxeles HDMI.'
+      - name: Publish V15.50 SNES true runtime full-bleed scaling PKG after all validations
+        if: github.ref == 'refs/heads/fix/v15-50-snes-runtime-full-bleed'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current=$(gh api "repos/$GITHUB_REPOSITORY/branches/fix%2Fv15-50-snes-runtime-full-bleed" --jq '.commit.sha')
+          if [ "$current" != "$GITHUB_SHA" ]; then echo 'Superseded commit'; exit 0; fi
+          pkg='SPOOKYFLOW_V15_50_SNES_PANTALLA_COMPLETA.pkg'
+          cp spookyflow.pkg "$pkg"
+          sha256sum "$pkg"
+          tag="spookyflow-v15-50-snes-runtime-full-bleed-${GITHUB_SHA:0:8}"
+          gh release create "$tag" "$pkg" --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" --prerelease \
+            --title 'SpookyFlow V15.50 — SNES pantalla completa en motor grafico' \
+            --notes 'V15.50 solo cambia el motor grafico pSNES firmado dentro del PKG y conserva V15.49, incluido audio, controles, caratulas, ROM, PS1/PS2/PS3/BDISO y un solo informe TXT. Parche PPC64 verificado por hash del ELF original: intercepta setScale de C2DUIVideo::updateScaling en el ejecutable pSNES durante el juego, amplia ambos ejes 12 por ciento centrados y vuelve a la funcion original. El resto de instrucciones se conservan byte a byte. Se recompila firma APP SELF y verifica descifrando nuevamente SHA256. Implica recorte de bordes para lograr pantalla sin franjas; requiere validacion visual en PS3 fisica; la compilacion valida integridad, no resultado HDMI.'
       - uses: actions/upload-artifact@v4
         with:
           name: spookyflow-pkg-${{ env.sha_name }}

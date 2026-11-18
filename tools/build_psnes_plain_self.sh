@@ -54,6 +54,13 @@ ppu-readelf -h "$tmp/psnes_169.elf" | grep -q 'Machine: *PowerPC64'
 python3 tools/psnes_patch_border_fill.py \
   "$tmp/psnes_169.elf" "$tmp/psnes_edge.elf" "$tmp/psnes_edge.sha256"
 ppu-readelf -h "$tmp/psnes_edge.elf" | grep -q 'Machine: *PowerPC64'
+# V15.50: actual live pSNES game video quad uniform centered zoom.
+# Stronger than the V15.47 GPU projection-only fix; this stage executes
+# at C2DUIVideo::updateScaling() immediately before setScale().
+python3 tools/psnes_patch_runtime_full_bleed.py \
+  "$tmp/psnes_edge.elf" "$tmp/psnes_runtime_full.elf" "$tmp/psnes_edge.sha256"
+cp "$tmp/psnes_runtime_full.elf" "$tmp/psnes_edge.elf"
+ppu-readelf -h "$tmp/psnes_edge.elf" | grep -q 'Machine: *PowerPC64'
 edge_sha="$(cat "$tmp/psnes_edge.sha256")"
 test "${#edge_sha}" -eq 64
 
@@ -106,4 +113,4 @@ print('PASS pSNES APP SELF, roundtrip FULL-16:9 ELF pinned; signed size='+str(le
 PY
 test -s src/ps3/sf_psnes_plain_hash.h
 cp "$tmp/psnes_edge.sha256" "$(dirname "$target")/PSNES_ENGINE.edge.sha256"
-echo "V15.47 pSNES native APP SELF: SHA-verified V15.43 + bounded border fill; ELF signed/decrypted SHA matches."
+echo "V15.50 pSNES native APP SELF: SHA-pinned fullscreen + in-emulator video quad zoom; signed/decrypted ELF SHA matches."
