@@ -11,6 +11,7 @@ from pathlib import Path
 URL="https://raw.githubusercontent.com/mamedev/mame/692a5e467470ca26ff06391899aa8f5eecbf5d1b/src/mame/drivers/neodrvr.c"
 RGAME=re.compile(r"(?m)^\s*ROM_START\s*\(\s*([A-Za-z0-9_]+)\s*\)(.*?)^\s*ROM_END",re.S|re.M)
 RROM=re.compile(r'ROM_LOAD[A-Z0-9_]*\s*\(\s*"([^"]+)"\s*,\s*(?:0x[0-9a-fA-F]+|\d+)\s*,\s*(0x[0-9a-fA-F]+|\d+)\s*,\s*CRC\(([0-9a-fA-F]{8})\)',re.I)
+RMACRO=re.compile(r'\b(NEO_BIOS_AUDIO|NEO_SFIX)_(64|128|256|512)K\s*\(\s*"([^"]+)"\s*,\s*CRC\(([0-9a-fA-F]{8})\)',re.I)
 def main():
     ap=argparse.ArgumentParser()
     ap.add_argument("--output",required=True)
@@ -29,6 +30,11 @@ def main():
             value=int(size,0)
             if not 1<=value<=64*1024*1024:continue
             roms.append((crc.lower(),value,filename))
+        # Expand original NeoGeo driver macros that load encrypted/decrypted
+        # M1 audio and S1 graphics chips. KOF2002 decrypted M1 is essential
+        # and was not present in the explicit ROM_LOAD-only scan.
+        for macro,kib,filename,crc in RMACRO.findall(body):
+            roms.append((crc.lower(),int(kib)*1024,filename))
         if len(roms)>=2:sets[name.lower()]=roms
     assert 150<len(sets)<1000,len(sets)
     required={
