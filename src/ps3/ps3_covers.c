@@ -28,6 +28,7 @@
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
 #include "ps3_jpeg_soft.h"
+#include "ps3_arcade_jpeg.h"
 #include "render.h"
 #include "util.h"
 
@@ -356,6 +357,7 @@ CoverLoader *ps3_covers_start(void)
     io.is_file = io_is_file;
     io.is_dir = io_is_dir;
     io.decode = io_decode;
+    io.arcade_compact_jpeg = ps3_arcade_jpeg_compact;
     io.write_file = io_write;
     io.remove = io_remove;
     io.mkdir = io_mkdir;
