@@ -6,7 +6,8 @@ spec=importlib.util.spec_from_file_location("zoom",p)
 zoom=importlib.util.module_from_spec(spec);sys.modules["zoom"]=zoom;spec.loader.exec_module(zoom)
 assert zoom.ZOOM>1.0 and zoom.ZOOM<1.2
 assert zoom.CAVE_BYTES==48
-assert zoom.CAVE_OFF+zoom.CAVE_BYTES==0x004A50F8 # actual .text/.opd aligned padding
+assert zoom.CAVE_OFF==0x00577C00 and zoom.CAVE_VA==0x00587C00
+assert zoom.CAVE_OFF+zoom.CAVE_BYTES==0x00577C30 # gap after RX load, before the next RW segment
 assert zoom.branch(zoom.SITE_VA,zoom.CAVE_VA) & 0xfc000000 ==0x48000000
 assert zoom.branch(zoom.CAVE_VA+44,zoom.SITE_VA+4) & 0xfc000000 ==0x48000000
 assert zoom.SITE_VA-zoom.SITE_OFF==zoom.CAVE_VA-zoom.CAVE_OFF==0x10000

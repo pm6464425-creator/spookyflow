@@ -13,8 +13,11 @@ BASE_SHA="664cafadb096db1367ea0f018bfdbdf14141ae04c20d0340e5f23c45e67041bb"
 EXPECTED_ELF_SIZE=16653712
 SITE_OFF=0x001CF650
 SITE_VA=0x001DF650
-CAVE_OFF=0x004A50C8
-CAVE_VA=0x004B50C8
+# First RX PT_LOAD ends exactly at 0x577c00; next RW segment starts
+# at 0x580000. Use 48 bytes in the existing 0x8400 aligned gap, expanding
+# the RX segment without modifying any live code section or moving data.
+CAVE_OFF=0x00577C00
+CAVE_VA=0x00587C00
 CAVE_BYTES=48
 # 1.12x centered overscan of the SNES *game quad*, independently of the
 # Tiny3D viewport case. This is NOT a system-wide resolution change.
@@ -52,9 +55,25 @@ def apply(source:bytes)->tuple[bytes,str]:
     actual=hashlib.sha256(source).hexdigest()
     if actual!=BASE_SHA:raise ValueError(f"Wrong version input SHA256: {actual}")
     assert load_segment_for(source,SITE_OFF)==SITE_VA
-    assert load_segment_for(source,CAVE_OFF)==CAVE_VA
-    # The last 48 bytes between .text and .opd/.plt, reserved alignment
-    # padding within RX PT_LOAD; must be empty in the pinned binary.
+    assert load_segment_for(source,CAVE_OFF) is None
+    # Extend executable LOAD into its existing alignment gap, without
+    # overwriting any ELF section (unlike an unsafe .text/.plt code cave).
+    phoff=struct.unpack_from(">Q",source,32)[0]
+    entsize=struct.unpack_from(">H",source,54)[0]
+    nph=struct.unpack_from(">H",source,56)[0]
+    executable=[]
+    for index in range(nph):
+        p=phoff+index*entsize
+        typ,flags=struct.unpack_from(">II",source,p)
+        offset,virt=struct.unpack_from(">QQ",source,p+8)
+        filesz,memsz=struct.unpack_from(">QQ",source,p+32)
+        if typ==1 and flags&1 and offset==0 and virt==0x10000:
+            executable.append((p,filesz,memsz))
+    if len(executable)!=1:
+        raise ValueError("Expected unique RX PT_LOAD")
+    p,filesz,memsz=executable[0]
+    if filesz!=CAVE_OFF or memsz!=CAVE_OFF or CAVE_OFF+CAVE_BYTES>0x580000:
+        raise ValueError("Original RX segment/gap layout differs from audited PS3 ELF")
     unused=source[CAVE_OFF:CAVE_OFF+CAVE_BYTES]
     if len(unused)!=CAVE_BYTES or any(unused):
         raise ValueError("Executable code cave is not wholly empty / safe")
@@ -79,15 +98,22 @@ def apply(source:bytes)->tuple[bytes,str]:
     stub=b"".join(struct.pack(">I",ins) for ins in instructions)
     assert len(stub)==CAVE_BYTES
     out=bytearray(source)
+    # Change only RX header's filesz/memsz, jump at setScale, and 48-byte gap.
+    struct.pack_into(">Q",out,p+32,filesz+CAVE_BYTES)
+    struct.pack_into(">Q",out,p+40,memsz+CAVE_BYTES)
     out[CAVE_OFF:CAVE_OFF+CAVE_BYTES]=stub
     out[SITE_OFF:SITE_OFF+4]=struct.pack(">I",branch(SITE_VA,CAVE_VA))
     assert load_segment_for(out,CAVE_OFF)==CAVE_VA
-    assert all(source[x]==out[x] for x in range(SITE_OFF+4,CAVE_OFF))
-    assert all(source[x]==out[x] for x in range(CAVE_OFF+CAVE_BYTES,len(source)))
+    before=bytearray(source)
+    struct.pack_into(">Q",before,p+32,filesz+CAVE_BYTES)
+    struct.pack_into(">Q",before,p+40,memsz+CAVE_BYTES)
+    before[CAVE_OFF:CAVE_OFF+CAVE_BYTES]=stub
+    before[SITE_OFF:SITE_OFF+4]=struct.pack(">I",branch(SITE_VA,CAVE_VA))
+    assert out==before, "Unexpected source mutation"
     sha=hashlib.sha256(out).hexdigest()
     print("PASS pinned original pSNES 7.2: C2DUIVideo::updateScaling runtime setScale patch")
     print("PASS 1.12x centered uniform video zoom, both axes, all SNES games, no menu or audio changes")
-    print("PASS PPC64 machine opcodes / branch roundtrip / RX PT_LOAD / exact 52-byte modification")
+    print("PASS PPC64 machine opcodes / branch roundtrip / RX PT_LOAD / 48-byte code / 4-byte branch / two RX segment lengths")
     print("PASS new pSNES ELF SHA256",sha)
     return bytes(out),sha
 
