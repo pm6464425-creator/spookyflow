@@ -46,7 +46,7 @@ void cover_tex_size(int plat, int *w, int *h)
     case PLAT_PS1: *w = 384; *h = 384; break;   /* square jewel case */
     case PLAT_PS2: *w = 320; *h = 448; break;
     case PLAT_SNES: *w = 384; *h = 268; break; /* horizontal SNES */
-    case PLAT_ARCADE: *w = 300; *h = 448; break; /* portrait Neo Geo MVS cover */   /* tall DVD case */
+    case PLAT_ARCADE: *w = 320; *h = 448; break; /* RSX pitch 640 bytes / 64 aligned; artwork aspect comes from layout window */   /* tall DVD case */
     default:       *w = 384; *h = 448; break;   /* Blu-ray case */
     }
 }
