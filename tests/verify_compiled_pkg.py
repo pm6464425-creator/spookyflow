@@ -98,7 +98,7 @@ def verify(package):
     assert ('#define SF_PS1_ENGINE_SIZE '+str(len(px))+'ULL') in engheader
     assert 'k_sf_ps1_engine_hash[32]' in engheader
     assert len(files["USRDIR/PS1ENGINE/ps1titles.txt"])>50000
-    assert b"GPL" in files["USRDIR/PS1ENGINE/LICENSE.txt"]
+    assert b"GNU GENERAL PUBLIC LICENSE" in files["USRDIR/PS1ENGINE/LICENSE.txt"]
     assert b"Calyps0man" in files["USRDIR/PS1ENGINE/SOURCE.txt"]
     print("PASS V15.53 actual integrated source-built native PS1 FULL_16_9 RSX APP SELF:",len(px),pxhash)
 
