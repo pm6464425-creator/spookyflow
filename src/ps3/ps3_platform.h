@@ -42,6 +42,8 @@ void     ps3_pad_end(void);
 
 /* ps3_fs.c */
 int  ps3_fs_list(void *ctx, const char *dir, FsEntry *out, int max);
+/* ARC_ONLY: page through >4096 files without affecting other consoles. */
+int  ps3_fs_list_arcade_page(void *ctx,const char *dir,FsEntry *out,int max,int offset);
 int  ps3_fs_exists(const char *path);
 void ps3_fs_mkdirs(void);
 /* Delete only known legacy diagnostic report names inside SF_DATA_DIR.
