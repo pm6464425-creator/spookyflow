@@ -129,6 +129,54 @@ void tiny3d_Project2D()
              (unsigned)Video_Resolution.width,(unsigned)Video_Resolution.height);
         rsxtiny_ViewportTranslate(context, 38.0 , 16.0, 0.0, 0.0);''')
     ])
+    # The original PS3 backend in this *pinned* submodule retains outdated
+    # interfaces that cannot even compile against its own skeleton headers.
+    # Bring only PS3 signatures in line with the actual virtual interfaces.
+    base=root/"external/libcross2d/include/cross2d"
+    edit(base/"platforms/ps3/tiny3d_renderer.h", [
+      ("Texture *texture, Sprite *sprite = nullptr) override;",
+       "Texture *texture) override;")
+    ])
+    edit(rend,[
+      ("Texture *texture, Sprite *sprite) {",
+       "Texture *texture) {"),
+      ("int filter = tex->filter == Texture::Filter::Linear",
+       "int filter = tex->m_filter == Texture::Filter::Linear"),
+      ("(u32) tex->pitch, tex->fmt, filter);",
+       "(u32) tex->m_pitch, tex->fmt, filter);")
+    ])
+    edit(base/"platforms/ps3/tiny3d_texture.h",[
+      ("explicit TINY3DTexture(const Vector2f &size = Vector2f(0, 0), Format format = Format::RGBA8);",
+       "explicit TINY3DTexture(const Vector2i &size = Vector2i(0, 0), Format format = Format::RGBA8);"),
+      ("int lock(FloatRect *rect, void **pixels, int *pitch) override;",
+       "int lock(uint8_t **pixels, int *pitch = nullptr, IntRect rect = IntRect()) override;"),
+      ("void unlock(void *data = nullptr) override;",
+       "void unlock(const uint8_t *data = nullptr) override;"),
+      ("u32 offset;\n        text_format fmt;",
+       "u32 offset;\n        text_format fmt;\n        bool available=false;")
+    ])
+    tex=root/"external/libcross2d/source/platforms/ps3/tiny3d_texture.cpp"
+    edit(tex,[
+       ("TINY3DTexture::TINY3DTexture(const Vector2f &size, Format format)",
+        "TINY3DTexture::TINY3DTexture(const Vector2i &size, Format format)"),
+       ("int TINY3DTexture::lock(FloatRect *rect, void **pix, int *p) {",
+        "int TINY3DTexture::lock(uint8_t **pix, int *p, IntRect rect) {"),
+       ("    if (!rect) {\n        *pix = pixels;\n    } else {\n        *pix = (void *) ((uint8_t *) pixels + (int) rect->top * pitch + (int) rect->left * bpp);\n    }",
+        "    if (rect==IntRect()) *pix=(uint8_t*)pixels;\n    else *pix=(uint8_t*)pixels+rect.top*m_pitch+rect.left*m_bpp;"),
+       ("void TINY3DTexture::unlock(void *data) {",
+        "void TINY3DTexture::unlock(const uint8_t *data) {")
+    ])
+    texture_src=tex.read_text()
+    for before,after in [
+        (" bpp"," m_bpp"),(" bpp)"," m_bpp)"),("pitch","m_pitch"),
+        ("tex_size","m_tex_size"),("setFilter(filter)","setFilter(m_filter)")
+    ]:
+        pass # exact token patch below, no broad textual replacements.
+    textext=tex.read_text()
+    import re
+    for old,new in [(r"\bbpp\b","m_bpp"),(r"\bpitch\b","m_pitch"),(r"\btex_size\b","m_tex_size"),(r"\bfilter\b","m_filter")]:
+        textext=re.sub(old,new,textext)
+    tex.write_text(textext)
     code=main.read_text()+video.read_text()+emu.read_text()+rend.read_text()+tiny.read_text()
     for key in ("psnes_runtime:","UPDATE_SCALING mode=","SNES_FRAME sample=",
                 "RENDERER_PROJECT sample=","GPU_BRANCH=1080p","GPU_BRANCH=720p"):
