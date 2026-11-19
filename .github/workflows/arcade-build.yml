@@ -1,9 +1,9 @@
-name: SpookyFlow V15.71 Arcade multi-ROM native compatibility
+name: SpookyFlow V15.72 PC-assisted Arcade fallback (optional)
 on:
   workflow_dispatch:
   push:
     branches:
-      - fix/v15-71-arcade-compatibility-expansion
+      - feature/v15-72-pc-arcade-bridge-fallback
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
@@ -119,6 +119,16 @@ jobs:
             src/core/*.c tests/test_arcade_identification.c tests/null_render.c \
             -lm -lpthread -o /tmp/test_arcade_identification_full
           /tmp/test_arcade_identification_full full
+      - name: Verify PC bridge is disabled by default and never replaces native ROMs
+        run: |
+          test -s src/ps3/ps3_arcade_bridge.c
+          test -s pkgfiles/USRDIR/ARCADE/PC_BRIDGE_INSTRUCCIONES.txt
+          grep -q 'sf_pc_arcade_try_launch' src/ps3/main.c
+          grep -q 'if(!engine || sf_pc_arcade_preferred())' src/ps3/main.c
+          grep -q 'PC_BRIDGE_DESACTIVADO' src/ps3/ps3_arcade_bridge.c
+          grep -q 'PC_BRIDGE_JUEGO_INICIADO_ABRIR_MOONLIGHT_PS3' src/ps3/ps3_arcade_bridge.c
+          grep -q '/dev_hdd0/tmp/spookyflow/pc_bridge.cfg' src/ps3/ps3_arcade_bridge.c
+          echo "PASS: no PC network unless explicitly enabled; PS3 games untouched"
       - name: Verify native arcade core signatures and 16:9 configuration
         run: |
           python3 - <<'PY'
@@ -234,6 +244,6 @@ jobs:
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-71-ARCADE-MULTI-ROM-FBNEO-LEGACY
+          name: SPOOKYFLOW-V15-72-ARCADE-OPTIONAL-PC-BRIDGE
           path: spookyflow.pkg
           if-no-files-found: error
