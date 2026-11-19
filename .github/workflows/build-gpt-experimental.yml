@@ -60,6 +60,13 @@ jobs:
           curl -sL "$TOOLCHAIN_URL" | tar xz -C ./
           curl -sL https://github.com/ps3dev/PSL1GHT/raw/master/ppu/include/sysutil/sysutil.h \
             -o ps3dev/ppu/include/sysutil/sysutil.h
+      - name: Install required NVIDIA Cg shader compiler for existing PS1 engine
+        run: |
+          sudo add-apt-repository -y multiverse
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nvidia-cg-toolkit
+          command -v cgc
+          test -x "$PS3DEV/bin/cgcomp"
       - name: Build PS3 PKG
         run: bash ci/build_ps3.sh
       - name: Verify actual package
