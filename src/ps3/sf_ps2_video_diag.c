@@ -21,6 +21,7 @@
 #include <sys/stat.h>
 #include <errno.h>
 #ifndef SF_PS2_VIDEO_HOST_TEST
+#include <sys/file.h>
 #include <sysutil/video.h>
 #endif
 
@@ -40,6 +41,48 @@
 #endif
 
 static int s_resume_checked=0;
+static int s_write_status=0; /* 0=not writable, 1=primary, 2=fallback */
+static const char *s_active_path=SF_PS2_VIDEO_DIAG_PATH;
+
+int sf_ps2_video_diag_status(void){return s_write_status;}
+const char *sf_ps2_video_diag_active_path(void){return s_active_path;}
+
+/* The PS3 game's own LV2 filesystem is authoritative. Unlike the V15.75
+ * implementation, we do not silently ignore EBOOT write errors. */
+static int prepare_native(const char *path)
+{
+#ifdef SF_PS2_VIDEO_HOST_TEST
+    (void)path;return 0;
+#else
+    s32 fd=-1;
+    int rc=sysFsOpen(path,SYS_O_CREAT|SYS_O_TRUNC|SYS_O_WRONLY,&fd,NULL,0);
+    if(rc==0)sysFsClose(fd);
+    return rc;
+#endif
+}
+/* Emergency report if both stdio fopen calls fail after successful LV2
+ * calls: still leave a small, human-readable TXT instead of nothing. */
+static int native_failure_report(const char *path)
+{
+#ifdef SF_PS2_VIDEO_HOST_TEST
+    FILE *f=fopen(path,"wb");
+    if(!f)return -1;
+    fputs("SPOOKYFLOW_PS2_VIDEO_DIAG=V15.76\n"
+          "ERROR_GUARDADO=FOPEN_RECHAZADO_USAR_RUTA_ALTERNATIVA\n",f);
+    fclose(f);
+    return 0;
+#else
+    s32 fd=-1;u64 wrote=0;
+    static const char notice[]=
+      "SPOOKYFLOW_PS2_VIDEO_DIAG=V15.76\n"
+      "ERROR_GUARDADO=LIBC_FOPEN_RECHAZADO_SYSCALL_LV2_UTILIZADO\n"
+      "SOLUCION=REVISAR_PERMISOS_SISTEMA_ARCHIVOS_HDD\n";
+    if(sysFsOpen(path,SYS_O_CREAT|SYS_O_TRUNC|SYS_O_WRONLY,&fd,NULL,0)!=0)return -1;
+    int rc=sysFsWrite(fd,notice,sizeof notice-1,&wrote);
+    sysFsClose(fd);
+    return rc==0 && wrote==sizeof notice-1 ? 0 : -1;
+#endif
+}
 static void safe(FILE *f,const char *s)
 {
     size_t i;
@@ -63,7 +106,7 @@ static long filebytes(const char *path)
 }
 static FILE *append(void)
 {
-    FILE *f=fopen(SF_PS2_VIDEO_DIAG_PATH,"ab");
+    FILE *f=fopen(s_active_path,"ab");
     long length;
     if(!f)return NULL;
     if(fseek(f,0,SEEK_END)!=0 || (length=ftell(f))<0 ||
@@ -149,16 +192,38 @@ void sf_ps2_video_diag_begin(const char *iso_path)
 {
     FILE *f;
     long sz;
-    /* Installer may not have created tmp/spookyflow yet. */
+    /* Record LV2 file creation status, and use only ONE output path.
+     * Fallback is the installed application's USRDIR if /tmp is inaccessible.
+     * Never touch system registry, firmware, any ROM, or PS2 Classics files. */
+#ifdef SF_PS2_VIDEO_HOST_TEST
     (void)mkdir("/dev_hdd0/tmp/spookyflow",0777);
-    f=fopen(SF_PS2_VIDEO_DIAG_PATH,"wb");
-    if(!f)return;
-    fputs("SPOOKYFLOW_PS2_VIDEO_DIAG=V15.75\n"
+#else
+    (void)sysFsMkdir("/dev_hdd0/tmp/spookyflow",0777);
+#endif
+    s_active_path=SF_PS2_VIDEO_DIAG_PATH;
+    s_write_status=0;
+    (void)prepare_native(s_active_path);
+    f=fopen(s_active_path,"wb");
+    if(f)s_write_status=1;
+    if(!f){
+        s_active_path=SF_PS2_VIDEO_DIAG_FALLBACK_PATH;
+        (void)prepare_native(s_active_path);
+        f=fopen(s_active_path,"wb");
+        if(f)s_write_status=2;
+    }
+    if(!f){
+        s_write_status=native_failure_report(SF_PS2_VIDEO_DIAG_PATH)==0 ? 3 : 0;
+        s_active_path=SF_PS2_VIDEO_DIAG_PATH;
+        return;
+    }
+    fputs("SPOOKYFLOW_PS2_VIDEO_DIAG=V15.76\n"
           "SCOPE=PS2_ONLY\nFORMATO=DIAGNOSTICO_AVANZADO_XMB_PS2_CLASSICS\n"
           "ARCHIVO_UNICO=SI_REEMPLAZADO_CADA_INTENTO\n"
           "MODIFICA_ROM=NO\nMODIFICA_CONFIG_PS2=NO\n"
           "MODIFICA_XREGISTRY=NO\nMODIFICA_PS2_NETEMU=NO\n"
           "FUNDAMENTO=PS2_NETEMU_SE_EJECUTA_FUERA_DE_SPOOKYFLOW\n",f);
+    fprintf(f,"DIAGNOSTICO_RUTA=%s\n",s_active_path);
+    fprintf(f,"DIAGNOSTICO_GUARDADO=%s\n",s_write_status==1?"PRINCIPAL":"ALTERNATIVA");
     field(f,"ISO_RUTA",iso_path);
     sz=filebytes(iso_path);
     fprintf(f,"ISO_BYTES=%ld\nISO_ACCESIBLE=%s\n",sz,sz>=0?"SI":"NO");
@@ -245,12 +310,27 @@ void sf_ps2_video_diag_resume(void)
 {
     FILE *f,*a;char head[96]={0};
     if(s_resume_checked++)return;
-    f=fopen(SF_PS2_VIDEO_DIAG_PATH,"rb");if(!f)return;
+    s_active_path=SF_PS2_VIDEO_DIAG_PATH;
+    f=fopen(s_active_path,"rb");
+    if(!f){
+        s_active_path=SF_PS2_VIDEO_DIAG_FALLBACK_PATH;
+        f=fopen(s_active_path,"rb");
+    }
+    if(!f){
+        /* V15.76: always create an initial readable TXT so missing log is
+         * not mistaken for a failed PS2 video handoff. A new PS2 selection
+         * replaces this placeholder with real ISO/game observations. */
+        sf_ps2_video_diag_begin("PENDIENTE_SELECCIONAR_PS2_EN_SPOOKYFLOW");
+        sf_ps2_video_diag_event("ESPERANDO_JUEGO_PS2",0,
+                                "PULSAR_X_DESDE_LA_PESTANA_PS2_NO_SOLO_XMB");
+        return;
+    }
     if(!fgets(head,sizeof head,f) ||
        !strstr(head,"SPOOKYFLOW_PS2_VIDEO_DIAG=")){
         fclose(f);return;
     }
     fclose(f);
+    s_write_status=s_active_path==SF_PS2_VIDEO_DIAG_PATH?1:2;
     a=append();if(!a)return;
     fputs("REAPERTURA_SPOOKYFLOW=SI\n",a);
     bootparam(a,"DESPUES_DE_REGRESAR_DE_PS2",NULL);
