@@ -298,5 +298,5 @@ jobs:
           name: SPOOKYFLOW-V15-74-ARCADE-CRC-CLONES-33
           path: |
             spookyflow.pkg
-            pkgfiles/USRDIR/EBOOT.BIN
+            spookyflow.self
           if-no-files-found: error
