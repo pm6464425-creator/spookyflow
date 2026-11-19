@@ -20,6 +20,11 @@ int main(void)
     assert(strstr(r,"NEOGEO_CLON_CRC_OK_PADRE=kof2002"));
     assert(strstr(r,"HEREDADOS=11/14"));
     puts("PASS kf2k2mp clone: 3 own + 11 inherited parent chips => legacy FBNeo");
+    engine=arcade_native_engine_select(ROOT "kf2k2pla.zip",
+             ARCADE_ENGINE_FBNEO,r,sizeof r);
+    assert(engine==ARCADE_ENGINE_FBNEO_LEGACY);
+    assert(strstr(r,"NEOGEO_CLON_CRC_OK_PADRE=kof2002"));
+    puts("PASS V15.74 previously missing alias: kf2k2pla ZIP 2 own chips + kof2002 parent => verified legacy FBNeo");
     /* Without parent, do NOT claim clone works. */
     assert(rename(ROOT "kof2002.zip",ROOT "kof2002_parent_backup.zip")==0);
     engine=arcade_native_engine_select(ROOT "kf2k2mp.zip",
