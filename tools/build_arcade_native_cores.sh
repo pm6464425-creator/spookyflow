@@ -101,8 +101,9 @@ PY
     legacy_self="pkgfiles/USRDIR/cores/fb_neo_legacy.SELF"
     test -s pkgfiles/USRDIR/ARCADE/fbneo_legacy_aliases.tsv
     test -s pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv
+    test -s pkgfiles/USRDIR/ARCADE/fbneo_legacy_all_aliases.tsv
     python3 tools/patch_fbneo_legacy.py "$patched" "$legacy_elf" \
-      --aliases pkgfiles/USRDIR/ARCADE/fbneo_legacy_aliases.tsv
+      --aliases pkgfiles/USRDIR/ARCADE/fbneo_legacy_all_aliases.tsv
     make_self "$legacy_elf" "$legacy_self" >"$tmp/sign-fbneo-legacy.log" 2>&1 || {
       tail -25 "$tmp/sign-fbneo-legacy.log";exit 1;
     }
