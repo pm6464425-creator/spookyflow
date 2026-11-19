@@ -67,6 +67,9 @@
 #define sf_cobra_diag_report_previous() ((void)0)
 #endif
 
+/* PS2 video failure can be shown even if no diagnostic TXT was created. */
+static App g_app;
+
 /* V15.75: PS2 ONLY. Wrap the existing backends to record VIDEO facts
  * while preserving their arguments, selected emulator and return codes.
  * The PS2 display is drawn AFTER this process exits, by ps2_netemu. */
@@ -74,6 +77,10 @@ static int ps2_video_preflight(const char *iso_path)
 {
     int rc;
     sf_ps2_video_diag_begin(iso_path);
+    if(sf_ps2_video_diag_status()==0)
+        app_show_toast(&g_app,"PS2: error guardando diagnóstico TXT");
+    else if(sf_ps2_video_diag_status()==2)
+        app_show_toast(&g_app,"PS2: diagnóstico guardado en carpeta SpookyFlow");
     rc=sf_ps2_preflight(iso_path);
     sf_ps2_video_diag_preflight(rc);
     return rc;
@@ -119,7 +126,6 @@ static int ps2_video_hen_poll(int *progress)
 }
 
 static Library g_lib;
-static App g_app;
 static unsigned char g_scratch[UI_SCRATCH_BYTES];
 static volatile int g_sys_exit;
 static int g_saved_on_exit;
