@@ -283,16 +283,6 @@ python3 tools/build_arcade_catalog.py \
 test -s pkgfiles/USRDIR/ARCADE/arcade_titles.tsv
 end
 
-# --- ARCADE native dual-engine runtime; separate from five console engines ---
-# Only game shortnames in v2.30 PS3 DB are eligible; actual ZIP compatibility
-# still depends on correct matching original ROM set and optional external BIOS.
-say "Arcade-only FBNeo + MAME0.125 native PS3 cores, signed APP SELF, 16:9"
-bash tools/build_arcade_native_cores.sh
-test -s pkgfiles/USRDIR/cores/fb_neo.SELF
-test -s pkgfiles/USRDIR/MAME125/mame125.SELF
-test -s pkgfiles/USRDIR/ARCADE/arcade_engines.tsv
-end
-
 # --- ARCADE ONLY: authentic old PS3 FBNeo driver ROM CRC manifest ---------
 # The user's screen showed "Wrong romset". Diagnose exact per-chip CRC,
 # missing ZIP members and clone/BIOS dependencies. No changes to ROMs.
@@ -309,6 +299,29 @@ say "ARCADE: original MAME0.125 NeoGeo driver checksum table"
 python3 tools/build_arcade_mame0125_catalog.py \
   --output pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv
 test -s pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv
+end
+
+# --- NeoGeo legacy name/CRC maps for the isolated FBNeo Legacy core -------
+# Derive verified compatible games from BOTH authentic old source catalogs.
+say "ARCADE: generate verified NeoGeo MAME125/FBNeo PS3 compatibility table"
+python3 tools/build_arcade_legacy_aliases.py \
+  --mame pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv \
+  --fbneo pkgfiles/USRDIR/ARCADE/fbneo_ps3_crc_manifest.tsv \
+  --aliases pkgfiles/USRDIR/ARCADE/fbneo_legacy_aliases.tsv \
+  --games pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv
+test -s pkgfiles/USRDIR/ARCADE/fbneo_legacy_aliases.tsv
+test -s pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv
+end
+
+# --- ARCADE native dual-engine runtime; separate from five console engines ---
+# Only game shortnames in v2.30 PS3 DB are eligible; actual ZIP compatibility
+# still depends on correct matching original ROM set and optional external BIOS.
+say "Arcade-only FBNeo + MAME0.125 native PS3 cores, signed APP SELF, 16:9"
+bash tools/build_arcade_native_cores.sh
+test -s pkgfiles/USRDIR/cores/fb_neo.SELF
+test -s pkgfiles/USRDIR/MAME125/mame125.SELF
+test -s pkgfiles/USRDIR/cores/fb_neo_legacy.SELF
+test -s pkgfiles/USRDIR/ARCADE/arcade_engines.tsv
 end
 
 # --- build ----------------------------------------------------------------------
