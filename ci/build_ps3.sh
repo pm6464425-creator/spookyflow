@@ -322,9 +322,14 @@ python3 tools/build_arcade_clone_maps.py \
   --mame pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv \
   --legacy-games pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv \
   --parents pkgfiles/USRDIR/ARCADE/arcade_parents.tsv \
-  --clones pkgfiles/USRDIR/ARCADE/fbneo_legacy_clones.tsv
+  --clones pkgfiles/USRDIR/ARCADE/fbneo_legacy_clones.tsv \
+  --base-aliases pkgfiles/USRDIR/ARCADE/fbneo_legacy_aliases.tsv \
+  --clone-aliases pkgfiles/USRDIR/ARCADE/fbneo_legacy_clone_aliases.tsv \
+  --all-aliases pkgfiles/USRDIR/ARCADE/fbneo_legacy_all_aliases.tsv
 test -s pkgfiles/USRDIR/ARCADE/arcade_parents.tsv
 test -s pkgfiles/USRDIR/ARCADE/fbneo_legacy_clones.tsv
+test -s pkgfiles/USRDIR/ARCADE/fbneo_legacy_clone_aliases.tsv
+test -s pkgfiles/USRDIR/ARCADE/fbneo_legacy_all_aliases.tsv
 end
 
 # --- ARCADE native dual-engine runtime; separate from five console engines ---
