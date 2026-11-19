@@ -143,9 +143,12 @@ static int get_rom_code(const char *path,char *out,size_t cap)
     out[n]=0;
     return 1;
 }
+#ifndef SF_ARCADE_ROM_ROOT
+#define SF_ARCADE_ROM_ROOT "/dev_hdd0/ARCADE"
+#endif
 static void companion_path(char *out,size_t cap,const char *code)
 {
-    if(code && *code)snprintf(out,cap,"/dev_hdd0/ARCADE/%s.zip",code);
+    if(code && *code)snprintf(out,cap,SF_ARCADE_ROM_ROOT "/%s.zip",code);
     else if(cap)out[0]=0;
 }
 static const char *state_text(int state)
@@ -354,7 +357,7 @@ static void mame125_manifest(FILE *report,const char *romcode,
                              const ZipArchive *game,const ZipArchive *bios)
 {
     FILE *f=fopen(SF_MAME125_CATALOG,"rb");
-    char line[360],gamecode[100],*crc_text,*size_text,*file_text,*tab,*end;
+    char line[360],*crc_text,*size_text,*file_text,*tab,*end;
     unsigned expected=0,ok_game=0,ok_bios=0,missing=0,nmissing=0;
     uint64_t bytes_total=0;
     const uint32_t needs_crc[3]={0x97cf998bu,0x354029fcu,0xe09e253cu};
@@ -375,7 +378,6 @@ static void mame125_manifest(FILE *report,const char *romcode,
     }
     while(fgets(line,sizeof line,f)){
         unsigned long crc,sz;
-        snprintf(gamecode,sizeof gamecode,"%s",line);
         tab=strchr(line,'\t');if(!tab)continue;
         *tab++=0;
         if(strcmp(line,romcode))continue;
@@ -443,7 +445,7 @@ int arcade_diag_begin(const char *rom_path,int core,const char *core_file,
     fprintf(f,"RUTA_ROM=%s\nMOTOR_ELEGIDO=%s\n",
             rom_path?rom_path:"(null)",
             core==1?"FBNeo":core==2?"MAME0125":"NO_IDENTIFICADO");
-    fprintf(f,"CARPETA_ROM=/dev_hdd0/ARCADE\n");
+    fprintf(f,"CARPETA_ROM=%s\n",SF_ARCADE_ROM_ROOT);
     probe_file(f,"EJECUTABLE",core_file);
     probe_file(f,"RELOAD",reload_file);
     probe_file(f,"CONFIG_VIDEO",config_file);
