@@ -40,6 +40,15 @@ def central_only_zip(path,items):
         pos+=46+namelen
     assert count==len(items)
     path.write_bytes(buf)
+# Also test a DIFFERENT fully compatible Neo Geo title; this catches
+# accidental hardcoding of the only previously working game KOF2002.
+kof98=[ln.split("\t") for ln in mapping.read_text().splitlines()
+       if ln.startswith("kof98\t") and "\t@\t" not in ln]
+assert len(kof98)>=14,len(kof98)
+kof98_entries=[(n,int(crc,16),int(size)) for _,crc,size,n in kof98
+               if n not in ("sfix.sfx","sm1.sm1","000-lo.lo") and
+               not n.endswith("_decrypted.bin")]
+central_only_zip(root/"kof98.zip",kof98_entries)
 central_only_zip(root/"kof2002.zip",game)
 central_only_zip(root/"neogeo.zip",legacy)
 central_only_zip(root/"neogeo_modern.zip",modern)
