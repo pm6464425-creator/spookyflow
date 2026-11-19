@@ -206,6 +206,9 @@ void sf_ps2_video_diag_begin(const char *iso_path)
     f=fopen(s_active_path,"wb");
     if(f)s_write_status=1;
     if(!f){
+        /* This 0-byte placeholder was created by our own native probe. */
+        if(filebytes(SF_PS2_VIDEO_DIAG_PATH)==0)
+            (void)remove(SF_PS2_VIDEO_DIAG_PATH);
         s_active_path=SF_PS2_VIDEO_DIAG_FALLBACK_PATH;
         (void)prepare_native(s_active_path);
         f=fopen(s_active_path,"wb");
@@ -327,7 +330,28 @@ void sf_ps2_video_diag_resume(void)
     }
     if(!fgets(head,sizeof head,f) ||
        !strstr(head,"SPOOKYFLOW_PS2_VIDEO_DIAG=")){
-        fclose(f);return;
+        fclose(f);
+        /* If primary contains an empty native probe, recover the real
+         * fallback report. Never misreport this as no diagnosis. */
+        if(s_active_path==SF_PS2_VIDEO_DIAG_PATH){
+            s_active_path=SF_PS2_VIDEO_DIAG_FALLBACK_PATH;
+            f=fopen(s_active_path,"rb");
+            if(f){
+                memset(head,0,sizeof head);
+                if(fgets(head,sizeof head,f) &&
+                   strstr(head,"SPOOKYFLOW_PS2_VIDEO_DIAG=")){
+                    fclose(f);
+                    s_write_status=2;
+                    a=append();if(!a)return;
+                    fputs("REAPERTURA_SPOOKYFLOW=SI\\n",a);
+                    bootparam(a,"DESPUES_DE_REGRESAR_DE_PS2",NULL);
+                    fflush(a);fclose(a);
+                    return;
+                }
+                fclose(f);
+            }
+        }
+        return;
     }
     fclose(f);
     s_write_status=s_active_path==SF_PS2_VIDEO_DIAG_PATH?1:2;
