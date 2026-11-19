@@ -1,9 +1,9 @@
-name: SpookyFlow V15.70 Arcade forced fullscreen stretch 16:9
+name: SpookyFlow V15.71 Arcade multi-ROM native compatibility
 on:
   workflow_dispatch:
   push:
     branches:
-      - fix/v15-70-arcade-fullscreen-stretch-16x9
+      - fix/v15-71-arcade-compatibility-expansion
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
@@ -169,18 +169,33 @@ jobs:
           grep -q 'ARCADE_ENGINE_FBNEO_LEGACY=3' src/core/arcade_engine.h
           grep -q 'fb_neo_legacy.SELF' src/ps3/main.c
           grep -q 'args\[9\]=engine==ARCADE_ENGINE_FBNEO_LEGACY ? fbneo_legacy : fbneo;' src/ps3/main.c
-          grep -q 'KOF2002_OLD_BIOS_15_OF_15_SELECT_FBNEO_LEGACY' src/core/arcade_native_select.c
+          grep -q 'NEOGEO_OLD_BIOS_ALL_CHIPS_MATCH_SELECT_FBNEO_LEGACY' src/core/arcade_native_select.c
+          test -s pkgfiles/USRDIR/ARCADE/fbneo_legacy_aliases.tsv
+          test -s pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv')
+          games={ln.split("\t")[0] for ln in p.read_text().splitlines() if ln and not ln.startswith("#")}
+          aliases=[ln for ln in Path('pkgfiles/USRDIR/ARCADE/fbneo_legacy_aliases.tsv').read_text().splitlines() if ln and not ln.startswith("#")]
+          assert len(games)>=70, len(games)
+          assert len(aliases)>=700, len(aliases)
+          for g in ('kof2002','kof97','kof98','mslug3','neobombe'):
+              assert g in games,g
+          print("PASS eligible NeoGeo MAME125 FBNeo:",len(games),"sets",len(aliases),"aliases")
+          PY
       - name: Verify KOF2002 old BIOS automatic FBNeo legacy selection and 16:9
         run: |
           test -s pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv
           mkdir -p /tmp/arcade_native_route_test
           cp pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv /tmp/arcade_native_route_test/mame0125_neogeo.tsv
+          cp pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv /tmp/arcade_native_route_test/fbneo_legacy_games.tsv
           python3 tests/make_arcade_native_select_fixture.py
           gcc -std=gnu99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
             -fsanitize=address,undefined -fno-omit-frame-pointer \
             '-DARCADE_NATIVE_ROM_ROOT="/tmp/arcade_native_route_test/"' \
             '-DARCADE_NATIVE_BIOS_PATH="/tmp/arcade_native_route_test/neogeo.zip"' \
             '-DARCADE_MAME125_CATALOG_PATH="/tmp/arcade_native_route_test/mame0125_neogeo.tsv"' \
+            '-DARCADE_LEGACY_GAMES_PATH="/tmp/arcade_native_route_test/fbneo_legacy_games.tsv"' \
             -Isrc/core src/core/arcade_native_select.c tests/test_arcade_native_select.c \
             -o /tmp/test_arcade_native_select
           /tmp/test_arcade_native_select
@@ -188,7 +203,7 @@ jobs:
           grep -q 'arcade_diag_event("RUTA_ARCADE_BIOS_Y_ROMSET_CRC"' src/ps3/main.c
           grep -q 'video_aspect_ratio = "1.777800"' pkgfiles/USRDIR/retroarch.cfg
           test -s pkgfiles/USRDIR/cores/fb_neo_legacy.SELF
-          echo "PASS: Auto FBNeo legacy KOF2002 original CRC + old BIOS; no modification to any game"
+          echo "PASS: Auto FBNeo legacy multiple verified NeoGeo games + old BIOS; no modification to any game"
       - name: Verify focused MAME125 report and no extra TXT
         run: |
           printf 'kof2002\t\tneogeo\t@\t-\t-\n' > /tmp/arcade_native_route_test/fbneo_fixture.tsv
@@ -219,6 +234,6 @@ jobs:
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-70-ARCADE-FULLSCREEN-16X9
+          name: SPOOKYFLOW-V15-71-ARCADE-MULTI-ROM-FBNEO-LEGACY
           path: spookyflow.pkg
           if-no-files-found: error
