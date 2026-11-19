@@ -1470,6 +1470,14 @@ static void launch_disc(App *a, int disc)
         /* Both native PS3 cores receive ROM path directly on X. No
          * intermediate emulator chooser and no changes to console paths. */
         int rc=a->host.launch_arcade ? a->host.launch_arcade(path) : -91;
+        if(rc==1){
+            /* PC bridge accepted this game. Do not kill SpookyFlow: tell the
+             * user to switch to the separately paired Moonlight PS3 client.
+             * Avoid implying streaming is already connected. */
+            app_show_toast(a,"ARCADE PC: juego iniciado. Abre Moonlight PS3");
+            log_printf("arcade: PC fallback started; viewing via Moonlight PS3");
+            return;
+        }
         if(rc==0){
             sf_strlcpy(a->last_launch,name,sizeof(a->last_launch));
             a->launched=1;
