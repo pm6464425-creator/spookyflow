@@ -73,6 +73,20 @@ static void check(const char*name,uint32_t mode,uint32_t bytes,uint64_t total,in
   fprintf(stderr,"FAIL %s got=%d want=%d recover=%d\n",name,actual,want,p.backup_gpt_used);errors++;
  } else printf("PASS %02d %s\n",done,name);
 }
+
+static void test_capacity(const char *label,uint32_t mode,uint32_t bytes,uint64_t total,int want){
+ Mock m;uint64_t got=0;int rc;
+ m.total=total;m.bytes=bytes;m.mode=mode;
+ rc=spooky_gpt_infer_device_sectors(rd,&m,bytes,&got);done++;
+ if(rc!=want || (want==SPOOKY_GPT_FOUND && got!=total) ||
+    (want!=SPOOKY_GPT_FOUND && got!=0)) {
+  fprintf(stderr,"FAIL %s rc=%d expected=%d count=%llu\n",label,rc,want,(unsigned long long)got);errors++;
+ } else printf("PASS %02d %s\n",done,label);
+}
+static int always_fail(void *ctx,uint64_t lba,void *buffer){
+ (void)ctx;(void)lba;(void)buffer;return -1;
+}
+
 int main(void){
  const uint64_t eight=15625000000ull;
  check("8TB GPT",0,512,eight,0,0);
@@ -95,6 +109,22 @@ int main(void){
  check("GPT out-of-bounds usable",BAD_USABLE,512,eight,-1,0);
  check("unsupported sector size",0,1024,eight,-3,0);
  check("invalid device size",0,512,20,-3,0);
+ test_capacity("ZERO_CAP GPT 8TB 512",0,512,eight,SPOOKY_GPT_FOUND);
+ test_capacity("ZERO_CAP GPT 6TB 512",0,512,eight*3/4,SPOOKY_GPT_FOUND);
+ test_capacity("ZERO_CAP GPT 4TB 512",0,512,eight/2,SPOOKY_GPT_FOUND);
+ test_capacity("ZERO_CAP GPT 8TB 4K",0,4096,eight,SPOOKY_GPT_FOUND);
+ test_capacity("ZERO_CAP GPT backup bad primary good",BROKEN_BACKUP,512,eight,SPOOKY_GPT_FOUND);
+ test_capacity("ZERO_CAP GPT no NTFS primary still good",NO_NTFS,512,eight,SPOOKY_GPT_FOUND);
+ test_capacity("ZERO_CAP GPT legacy MBR",NOT_GPT,512,eight,SPOOKY_GPT_NOT_GPT);
+ test_capacity("ZERO_CAP GPT primary bad",BROKEN_PRIMARY,512,eight,SPOOKY_GPT_INVALID);
+ test_capacity("ZERO_CAP GPT CRC bad",BAD_HEADER_CRC,512,eight,SPOOKY_GPT_INVALID);
+ test_capacity("ZERO_CAP GPT revision bad",BAD_REVISION,512,eight,SPOOKY_GPT_INVALID);
+ test_capacity("ZERO_CAP GPT LBA mismatch",BAD_HEADER_LBA,512,eight,SPOOKY_GPT_INVALID);
+ test_capacity("ZERO_CAP GPT invalid usable range",BAD_USABLE,512,eight,SPOOKY_GPT_INVALID);
+ test_capacity("ZERO_CAP GPT zero entries",BAD_ENTRIES,512,eight,SPOOKY_GPT_INVALID);
+ test_capacity("ZERO_CAP unsupported 1KB",0,1024,eight,SPOOKY_GPT_BAD_ARGUMENT);
+ {uint64_t cap=0;int rc=spooky_gpt_infer_device_sectors(always_fail,NULL,512,&cap);
+  done++;if(rc!=SPOOKY_GPT_IO_ERROR || cap!=0){errors++;fprintf(stderr,"FAIL ZERO_CAP raw IO\n");}else printf("PASS %02d ZERO_CAP raw IO\n",done);}
  printf("SPOOKY GPT: %d/%d passing\n",done-errors,done);
  return errors?1:0;
 }

@@ -113,6 +113,52 @@ static int scan_entries(const SpookyDisk *d,const ParsedHeader *h,SpookyNtfsPart
  }
  return SPOOKY_GPT_NO_NTFS;
 }
+
+/* A 4-8 TB PS3 USB may return a successful storage-info call but sector_count=0.
+ * Read ONLY sector 0 and sector 1 to get the backup-header LBA. Reconstruct a
+ * bounded logical capacity only after validating the GPT header CRC and fields.
+ * This never changes the underlying device-size report or patches LV2. */
+int spooky_gpt_infer_device_sectors(SpookyReadSector rd,void *user,
+                                    uint32_t logical_sector_bytes,uint64_t *sectors)
+{
+ unsigned char sector[4096];uint32_t size,original,calc;
+ uint64_t alternate,first,last,entry_lba;
+ unsigned i;int protective=0;
+ if(sectors)*sectors=0;
+ if(!rd || !sectors || (logical_sector_bytes!=512 && logical_sector_bytes!=4096))
+  return SPOOKY_GPT_BAD_ARGUMENT;
+ if(rd(user,0,sector)!=0)return SPOOKY_GPT_IO_ERROR;
+ if(sector[510]!=0x55 || sector[511]!=0xAA)return SPOOKY_GPT_NOT_GPT;
+ for(i=0;i<4;i++)if(sector[446+i*16+4]==0xEE)protective=1;
+ if(!protective)return SPOOKY_GPT_NOT_GPT;
+ if(rd(user,1,sector)!=0)return SPOOKY_GPT_IO_ERROR;
+ if(memcmp(sector,"EFI PART",8)!=0 ||
+    le32(sector+8)!=0x00010000u || le32(sector+20)!=0)
+  return SPOOKY_GPT_INVALID;
+ size=le32(sector+12);
+ if(size<GPT_HEADER_MIN || size>logical_sector_bytes)
+  return SPOOKY_GPT_INVALID;
+ original=le32(sector+16);
+ memset(sector+16,0,4);
+ calc=crc_update(0xFFFFFFFFu,sector,size)^0xFFFFFFFFu;
+ if(calc!=original || le64(sector+24)!=1)return SPOOKY_GPT_INVALID;
+ alternate=le64(sector+32);
+ first=le64(sector+40);
+ last=le64(sector+48);
+ entry_lba=le64(sector+72);
+ /* 2^40 sectors covers >500 TB at 512 bytes and prevents overflow. */
+ if(alternate<34 || alternate>(UINT64_C(1)<<40) ||
+    first<34 || last<first || last>=alternate ||
+    entry_lba<2 || entry_lba>=first ||
+    !le32(sector+80) || le32(sector+80)>GPT_MAX_ENTRIES ||
+    le32(sector+84)<GPT_ENTRY_MIN || le32(sector+84)>logical_sector_bytes ||
+    (le32(sector+84)&(le32(sector+84)-1u)) ||
+    logical_sector_bytes%le32(sector+84))
+  return SPOOKY_GPT_INVALID;
+ *sectors=alternate+1u;
+ return SPOOKY_GPT_FOUND;
+}
+
 int spooky_find_ntfs_gpt(const SpookyDisk *d,SpookyNtfsPartition *out) {
  unsigned char mbr[4096]; int rc,protective=0; unsigned i;
  ParsedHeader h;

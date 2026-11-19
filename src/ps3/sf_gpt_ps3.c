@@ -28,6 +28,10 @@ typedef struct {
  int fd;
  uint32_t sector_bytes;
  unsigned char *aligned;
+ uint64_t last_lba;
+ int last_rc;
+ uint32_t last_count;
+ unsigned reads;
 } SfReader;
 static inline int sf_storage_info(uint64_t id,SfDeviceInfo *info) {
  lv2syscall2(609,id,(uint64_t)(uintptr_t)info);
@@ -49,6 +53,7 @@ static int sf_read_sector(void *user,uint64_t lba,void *destination) {
  SfReader *r=(SfReader *)user; uint32_t got=0; int result;
  if(!r || !destination || !r->aligned)return -1;
  result=sf_storage_read(r->fd,lba,r->aligned,&got);
+ r->last_lba=lba;r->last_rc=result;r->last_count=got;r->reads++;
  if(result!=0 || got!=1)return -1;
  memcpy(destination,r->aligned,r->sector_bytes);
  return 0;
@@ -64,7 +69,7 @@ static void sf_diag(int port,const char *event,int result,uint64_t value) {
 int sf_gpt_diag_begin(void) {
  FILE *f=fopen(SF_GPT_REPORT,"wb");
  if(!f)return -1;
- fputs("SPOOKYFLOW V15.75 - DIAGNOSTICO NTFS GPT\n"
+ fputs("SPOOKYFLOW V15.76 - DIAGNOSTICO NTFS GPT CAPACIDAD CERO\n"
        "Informe nuevo en cada inicio; datos reales obtenidos en PS3 HEN.\n"
        "La deteccion GPT es SOLO LECTURA y no altera particiones USB.\n"
        "NTFS MBR y FAT32 conservan sus rutas originales.\n"
@@ -89,10 +94,12 @@ int sf_gpt_try_mount(int port,const DISC_INTERFACE *device,ntfs_md **mounts) {
  if(rc!=0){sf_diag(port,"STORAGE_INFO_FAILED",rc,0);return 0;}
  sf_diag(port,"PHYSICAL_CAPACITY_SECTORS",0,info.total_sectors);
  sf_diag(port,"LOGICAL_SECTOR_BYTES",0,info.sector_size);
- if((info.sector_size!=512 && info.sector_size!=4096) || info.total_sectors<34) {
-  sf_diag(port,"UNSUPPORTED_DISK_GEOMETRY",-1,info.sector_size);
+ if(info.sector_size!=512 && info.sector_size!=4096) {
+  sf_diag(port,"UNSUPPORTED_SECTOR_SIZE",-1,info.sector_size);
   return 0;
  }
+ if(info.total_sectors<34)
+  sf_diag(port,"LV2_CAPACITY_ZERO_TRY_GPT_HEADER",0,info.total_sectors);
  memset(&reader,0,sizeof(reader));
  reader.fd=-1;
  reader.sector_bytes=info.sector_size;
@@ -107,7 +114,27 @@ int sf_gpt_try_mount(int port,const DISC_INTERFACE *device,ntfs_md **mounts) {
  disk.read_sector=sf_read_sector;
  disk.device_sectors=info.total_sectors;
  disk.logical_sector_bytes=info.sector_size;
+ if(disk.device_sectors<34) {
+  found=spooky_gpt_infer_device_sectors(sf_read_sector,&reader,
+                                         info.sector_size,&disk.device_sectors);
+  if(found!=SPOOKY_GPT_FOUND) {
+   sf_diag(port,"GPT_CAPACITY_INFERENCE_FAILED",found,reader.reads);
+   if(found==SPOOKY_GPT_IO_ERROR) {
+    sf_diag(port,"RAW_READ_FAILED_LBA",reader.last_rc,reader.last_lba);
+    sf_diag(port,"RAW_READ_SECTORS_RETURNED",0,reader.last_count);
+   }
+   (void)sf_storage_close(reader.fd);
+   free(reader.aligned);
+   return 0;
+  }
+  sf_diag(port,"GPT_HEADER_INFERRED_SECTORS_NOT_PHYSICAL",0,disk.device_sectors);
+ }
  found=spooky_find_ntfs_gpt(&disk,&partition);
+ sf_diag(port,"GPT_RAW_SECTORS_ATTEMPTED",0,reader.reads);
+ if(found==SPOOKY_GPT_IO_ERROR) {
+  sf_diag(port,"RAW_READ_FAILED_LBA",reader.last_rc,reader.last_lba);
+  sf_diag(port,"RAW_READ_SECTORS_RETURNED",0,reader.last_count);
+ }
  (void)sf_storage_close(reader.fd);
  free(reader.aligned);
  if(found==SPOOKY_GPT_NOT_GPT) {

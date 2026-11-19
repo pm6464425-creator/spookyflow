@@ -20,5 +20,9 @@ enum {
  SPOOKY_GPT_FOUND=0, SPOOKY_GPT_NOT_GPT=1, SPOOKY_GPT_NO_NTFS=2,
  SPOOKY_GPT_INVALID=-1, SPOOKY_GPT_IO_ERROR=-2, SPOOKY_GPT_BAD_ARGUMENT=-3
 };
+/* When LV2 reports 0 total sectors, use only verified GPT primary metadata
+ * to estimate geometry. This does not prove large-sector IO works. */
+int spooky_gpt_infer_device_sectors(SpookyReadSector rd,void *user,
+                                    uint32_t logical_sector_bytes,uint64_t *sectors);
 int spooky_find_ntfs_gpt(const SpookyDisk *disk,SpookyNtfsPartition *out);
 #endif
