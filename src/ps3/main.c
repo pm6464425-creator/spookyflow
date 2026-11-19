@@ -45,6 +45,7 @@
 #include "sf_ps1_engine.h"
 #include "sf_ps1_join.h"
 #include "sf_ps2_hen.h"
+#include "sf_ps2_video_diag.h"
 #include "sf_bdiso_ntfs.h"
 #include "sf_bdiso_art.h"
 #include "sf_usb_diag.h"
@@ -65,6 +66,55 @@
 #define sf_cobra_diag_startup(stage) (0)
 #define sf_cobra_diag_report_previous() ((void)0)
 #endif
+
+/* V15.75: PS2 ONLY. Wrap the existing backends to record VIDEO facts
+ * while preserving their arguments, selected emulator and return codes.
+ * The PS2 display is drawn AFTER this process exits, by ps2_netemu. */
+static int ps2_video_preflight(const char *iso_path)
+{
+    int rc;
+    sf_ps2_video_diag_begin(iso_path);
+    rc=sf_ps2_preflight(iso_path);
+    sf_ps2_video_diag_preflight(rc);
+    return rc;
+}
+static int ps2_video_cobra_mount(const char *iso_path,int emulator)
+{
+    int rc;
+    sf_ps2_video_diag_event("ANTES_DE_MONTAJE_COBRA",emulator,
+                            emulator==1?"SOLICITADO_NETEMU":"EMULADOR_DEFAULT_COBRA");
+    rc=sf_ps2_mount(iso_path,emulator);
+    sf_ps2_video_diag_event("RESULTADO_MONTAJE_COBRA",rc,
+                            rc==0?"DISCO_MONTADO_PS2_VIDEO_NO_OBSERVABLE"
+                                 :"FALLO_MONTAJE_ANTES_DE_VIDEO_PS2");
+    return rc;
+}
+static int s_ps2_video_hen_last_poll;
+static int ps2_video_hen_start(const char *iso_path,const char *game_id)
+{
+    int rc;
+    s_ps2_video_hen_last_poll=0;
+    sf_ps2_video_diag_game(iso_path,game_id);
+    sf_ps2_video_diag_event("ANTES_DE_PREPARACION_PS2_CLASSICS",0,
+                            "MOTOR_PS2_NETEMU_POR_APP_PS2U10000");
+    rc=sf_ps2_hen_start(iso_path,game_id);
+    sf_ps2_video_diag_event("RESULTADO_PREPARACION_PS2_CLASSICS",rc,
+                            rc==1?"CACHED_LISTO_LANZAR_DESDE_XMB":
+                            rc==0?"CIFRANDO_Y_PREPARANDO_ASINCRONO":
+                                  "PREPARACION_PS2_RECHAZADA");
+    return rc;
+}
+static int ps2_video_hen_poll(int *progress)
+{
+    int rc=sf_ps2_hen_poll(progress);
+    if(rc!=0 && rc!=s_ps2_video_hen_last_poll){
+        sf_ps2_video_diag_event("FIN_PREPARACION_PS2_CLASSICS",rc,
+                                rc==1?"LISTO_PARA_XMB_SIN_OBSERVAR_PANTALLA":
+                                      "FALLO_PREPARACION");
+        s_ps2_video_hen_last_poll=rc;
+    }
+    return rc;
+}
 
 static Library g_lib;
 static App g_app;
@@ -717,6 +767,9 @@ int main(int argc, const char *argv[])
 #ifndef SF_SINGLE_DIAG_FILE
     }
 #endif
+    /* Passive post-return PS2bootparam observation from previous PS2 launch.
+     * Only PS2 diagnostic TXT gets appended; no other platform probe changed. */
+    sf_ps2_video_diag_resume();
     /* V15.24 PS1 report: do not dump PS2 Classics forensic state at startup.
      * PS2 encryption and its staging/validation behavior are unchanged. */
     sf_cobra_diag_report_previous();
@@ -767,8 +820,8 @@ int main(int argc, const char *argv[])
     /* Preserve original optional services; PS3 mounting never calls webMAN. */
     host.power_off = power_off_via_webman;
     host.launch = launch_via_webman; /* Legacy PS1 only. PS2 uses Cobra. */
-    host.ps2_preflight = sf_ps2_preflight;
-    host.launch_ps2 = sf_ps2_mount;
+    host.ps2_preflight = ps2_video_preflight;
+    host.launch_ps2 = ps2_video_cobra_mount;
 #ifdef SF_PS1_VIDEO_DIAG
     host.launch_ps1 = launch_ps1_forensic;
 #else
@@ -781,8 +834,8 @@ int main(int argc, const char *argv[])
 #else
     host.ps1_join_mount = sf_ps1_join_mount;
 #endif
-    host.ps2_hen_start = sf_ps2_hen_start;
-    host.ps2_hen_poll = sf_ps2_hen_poll;
+    host.ps2_hen_start = ps2_video_hen_start;
+    host.ps2_hen_poll = ps2_video_hen_poll;
     host.launch_ps3 = sf_cobra_mount_ps3;
     host.launch_bdiso = launch_bdiso;
     host.launch_snes = launch_snes_psnes;
