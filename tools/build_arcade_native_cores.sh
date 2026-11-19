@@ -66,6 +66,22 @@ n=src.count(old)
 patched=src.replace(old,new)
 assert len(patched)==len(src)
 Path(sys.argv[2]).write_bytes(patched)
+if sys.argv[3] == "cores/fb_neo.SELF":
+    import struct
+    keys=[
+     ("sm1-new",0x94416d67),("sm1-old",0x97cf998b),
+     ("sfix-new",0xc2ea0cfd),("sfix-old",0x354029fc),
+     ("lo-new",0x5a86cff2),("lo-old",0xe09e253c),
+     ("size128k",131072),("size64k",65536),
+     ("kof-p1",0x9ede7323)]
+    for label,crc in keys:
+      for endian in (">I","<I"):
+       b=struct.pack(endian,crc)
+       offsets=[i for i in range(len(src)) if src.startswith(b,i)][:22]
+       print("FBNEO_BINARY_PROBE",label,endian,"count",len(offsets),"offsets",offsets)
+    for n in (b"sm1.sm1",b"sfix.sfix",b"000-lo.lo",b"265-p1.p1",b"265-c1.c1"):
+       indexes=[i for i in range(len(src)) if src.startswith(n,i)][:15]
+       print("FBNEO_BINARY_NAME",n.decode(),"count",len(indexes),"offsets",indexes)
 print("ARCADE ELF",sys.argv[3],"orig",len(src),"old title-ID strings",n,
       "sha256",hashlib.sha256(patched).hexdigest())
 PY
