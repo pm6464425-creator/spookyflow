@@ -151,7 +151,6 @@ updates={
  "config_save_on_exit":"false",
  "video_shader_enable":"false",
  "input_overlay_enable":"false",
- "video_force_aspect":"true",
  "video_crop_overscan":"false"
 }
 for key,value in updates.items():
