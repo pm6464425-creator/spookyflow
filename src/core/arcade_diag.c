@@ -444,7 +444,7 @@ int arcade_diag_begin(const char *rom_path,int core,const char *core_file,
           "------------------------------------------------------------\n",f);
     fprintf(f,"RUTA_ROM=%s\nMOTOR_ELEGIDO=%s\n",
             rom_path?rom_path:"(null)",
-            core==1?"FBNeo":core==2?"MAME0125":"NO_IDENTIFICADO");
+            core==1?"FBNeo":core==2?"MAME0125":core==3?"FBNeo_LEGACY":"NO_IDENTIFICADO");
     fprintf(f,"CARPETA_ROM=%s\n",SF_ARCADE_ROM_ROOT);
     probe_file(f,"EJECUTABLE",core_file);
     probe_file(f,"RELOAD",reload_file);
@@ -483,14 +483,20 @@ int arcade_diag_begin(const char *rom_path,int core,const char *core_file,
     }else fputs("BIOS_ZIP=(no listado por romof o igual al padre)\n",f);
     if(core==1){
         compare_with_manifest(f,code,&game,&parent,&bios);
-    }else if(core==2){
-        fputs("MANIFEST=DAT_ORIGINAL_MAME_0125\n",f);
-        mame_resources(f,rom_path);
+    }else if(core==2 || core==3){
+        fputs("MANIFEST=DAT_ORIGINAL_MAME_0125_COMPATIBILIDAD_CRC\n",f);
+        if(core==2)mame_resources(f,rom_path);
+        else {
+            probe_file(f,"FBNEO_LEGACY", "/dev_hdd0/game/SPKF00001/USRDIR/cores/fb_neo_legacy.SELF");
+            fputs("CORE_VARIANTE=FBNEO_LEGACY_BINARIO_AJUSTADO_SOLO_DESCRIPTORES_NEO_GEO\n"
+                  "ROM_ZIP_ORIGINAL=NO_MODIFICADO\n"
+                  "BIOS_ZIP_ORIGINAL=NO_MODIFICADO\n",f);
+        }
         mame125_manifest(f,code,&game,&bios);
         fputs("FASE_POST_100_PORCIENTO=NO_OBSERVABLE_DESDE_SPOOKYFLOW\n"
               "MAME125_SELF_INSTRUMENTADO=NO\n"
-              "NOTA=La barra al 100 por ciento y el congelamiento ocurren DENTRO\n"
-              "     del proceso MAME; este TXT registra los hechos anteriores.\n",f);
+              "NOTA=La ejecucion del motor posterior a sysProcessExitSpawn2\n"
+              "     debe verificarse en PS3; este TXT analiza pre-lanzamiento.\n",f);
     }else {
         fputs("RESULTADO=SIN_MOTOR_COMPATIBLE_PARA_EL_CODIGO\n",f);
     }
