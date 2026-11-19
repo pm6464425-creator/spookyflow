@@ -30,6 +30,27 @@
 #ifndef ARCADE_NATIVE_ROM_ROOT
 #define ARCADE_NATIVE_ROM_ROOT "/dev_hdd0/ARCADE/"
 #endif
+#ifndef ARCADE_LEGACY_GAMES_PATH
+#define ARCADE_LEGACY_GAMES_PATH "/dev_hdd0/game/SPKF00001/USRDIR/ARCADE/fbneo_legacy_games.tsv"
+#endif
+/* Strict catalog generated from original PS3 FBNeo compiled ROM descriptors
+ * and MAME 0.125 CRCs. Not a global allow-all fallback: unsupported games
+ * must not be passed to a core that cannot parse them. */
+static int legacy_allowlisted(const char *code)
+{
+    FILE *f=fopen(ARCADE_LEGACY_GAMES_PATH,"rb");
+    char line[128];
+    int valid=0;
+    if(!f || !code)return 0;
+    while(fgets(line,sizeof line,f)){
+        char *tab=strchr(line,'\t');
+        if(!tab)continue;
+        *tab=0;
+        if(strcmp(code,line)==0){valid=1;break;}
+    }
+    fclose(f);
+    return valid;
+}
 #define ARC_MAX_ZIP 512
 #define ARC_TAIL_SIZE 65557u
 
@@ -190,9 +211,16 @@ int arcade_native_engine_select(const char *game_path,int original_engine,
     char code[96];
     int expected=0,found=0;
     int has_mame;
-    if(original_engine==ARCADE_ENGINE_MAME125 ||
-       !rom_code(game_path,code,sizeof code)){
-        set_reason(reason,reason_cap,"ORIGINAL_ROUTER_UNCHANGED");
+    if(original_engine==ARCADE_ENGINE_MAME125){
+        set_reason(reason,reason_cap,"ORIGINAL_ROUTER_MAME_UNCHANGED");
+        return original_engine;
+    }
+    if(!rom_code(game_path,code,sizeof code)){
+        set_reason(reason,reason_cap,
+                   game_path && strlen(game_path)>3 &&
+                   !strcasecmp(game_path+strlen(game_path)-3,".7z")
+                   ? "ARCADE_FORMATO_7Z_NO_ADMITIDO_EN_MOTORES_NATIVOS"
+                   : "ARCADE_RUTA_O_EXTENSION_NO_ADMITIDA");
         return original_engine;
     }
     /* Only original MAME0.125 NeoGeo drivers trigger BIOS-specific routing.
@@ -214,19 +242,18 @@ int arcade_native_engine_select(const char *game_path,int original_engine,
     }
     has_mame=mame0125_check(code,&game,&bios,&expected,&found);
     if(has_mame){
-        /* KOF2002 original MAME-era ROM chips + BIOS are compatible by
-         * CRC, but MAME0125 PS3 is documented to fail on large ZIPs.
-         * Select the *isolated* FBNeo legacy core whose ROM descriptor
-         * names/CRCs match EXACTLY these old chips. Never modify the user's
-         * zip, and never change the normal FBNeo executable.
-         * This routes only known KOF2002; every other title unchanged. */
-        if(strcmp(code,"kof2002")==0){
+        /* The exact PS3-version FBNeo and original MAME catalogs both
+         * confirm all game chips. Use a SECOND core with exact old BIOS
+         * and ROM filenames, never touch the original ROM, or normal FBNeo.
+         * KOF2002 is one of these verified sets; 70+ other Neo Geo games
+         * can now follow exactly the same previously working route. */
+        if(legacy_allowlisted(code)){
             set_reason(reason,reason_cap,
-                       "KOF2002_OLD_BIOS_15_OF_15_SELECT_FBNEO_LEGACY");
+                       "NEOGEO_OLD_BIOS_ALL_CHIPS_MATCH_SELECT_FBNEO_LEGACY");
             return ARCADE_ENGINE_FBNEO_LEGACY;
         }
         set_reason(reason,reason_cap,
-                   "MAME0125_NEO_GEO_OLD_BIOS_AND_ALL_GAME_CRC_MATCH");
+                   "MAME0125_GAME_MATCH_BUT_NOT_VERIFIED_IN_PS3_FBNEO_LEGACY");
         return ARCADE_ENGINE_MAME125;
     }
     /* If the old BIOS matches but the game is absent from the original
@@ -241,8 +268,11 @@ int arcade_native_engine_select(const char *game_path,int original_engine,
          * Do not hand off to a core that will certainly reject this set. */
         return ARCADE_ENGINE_NONE;
     }
-    set_reason(reason,reason_cap,"MAME0125_GAME_NOT_IN_ORIGINAL_DRIVER");
-    /* Other arcade boards are unaffected; unfamiliar NeoGeo shortnames
-     * remain with their originally selected engine for compatibility. */
+    set_reason(reason,reason_cap,
+        original_engine==ARCADE_ENGINE_NONE
+        ? "ROM_NO_INCLUIDA_EN_BASE_MOTORES_PS3"
+        : "MAME0125_GAME_NOT_IN_ORIGINAL_DRIVER");
+    /* A missing PS3 engine mapping is a real limitation of this older
+     * core. Never claim new DAT games are supported without a driver. */
     return original_engine;
 }
