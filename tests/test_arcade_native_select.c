@@ -12,6 +12,20 @@ int main(void)
     assert(engine==ARCADE_ENGINE_FBNEO_LEGACY);
     assert(strstr(r,"SELECT_FBNEO_LEGACY"));
     printf("PASS legacy BIOS + original KOF2002 CRC => isolated FBNeo legacy (%s)\n",r);
+    /* Distinct NeoGeo title, proving compatibility is no longer KOF-only. */
+    engine=arcade_native_engine_select(ROOT "kof98.zip",
+             ARCADE_ENGINE_FBNEO,r,sizeof r);
+    assert(engine==ARCADE_ENGINE_FBNEO_LEGACY);
+    assert(strstr(r,"SELECT_FBNEO_LEGACY"));
+    printf("PASS legacy BIOS + KOF98 CRC => isolated FBNeo legacy (%s)\n",r);
+    engine=arcade_native_engine_select(ROOT "not_in_map.zip",
+             ARCADE_ENGINE_NONE,r,sizeof r);
+    assert(engine==ARCADE_ENGINE_NONE);
+    assert(strstr(r,"ROM_NO_INCLUIDA_EN_BASE_MOTORES_PS3"));
+    engine=arcade_native_engine_select(ROOT "gng.7z",
+             ARCADE_ENGINE_NONE,r,sizeof r);
+    assert(engine==ARCADE_ENGINE_NONE);
+    assert(strstr(r,"7Z_NO_ADMITIDO"));
     engine=arcade_native_engine_select(ROOT "gng.zip",
               ARCADE_ENGINE_FBNEO,r,sizeof r);
     assert(engine==ARCADE_ENGINE_FBNEO);
