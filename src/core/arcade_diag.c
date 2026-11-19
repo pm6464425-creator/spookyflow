@@ -434,7 +434,7 @@ int arcade_diag_begin(const char *rom_path,int core,const char *core_file,
     int is_zip;
     f=fopen(SF_ARCADE_DIAG_PATH,"wb");/* always REPLACE prior report */
     if(!f)return -1;
-    fputs("SPOOKYFLOW V15.69 - DIAGNOSTICO UNICO FBNEO LEGACY ARCADE / MAME / FBNEO\n"
+    fputs("SPOOKYFLOW V15.71 - DIAGNOSTICO UNICO ARCADE MULTI-ROM ARCADE / MAME / FBNEO\n"
           "SOLO ESTE TXT; reemplazado al pulsar X, nunca acumulado.\n"
           "SCOPE=ARCADE_ONLY, NO_MODIFICA_ROMS, NO_DESCARGA_BIOS\n"
           "NOTA=La PS3 sustituye SpookyFlow por el emulador. Este informe\n"
