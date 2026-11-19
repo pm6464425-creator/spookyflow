@@ -30,6 +30,14 @@ jobs:
         run: python3 tests/probe_sensacine.py
       - name: Unit tests (portable core, ASan + UBSan)
         run: make -f Makefile.host test
+      - name: V15.75 read-only NTFS GPT scanner 20 regressions
+        run: |
+          mkdir -p build-host
+          cc -std=c99 -O2 -Wall -Wextra -Werror -fsanitize=address,undefined \
+             -fno-omit-frame-pointer -Isrc/ps3 \
+             src/ps3/spooky_gpt.c tests/test_v15_75_gpt.c \
+             -o build-host/test_v15_75_gpt
+          ./build-host/test_v15_75_gpt
       - name: V15.31 SNES realistic case, ROM directory and 10 isolated regression checks
         run: python3 tests/test_snes_v15_31.py
       - name: V15.37 PS1 auto-repair missing cover, protect existing art, 12 checks

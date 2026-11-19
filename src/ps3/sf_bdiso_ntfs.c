@@ -14,6 +14,7 @@
 #include "util.h"
 #include <ntfs.h>
 #include "sf_bdiso_ntfs.h"
+#include "sf_gpt_ps3.h"
 #include "bdiso_usb.h"
 #include "log.h"
 
@@ -152,6 +153,15 @@ int sf_bdntfs_start(void)
         log_printf("bdiso: USB%03d native mount attempt (reason=%s)",u,
                    action==BDUSB_RESET_REMOUNT?"RECOVERY":"NEW_USB");
         n=ntfsMountDevice(s_devices[u],&s_mount[u],NTFS_DEFAULT | NTFS_RECOVER);
+        if(n>0) {
+            sf_gpt_diag_mbr_mounted(u,n);
+        } else {
+            /* GPT fallback only after the existing NTFS/MBR mount fails.
+             * Do not replace the legacy library, ISO mounts or FAT32 path.
+             * The legacy mount API is 32-bit, so GPT is read-only. */
+            if(s_mount[u]) { free(s_mount[u]); s_mount[u]=NULL; }
+            n=sf_gpt_try_mount(u,s_devices[u],&s_mount[u]);
+        }
         s_last_mount_rc[u]=n;
         if(n>0 && s_mount[u]) {
             s_count[u]=n;

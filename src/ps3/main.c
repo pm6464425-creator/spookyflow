@@ -46,6 +46,7 @@
 #include "sf_ps1_join.h"
 #include "sf_ps2_hen.h"
 #include "sf_bdiso_ntfs.h"
+#include "sf_gpt_ps3.h"
 #include "sf_bdiso_art.h"
 #include "sf_usb_diag.h"
 #include "util.h"
@@ -703,6 +704,9 @@ int main(int argc, const char *argv[])
      }
     }
 #endif
+    /* Truncate last GPT report AFTER safe legacy diagnostic cleanup. */
+    rc=sf_gpt_diag_begin();
+    if(rc!=0) log_printf("gpt: failed to open fresh diagnostico_gpt.txt rc=%d",rc);
     rc = sf_usb_diag_begin();
     log_printf("usb_diag: report open status=%d at " SF_USB_DIAG_PATH,rc);
     rc = cover_diag_start(SF_DATA_DIR "/diagnostico_portadas.txt");
