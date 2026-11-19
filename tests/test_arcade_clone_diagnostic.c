@@ -21,7 +21,7 @@ int main(void)
     const char *rom=ROOT "kf2k2mp.zip";
     assert(arcade_diag_begin(rom,3,"fb_neo_legacy.self","reload.self","cfg")==0);
     load();
-    assert(strstr(report,"SPOOKYFLOW V15.73"));
+    assert(strstr(report,"SPOOKYFLOW V15.74"));
     assert(strstr(report,"JUEGO_ENTRADAS=3/3"));
     assert(strstr(report,"PADRE_ZIP=" ROOT "kof2002.zip"));
     assert(strstr(report,"BIOS_ZIP=" ROOT "neogeo.zip"));
