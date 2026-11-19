@@ -121,6 +121,10 @@ int ps3_fs_cleanup_legacy_diagnostics(void)
                 if(n<=4 || n>=120)continue;
                 if(strncmp(ent.d_name,"diagnostico",11)!=0)continue;
                 if(strcmp(ent.d_name+n-4,".txt")!=0)continue;
+                /* PS2 video report is the only post-emulator PS2 evidence.
+                 * Preserve across SpookyFlow restart until next PS2 launch
+                 * replaces its content; never add it to old TXT cleanup. */
+                if(strcmp(ent.d_name,"diagnostico_pantalla_ps2.txt")==0)continue;
 #if defined(SF_ARCADE_DIAG_ONLY)
                 /* Preserve the ONE report through app restarts; a new X
                  * overwrites it, without ever growing the folder. */
