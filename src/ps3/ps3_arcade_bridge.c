@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <ctype.h>
 
 #ifndef SF_PC_ARCADE_CONFIG
@@ -87,7 +88,7 @@ static int shortname(const char *path,char *code,size_t cap)
 {
     const char *base,*end;
     size_t n,i;
-    if(!path || strncmp(path,"/dev_hdd0/ARCADE/",16)!=0)return 0;
+    if(!path || strncmp(path,"/dev_hdd0/ARCADE/",sizeof("/dev_hdd0/ARCADE/")-1)!=0)return 0;
     base=strrchr(path,'/');base=base?base+1:path;
     n=strlen(base);
     if(n<5)return 0;
