@@ -1,4 +1,4 @@
-name: SpookyFlow V15.73 verified Arcade parent/clone
+name: SpookyFlow V15.73 verified arcade parent clone
 on:
   workflow_dispatch:
   push:
@@ -193,11 +193,29 @@ jobs:
               assert g in games,g
           print("PASS eligible NeoGeo MAME125 FBNeo:",len(games),"sets",len(aliases),"aliases")
           PY
-      - name: Verify metadata-only parent/clone source maps
+      - name: Verify authentic PS3 Arcade parent and clone map
         run: |
           test -s pkgfiles/USRDIR/ARCADE/arcade_parents.tsv
           test -s pkgfiles/USRDIR/ARCADE/fbneo_legacy_clones.tsv
-          grep -q 
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path("pkgfiles/USRDIR/ARCADE")
+          parent=(root/"arcade_parents.tsv").read_text().splitlines()
+          clones=(root/"fbneo_legacy_clones.tsv").read_text().splitlines()
+          assert "kf2k2mp\tkof2002" in parent
+          assert "kf2k2mp\tkof2002\t3\t14" in clones
+          print("PASS user clone=3 files + kof2002 parent=11 files")
+          PY
+          python3 tools/build_arcade_clone_maps.py \
+            --fbneo pkgfiles/USRDIR/ARCADE/fbneo_ps3_crc_manifest.tsv \
+            --mame pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv \
+            --legacy-games pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv \
+            --parents /tmp/arcade_parent_regenerated.tsv \
+            --clones /tmp/arcade_clone_regenerated.tsv
+          cmp /tmp/arcade_parent_regenerated.tsv pkgfiles/USRDIR/ARCADE/arcade_parents.tsv
+          cmp /tmp/arcade_clone_regenerated.tsv pkgfiles/USRDIR/ARCADE/fbneo_legacy_clones.tsv
+          echo "PASS verified independent FBNeo and MAME clone/parent mappings"
+      - name: Verify KOF2002 old BIOS automatic FBNeo legacy selection and 16:9
         run: |
           test -s pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv
           mkdir -p /tmp/arcade_native_route_test
@@ -222,8 +240,9 @@ jobs:
           grep -q 'video_aspect_ratio = "1.777800"' pkgfiles/USRDIR/retroarch.cfg
           test -s pkgfiles/USRDIR/cores/fb_neo_legacy.SELF
           echo "PASS: Auto FBNeo legacy multiple verified NeoGeo games + old BIOS; no modification to any game"
-      - name: Diagnose exact user kf2k2mp clone, verify 3+11+BIOS and no false CRC mismatch
+      - name: Verify exact user clone 3 ZIP chips + 11 parent + BIOS, no second TXT
         run: |
+          cp pkgfiles/USRDIR/ARCADE/fbneo_ps3_crc_manifest.tsv /tmp/arcade_native_route_test/fbneo_ps3_crc_manifest.tsv
           gcc -std=gnu99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
             -fsanitize=address,undefined -fno-omit-frame-pointer \
             '-DSF_ARCADE_DIAG_PATH="/tmp/arcade_native_route_test/diagnostico_mame.txt"' \
@@ -232,7 +251,6 @@ jobs:
             '-DSF_ARCADE_ROM_ROOT="/tmp/arcade_native_route_test"' \
             -Isrc/core src/core/arcade_diag.c tests/test_arcade_clone_diagnostic.c \
             -o /tmp/test_arcade_clone_diagnostic
-          cp pkgfiles/USRDIR/ARCADE/fbneo_ps3_crc_manifest.tsv /tmp/arcade_native_route_test/fbneo_ps3_crc_manifest.tsv
           /tmp/test_arcade_clone_diagnostic
       - name: Verify focused MAME125 report and no extra TXT
         run: |
@@ -264,233 +282,6 @@ jobs:
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-73-ARCADE-PARENT-CLONE-FIX-TEST
-          path: spookyflow.pkg
-          if-no-files-found: error
-^kf2k2mp\\tkof2002
-        run: |
-          test -s pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv
-          mkdir -p /tmp/arcade_native_route_test
-          cp pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv /tmp/arcade_native_route_test/mame0125_neogeo.tsv
-          cp pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv /tmp/arcade_native_route_test/fbneo_legacy_games.tsv
-          python3 tests/make_arcade_native_select_fixture.py
-          gcc -std=gnu99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            '-DARCADE_NATIVE_ROM_ROOT="/tmp/arcade_native_route_test/"' \
-            '-DARCADE_NATIVE_BIOS_PATH="/tmp/arcade_native_route_test/neogeo.zip"' \
-            '-DARCADE_MAME125_CATALOG_PATH="/tmp/arcade_native_route_test/mame0125_neogeo.tsv"' \
-            '-DARCADE_LEGACY_GAMES_PATH="/tmp/arcade_native_route_test/fbneo_legacy_games.tsv"' \
-            -Isrc/core src/core/arcade_native_select.c tests/test_arcade_native_select.c \
-            -o /tmp/test_arcade_native_select
-          /tmp/test_arcade_native_select
-          grep -q 'arcade_native_engine_select(rom_path' src/ps3/main.c
-          grep -q 'arcade_diag_event("RUTA_ARCADE_BIOS_Y_ROMSET_CRC"' src/ps3/main.c
-          grep -q 'video_aspect_ratio = "1.777800"' pkgfiles/USRDIR/retroarch.cfg
-          test -s pkgfiles/USRDIR/cores/fb_neo_legacy.SELF
-          echo "PASS: Auto FBNeo legacy multiple verified NeoGeo games + old BIOS; no modification to any game"
-      - name: Verify focused MAME125 report and no extra TXT
-        run: |
-          printf 'kof2002\t\tneogeo\t@\t-\t-\n' > /tmp/arcade_native_route_test/fbneo_fixture.tsv
-          gcc -std=gnu99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
-            '-DSF_ARCADE_DIAG_PATH="/tmp/arcade_native_route_test/diagnostico_mame.txt"' \
-            '-DSF_ARCADE_ROM_MANIFEST="/tmp/arcade_native_route_test/fbneo_fixture.tsv"' \
-            '-DSF_MAME125_CATALOG="/tmp/arcade_native_route_test/mame0125_neogeo.tsv"' \
-            '-DSF_ARCADE_ROM_ROOT="/tmp/arcade_native_route_test"' \
-            -Isrc/core src/core/arcade_diag.c tests/test_arcade_mame_freeze_diag.c \
-            -o /tmp/test_arcade_mame_freeze_diag
-          /tmp/test_arcade_mame_freeze_diag
-          grep -q 'sf_arcade_memory_snapshot' src/ps3/main.c
-          grep -q 'FASE_POST_100_PORCIENTO=NO_OBSERVABLE' src/core/arcade_diag.c
-          test "$(find /tmp/arcade_native_route_test -maxdepth 1 -name 'diagnostico_*.txt' | wc -l)" -eq 1
-          echo "PASS: MAME-specific prelaunch CRC, BIOS, resources, memory probe; one report"
-      - name: Ensure original PS1, PS2, PS3, SNES, BDISO sources are untouched
-        run: |
-          grep -q "PLAT_ARCADE = 5, PLAT_COUNT = 6" src/core/layout.h
-          grep -q "TEX_TAB_ARCADE = 29, TEX_CASE_ARCADE = 30" src/core/render.h
-          grep -q 'a->host.launch_arcade(path)' src/core/app.c
-          grep -q 'host.launch_arcade = launch_arcade_native;' src/ps3/main.c
-          test -s pkgfiles/USRDIR/cores/fb_neo.SELF
-          test -s pkgfiles/USRDIR/cores/fb_neo_legacy.SELF
-          test -s pkgfiles/USRDIR/MAME125/mame125.SELF
-          test -s pkgfiles/USRDIR/ARCADE/arcade_engines.tsv
-          test -s spookyflow.pkg
-          python3 tests/verify_compiled_pkg.py spookyflow.pkg
-          sha256sum spookyflow.pkg
-      - uses: actions/upload-artifact@v4
-        with:
-          name: SPOOKYFLOW-V15-73-ARCADE-PARENT-CLONE-FIX-TEST
-          path: spookyflow.pkg
-          if-no-files-found: error
- pkgfiles/USRDIR/ARCADE/arcade_parents.tsv
-          grep -q 
-        run: |
-          test -s pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv
-          mkdir -p /tmp/arcade_native_route_test
-          cp pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv /tmp/arcade_native_route_test/mame0125_neogeo.tsv
-          cp pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv /tmp/arcade_native_route_test/fbneo_legacy_games.tsv
-          python3 tests/make_arcade_native_select_fixture.py
-          gcc -std=gnu99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            '-DARCADE_NATIVE_ROM_ROOT="/tmp/arcade_native_route_test/"' \
-            '-DARCADE_NATIVE_BIOS_PATH="/tmp/arcade_native_route_test/neogeo.zip"' \
-            '-DARCADE_MAME125_CATALOG_PATH="/tmp/arcade_native_route_test/mame0125_neogeo.tsv"' \
-            '-DARCADE_LEGACY_GAMES_PATH="/tmp/arcade_native_route_test/fbneo_legacy_games.tsv"' \
-            -Isrc/core src/core/arcade_native_select.c tests/test_arcade_native_select.c \
-            -o /tmp/test_arcade_native_select
-          /tmp/test_arcade_native_select
-          grep -q 'arcade_native_engine_select(rom_path' src/ps3/main.c
-          grep -q 'arcade_diag_event("RUTA_ARCADE_BIOS_Y_ROMSET_CRC"' src/ps3/main.c
-          grep -q 'video_aspect_ratio = "1.777800"' pkgfiles/USRDIR/retroarch.cfg
-          test -s pkgfiles/USRDIR/cores/fb_neo_legacy.SELF
-          echo "PASS: Auto FBNeo legacy multiple verified NeoGeo games + old BIOS; no modification to any game"
-      - name: Verify focused MAME125 report and no extra TXT
-        run: |
-          printf 'kof2002\t\tneogeo\t@\t-\t-\n' > /tmp/arcade_native_route_test/fbneo_fixture.tsv
-          gcc -std=gnu99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
-            '-DSF_ARCADE_DIAG_PATH="/tmp/arcade_native_route_test/diagnostico_mame.txt"' \
-            '-DSF_ARCADE_ROM_MANIFEST="/tmp/arcade_native_route_test/fbneo_fixture.tsv"' \
-            '-DSF_MAME125_CATALOG="/tmp/arcade_native_route_test/mame0125_neogeo.tsv"' \
-            '-DSF_ARCADE_ROM_ROOT="/tmp/arcade_native_route_test"' \
-            -Isrc/core src/core/arcade_diag.c tests/test_arcade_mame_freeze_diag.c \
-            -o /tmp/test_arcade_mame_freeze_diag
-          /tmp/test_arcade_mame_freeze_diag
-          grep -q 'sf_arcade_memory_snapshot' src/ps3/main.c
-          grep -q 'FASE_POST_100_PORCIENTO=NO_OBSERVABLE' src/core/arcade_diag.c
-          test "$(find /tmp/arcade_native_route_test -maxdepth 1 -name 'diagnostico_*.txt' | wc -l)" -eq 1
-          echo "PASS: MAME-specific prelaunch CRC, BIOS, resources, memory probe; one report"
-      - name: Ensure original PS1, PS2, PS3, SNES, BDISO sources are untouched
-        run: |
-          grep -q "PLAT_ARCADE = 5, PLAT_COUNT = 6" src/core/layout.h
-          grep -q "TEX_TAB_ARCADE = 29, TEX_CASE_ARCADE = 30" src/core/render.h
-          grep -q 'a->host.launch_arcade(path)' src/core/app.c
-          grep -q 'host.launch_arcade = launch_arcade_native;' src/ps3/main.c
-          test -s pkgfiles/USRDIR/cores/fb_neo.SELF
-          test -s pkgfiles/USRDIR/cores/fb_neo_legacy.SELF
-          test -s pkgfiles/USRDIR/MAME125/mame125.SELF
-          test -s pkgfiles/USRDIR/ARCADE/arcade_engines.tsv
-          test -s spookyflow.pkg
-          python3 tests/verify_compiled_pkg.py spookyflow.pkg
-          sha256sum spookyflow.pkg
-      - uses: actions/upload-artifact@v4
-        with:
-          name: SPOOKYFLOW-V15-73-ARCADE-PARENT-CLONE-FIX-TEST
-          path: spookyflow.pkg
-          if-no-files-found: error
-^kf2k2mp\\tkof2002\\t3\\t14
-        run: |
-          test -s pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv
-          mkdir -p /tmp/arcade_native_route_test
-          cp pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv /tmp/arcade_native_route_test/mame0125_neogeo.tsv
-          cp pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv /tmp/arcade_native_route_test/fbneo_legacy_games.tsv
-          python3 tests/make_arcade_native_select_fixture.py
-          gcc -std=gnu99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            '-DARCADE_NATIVE_ROM_ROOT="/tmp/arcade_native_route_test/"' \
-            '-DARCADE_NATIVE_BIOS_PATH="/tmp/arcade_native_route_test/neogeo.zip"' \
-            '-DARCADE_MAME125_CATALOG_PATH="/tmp/arcade_native_route_test/mame0125_neogeo.tsv"' \
-            '-DARCADE_LEGACY_GAMES_PATH="/tmp/arcade_native_route_test/fbneo_legacy_games.tsv"' \
-            -Isrc/core src/core/arcade_native_select.c tests/test_arcade_native_select.c \
-            -o /tmp/test_arcade_native_select
-          /tmp/test_arcade_native_select
-          grep -q 'arcade_native_engine_select(rom_path' src/ps3/main.c
-          grep -q 'arcade_diag_event("RUTA_ARCADE_BIOS_Y_ROMSET_CRC"' src/ps3/main.c
-          grep -q 'video_aspect_ratio = "1.777800"' pkgfiles/USRDIR/retroarch.cfg
-          test -s pkgfiles/USRDIR/cores/fb_neo_legacy.SELF
-          echo "PASS: Auto FBNeo legacy multiple verified NeoGeo games + old BIOS; no modification to any game"
-      - name: Verify focused MAME125 report and no extra TXT
-        run: |
-          printf 'kof2002\t\tneogeo\t@\t-\t-\n' > /tmp/arcade_native_route_test/fbneo_fixture.tsv
-          gcc -std=gnu99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
-            '-DSF_ARCADE_DIAG_PATH="/tmp/arcade_native_route_test/diagnostico_mame.txt"' \
-            '-DSF_ARCADE_ROM_MANIFEST="/tmp/arcade_native_route_test/fbneo_fixture.tsv"' \
-            '-DSF_MAME125_CATALOG="/tmp/arcade_native_route_test/mame0125_neogeo.tsv"' \
-            '-DSF_ARCADE_ROM_ROOT="/tmp/arcade_native_route_test"' \
-            -Isrc/core src/core/arcade_diag.c tests/test_arcade_mame_freeze_diag.c \
-            -o /tmp/test_arcade_mame_freeze_diag
-          /tmp/test_arcade_mame_freeze_diag
-          grep -q 'sf_arcade_memory_snapshot' src/ps3/main.c
-          grep -q 'FASE_POST_100_PORCIENTO=NO_OBSERVABLE' src/core/arcade_diag.c
-          test "$(find /tmp/arcade_native_route_test -maxdepth 1 -name 'diagnostico_*.txt' | wc -l)" -eq 1
-          echo "PASS: MAME-specific prelaunch CRC, BIOS, resources, memory probe; one report"
-      - name: Ensure original PS1, PS2, PS3, SNES, BDISO sources are untouched
-        run: |
-          grep -q "PLAT_ARCADE = 5, PLAT_COUNT = 6" src/core/layout.h
-          grep -q "TEX_TAB_ARCADE = 29, TEX_CASE_ARCADE = 30" src/core/render.h
-          grep -q 'a->host.launch_arcade(path)' src/core/app.c
-          grep -q 'host.launch_arcade = launch_arcade_native;' src/ps3/main.c
-          test -s pkgfiles/USRDIR/cores/fb_neo.SELF
-          test -s pkgfiles/USRDIR/cores/fb_neo_legacy.SELF
-          test -s pkgfiles/USRDIR/MAME125/mame125.SELF
-          test -s pkgfiles/USRDIR/ARCADE/arcade_engines.tsv
-          test -s spookyflow.pkg
-          python3 tests/verify_compiled_pkg.py spookyflow.pkg
-          sha256sum spookyflow.pkg
-      - uses: actions/upload-artifact@v4
-        with:
-          name: SPOOKYFLOW-V15-73-ARCADE-PARENT-CLONE-FIX-TEST
-          path: spookyflow.pkg
-          if-no-files-found: error
- pkgfiles/USRDIR/ARCADE/fbneo_legacy_clones.tsv
-          python3 tools/build_arcade_clone_maps.py \
-            --fbneo pkgfiles/USRDIR/ARCADE/fbneo_ps3_crc_manifest.tsv \
-            --mame pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv \
-            --legacy-games pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv \
-            --parents /tmp/arcade_test_parent_table.tsv \
-            --clones /tmp/arcade_test_legacy_clones.tsv
-          cmp /tmp/arcade_test_parent_table.tsv pkgfiles/USRDIR/ARCADE/arcade_parents.tsv
-          cmp /tmp/arcade_test_legacy_clones.tsv pkgfiles/USRDIR/ARCADE/fbneo_legacy_clones.tsv
-          echo "PASS: original PS3 FBNeo parent/clone map complete and reproducible"
-      - name: Verify KOF2002 old BIOS automatic FBNeo legacy selection and 16:9
-        run: |
-          test -s pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv
-          mkdir -p /tmp/arcade_native_route_test
-          cp pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv /tmp/arcade_native_route_test/mame0125_neogeo.tsv
-          cp pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv /tmp/arcade_native_route_test/fbneo_legacy_games.tsv
-          python3 tests/make_arcade_native_select_fixture.py
-          gcc -std=gnu99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
-            -fsanitize=address,undefined -fno-omit-frame-pointer \
-            '-DARCADE_NATIVE_ROM_ROOT="/tmp/arcade_native_route_test/"' \
-            '-DARCADE_NATIVE_BIOS_PATH="/tmp/arcade_native_route_test/neogeo.zip"' \
-            '-DARCADE_MAME125_CATALOG_PATH="/tmp/arcade_native_route_test/mame0125_neogeo.tsv"' \
-            '-DARCADE_LEGACY_GAMES_PATH="/tmp/arcade_native_route_test/fbneo_legacy_games.tsv"' \
-            -Isrc/core src/core/arcade_native_select.c tests/test_arcade_native_select.c \
-            -o /tmp/test_arcade_native_select
-          /tmp/test_arcade_native_select
-          grep -q 'arcade_native_engine_select(rom_path' src/ps3/main.c
-          grep -q 'arcade_diag_event("RUTA_ARCADE_BIOS_Y_ROMSET_CRC"' src/ps3/main.c
-          grep -q 'video_aspect_ratio = "1.777800"' pkgfiles/USRDIR/retroarch.cfg
-          test -s pkgfiles/USRDIR/cores/fb_neo_legacy.SELF
-          echo "PASS: Auto FBNeo legacy multiple verified NeoGeo games + old BIOS; no modification to any game"
-      - name: Verify focused MAME125 report and no extra TXT
-        run: |
-          printf 'kof2002\t\tneogeo\t@\t-\t-\n' > /tmp/arcade_native_route_test/fbneo_fixture.tsv
-          gcc -std=gnu99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
-            '-DSF_ARCADE_DIAG_PATH="/tmp/arcade_native_route_test/diagnostico_mame.txt"' \
-            '-DSF_ARCADE_ROM_MANIFEST="/tmp/arcade_native_route_test/fbneo_fixture.tsv"' \
-            '-DSF_MAME125_CATALOG="/tmp/arcade_native_route_test/mame0125_neogeo.tsv"' \
-            '-DSF_ARCADE_ROM_ROOT="/tmp/arcade_native_route_test"' \
-            -Isrc/core src/core/arcade_diag.c tests/test_arcade_mame_freeze_diag.c \
-            -o /tmp/test_arcade_mame_freeze_diag
-          /tmp/test_arcade_mame_freeze_diag
-          grep -q 'sf_arcade_memory_snapshot' src/ps3/main.c
-          grep -q 'FASE_POST_100_PORCIENTO=NO_OBSERVABLE' src/core/arcade_diag.c
-          test "$(find /tmp/arcade_native_route_test -maxdepth 1 -name 'diagnostico_*.txt' | wc -l)" -eq 1
-          echo "PASS: MAME-specific prelaunch CRC, BIOS, resources, memory probe; one report"
-      - name: Ensure original PS1, PS2, PS3, SNES, BDISO sources are untouched
-        run: |
-          grep -q "PLAT_ARCADE = 5, PLAT_COUNT = 6" src/core/layout.h
-          grep -q "TEX_TAB_ARCADE = 29, TEX_CASE_ARCADE = 30" src/core/render.h
-          grep -q 'a->host.launch_arcade(path)' src/core/app.c
-          grep -q 'host.launch_arcade = launch_arcade_native;' src/ps3/main.c
-          test -s pkgfiles/USRDIR/cores/fb_neo.SELF
-          test -s pkgfiles/USRDIR/cores/fb_neo_legacy.SELF
-          test -s pkgfiles/USRDIR/MAME125/mame125.SELF
-          test -s pkgfiles/USRDIR/ARCADE/arcade_engines.tsv
-          test -s spookyflow.pkg
-          python3 tests/verify_compiled_pkg.py spookyflow.pkg
-          sha256sum spookyflow.pkg
-      - uses: actions/upload-artifact@v4
-        with:
-          name: SPOOKYFLOW-V15-73-ARCADE-PARENT-CLONE-FIX-TEST
+          name: SPOOKYFLOW-V15-73-ARCADE-PARENT-CLONE-VERIFIED
           path: spookyflow.pkg
           if-no-files-found: error
