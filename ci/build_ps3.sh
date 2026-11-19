@@ -313,6 +313,20 @@ test -s pkgfiles/USRDIR/ARCADE/fbneo_legacy_aliases.tsv
 test -s pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv
 end
 
+# --- Strictly verified Arcade clone-parent dependency tables ------------------
+# The actual PS3 FBNeo core can load small clone ZIPs plus their parent ZIP.
+# Do NOT confuse inherited chips with missing chips or false CRC mismatches.
+say "ARCADE: verify original PS3 FBNeo clone-parent CRC dependencies"
+python3 tools/build_arcade_clone_maps.py \
+  --fbneo pkgfiles/USRDIR/ARCADE/fbneo_ps3_crc_manifest.tsv \
+  --mame pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv \
+  --legacy-games pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv \
+  --parents pkgfiles/USRDIR/ARCADE/arcade_parents.tsv \
+  --clones pkgfiles/USRDIR/ARCADE/fbneo_legacy_clones.tsv
+test -s pkgfiles/USRDIR/ARCADE/arcade_parents.tsv
+test -s pkgfiles/USRDIR/ARCADE/fbneo_legacy_clones.tsv
+end
+
 # --- ARCADE native dual-engine runtime; separate from five console engines ---
 # Only game shortnames in v2.30 PS3 DB are eligible; actual ZIP compatibility
 # still depends on correct matching original ROM set and optional external BIOS.
