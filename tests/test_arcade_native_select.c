@@ -12,6 +12,31 @@ int main(void)
     assert(engine==ARCADE_ENGINE_FBNEO_LEGACY);
     assert(strstr(r,"SELECT_FBNEO_LEGACY"));
     printf("PASS legacy BIOS + original KOF2002 CRC => isolated FBNeo legacy (%s)\n",r);
+    /* Regression for user's real ZIPs: a 3-file clone backed by 14-file
+     * kof2002.zip was previously rejected as "CRC_MISMATCH 3_OF_14". */
+    engine=arcade_native_engine_select(ROOT "kf2k2mp.zip",
+             ARCADE_ENGINE_FBNEO,r,sizeof r);
+    assert(engine==ARCADE_ENGINE_FBNEO_LEGACY);
+    assert(strstr(r,"NEOGEO_CLON_CRC_OK_PADRE=kof2002"));
+    assert(strstr(r,"HEREDADOS=11/14"));
+    puts("PASS kf2k2mp clone: 3 own + 11 inherited parent chips => legacy FBNeo");
+    /* Without parent, do NOT claim clone works. */
+    assert(rename(ROOT "kof2002.zip",ROOT "kof2002_parent_backup.zip")==0);
+    engine=arcade_native_engine_select(ROOT "kf2k2mp.zip",
+             ARCADE_ENGINE_FBNEO,r,sizeof r);
+    assert(engine==ARCADE_ENGINE_NONE);
+    assert(strstr(r,"NEOGEO_CLON_FALTA_PADRE=kof2002"));
+    assert(rename(ROOT "kof2002_parent_backup.zip",ROOT "kof2002.zip")==0);
+    /* Parent exists, but one clone chip CRC differs => still reject. */
+    assert(rename(ROOT "kf2k2mp.zip",ROOT "kf2k2mp_good_backup.zip")==0);
+    assert(rename(ROOT "kf2k2mp_wrong.zip",ROOT "kf2k2mp.zip")==0);
+    engine=arcade_native_engine_select(ROOT "kf2k2mp.zip",
+             ARCADE_ENGINE_FBNEO,r,sizeof r);
+    assert(engine==ARCADE_ENGINE_NONE);
+    assert(strstr(r,"NEOGEO_CLON_CRC_INCOMPLETO"));
+    assert(rename(ROOT "kf2k2mp.zip",ROOT "kf2k2mp_wrong.zip")==0);
+    assert(rename(ROOT "kf2k2mp_good_backup.zip",ROOT "kf2k2mp.zip")==0);
+    puts("PASS bad/missing clone parent/CRC rejected before any emulator starts");
     /* Distinct NeoGeo title, proving compatibility is no longer KOF-only. */
     engine=arcade_native_engine_select(ROOT "kof98.zip",
              ARCADE_ENGINE_FBNEO,r,sizeof r);
