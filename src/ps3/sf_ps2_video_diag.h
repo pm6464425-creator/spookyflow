@@ -8,5 +8,6 @@ void sf_ps2_video_diag_begin(const char *iso_path);
 void sf_ps2_video_diag_preflight(int preflight_rc);
 void sf_ps2_video_diag_game(const char *iso_path,const char *game_id);
 void sf_ps2_video_diag_event(const char *phase,int rc,const char *detail);
+void sf_ps2_video_diag_final_config(int finished_rc);
 void sf_ps2_video_diag_resume(void);
 #endif
