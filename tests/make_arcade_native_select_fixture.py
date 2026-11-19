@@ -62,6 +62,15 @@ assert len(magic_owned)==3 and sorted(n for n,_,_ in magic_owned)==[
 assert {(crc,size) for n,crc,size in magic_owned}=={
     (0xff7c6ec0,4194304),(0x91584716,4194304),(0x348d6f2c,131072)}
 central_only_zip(root/"kf2k2mp.zip",magic_owned)
+# V15.74: a real previously unsupported-by-legacy clone that keeps just
+# two changed files while inheriting the parent KOF2002 chips.
+magic_plus_a=[ln.split("\t") for ln in mapping.read_text().splitlines()
+              if ln.startswith("kf2k2pla\t") and "\t@\t" not in ln]
+base_chips={(crc,size) for _,crc,size in entries}
+pla_owned=[(filename,int(crc,16),int(size)) for _,crc,size,filename in magic_plus_a
+           if (int(crc,16),int(size)) not in base_chips]
+assert len(pla_owned)==2,pla_owned
+central_only_zip(root/"kf2k2pla.zip",pla_owned)
 central_only_zip(root/"kf2k2mp_wrong.zip",[
     (n,(crc ^ 1) if i==0 else crc,size)
     for i,(n,crc,size) in enumerate(magic_owned)])
