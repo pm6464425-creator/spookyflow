@@ -474,10 +474,17 @@ static int launch_arcade_native(const char *rom_path)
         return -93;
     }
     if(!engine){
-        arcade_diag_event("ROM_NO_IDENTIFICADA_EN_BD_PS3",-90,rom_path);
-        log_printf("arcade: no compatible engine in frozen PS3 DB or not ZIP: %s",
-                   rom_path);
-        return -90;
+        /* Never call everything "incompatible": missing PS3 driver, 7z
+         * archives and incomplete CRC sets are different actionable causes. */
+        int failure=-90;
+        if(strstr(compat_reason,"7Z_NO_ADMITIDO"))failure=-96;
+        else if(strstr(compat_reason,"ROM_NO_INCLUIDA_EN_BASE_MOTORES_PS3"))
+            failure=-97;
+        else if(strstr(compat_reason,"CRC_MISMATCH"))failure=-98;
+        arcade_diag_event("ARCADE_MOTOR_NO_SELECCIONABLE",failure,compat_reason);
+        log_printf("arcade: no engine rc=%d reason=%s rom=%s",
+                   failure,compat_reason,rom_path);
+        return failure;
     }
     if(sysFsStat(exe,&stat)!=0 || stat.st_size<1000000u ||
        !ps3_fs_is_file(NULL,reload)){
