@@ -66,22 +66,6 @@ n=src.count(old)
 patched=src.replace(old,new)
 assert len(patched)==len(src)
 Path(sys.argv[2]).write_bytes(patched)
-if sys.argv[3] == "cores/fb_neo.SELF":
-    import struct
-    keys=[
-     ("sm1-new",0x94416d67),("sm1-old",0x97cf998b),
-     ("sfix-new",0xc2ea0cfd),("sfix-old",0x354029fc),
-     ("lo-new",0x5a86cff2),("lo-old",0xe09e253c),
-     ("size128k",131072),("size64k",65536),
-     ("kof-p1",0x9ede7323)]
-    for label,crc in keys:
-      for endian in (">I","<I"):
-       b=struct.pack(endian,crc)
-       offsets=[i for i in range(len(src)) if src.startswith(b,i)][:22]
-       print("FBNEO_BINARY_PROBE",label,endian,"count",len(offsets),"offsets",offsets)
-    for n in (b"sm1.sm1",b"sfix.sfix",b"000-lo.lo",b"265-p1.p1",b"265-c1.c1"):
-       indexes=[i for i in range(len(src)) if src.startswith(n,i)][:15]
-       print("FBNEO_BINARY_NAME",n.decode(),"count",len(indexes),"offsets",indexes)
 print("ARCADE ELF",sys.argv[3],"orig",len(src),"old title-ID strings",n,
       "sha256",hashlib.sha256(patched).hexdigest())
 PY
@@ -111,6 +95,30 @@ appinfo=struct.unpack_from(">Q",v,0x28)[0]
 assert struct.unpack_from(">I",v,appinfo+12)[0]==4
 print("PASS signed APP SELF",sys.argv[1],len(v))
 PY
+  if [ "$rel" = "cores/fb_neo.SELF" ];then
+    echo "ARCADE: build separate legacy FBNeo NeoGeo core; original untouched"
+    legacy_elf="$tmp/fb_neo_legacy.patched.elf"
+    legacy_self="pkgfiles/USRDIR/cores/fb_neo_legacy.SELF"
+    python3 tools/patch_fbneo_legacy.py "$patched" "$legacy_elf"
+    make_self "$legacy_elf" "$legacy_self" >"$tmp/sign-fbneo-legacy.log" 2>&1 || {
+      tail -25 "$tmp/sign-fbneo-legacy.log";exit 1;
+    }
+    legacy_absolute="$(realpath "$legacy_self")"
+    (cd "$sceto" && ./scetool -d "$legacy_absolute" "$tmp/fb_neo_legacy.roundtrip.elf") \
+      >"$tmp/roundtrip-fbneo-legacy.log" 2>&1 || {
+       tail -25 "$tmp/roundtrip-fbneo-legacy.log";exit 1;
+    }
+    cmp "$legacy_elf" "$tmp/fb_neo_legacy.roundtrip.elf"
+    python3 - "$legacy_self" <<'PY'
+from pathlib import Path
+import sys,struct
+x=Path(sys.argv[1]).read_bytes()
+assert x[:4]==b"SCE\x00"
+p=struct.unpack_from(">Q",x,0x28)[0]
+assert struct.unpack_from(">I",x,p+12)[0]==4
+print("PASS independent legacy FBNeo PS3 APP SELF",len(x))
+PY
+  fi
 done
 cp "$root/MAME125/cfg/default.cfg" pkgfiles/USRDIR/MAME125/cfg/default.cfg
 cp "$root/MAME125/fonts/ui000-11.bdc" pkgfiles/USRDIR/MAME125/fonts/ui000-11.bdc
@@ -157,8 +165,11 @@ https://github.com/crystalct/FBNeoRLPlus
 The original FBNeo and MAME 0.125 engine PS3 APP SELF files are extracted,
 their original app ID is remapped to SPKF00001 in the decrypted ELF, then
 re-signed as native type-4 APP SELF with the public PSL1GHT toolchain.
+A second isolated fb_neo_legacy.SELF core accepts exact old CRC BIOS chips and
+KOF2002 MAME-era internal chip filenames. Primary FBNeo and MAME unchanged.
+This compatibility change requires real-console testing; no guarantee implied.
 This installation includes NO game ROMs or BIOS archives.
 Only the ARCADE launcher uses these resources.
 NOTE
-du -ah pkgfiles/USRDIR/cores/fb_neo.SELF pkgfiles/USRDIR/MAME125/mame125.SELF pkgfiles/USRDIR/RELOAD.SELF pkgfiles/USRDIR/retroarch.cfg pkgfiles/USRDIR/ARCADE/arcade_engines.tsv
+du -ah pkgfiles/USRDIR/cores/fb_neo.SELF pkgfiles/USRDIR/cores/fb_neo_legacy.SELF pkgfiles/USRDIR/MAME125/mame125.SELF pkgfiles/USRDIR/RELOAD.SELF pkgfiles/USRDIR/retroarch.cfg pkgfiles/USRDIR/ARCADE/arcade_engines.tsv
 echo "PASS: bundled PS3 dual arcade engines and compact compatibility map"
