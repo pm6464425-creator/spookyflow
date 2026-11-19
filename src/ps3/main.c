@@ -13,6 +13,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <sys/process.h>
+#include <sys/memory.h> /* read-only memory snapshot for Arcade diagnostics */
 #include <sys/file.h>    /* sysFSStat/sysFsStat for SNES-only launch checkpoints */
 #include <stdlib.h>
 #include <string.h>
@@ -399,6 +400,16 @@ static void setup_screen(void)
  * The cores must be signed APP SELF (type 4) and have SpookyFlow-specific
  * paths in their ELF, with all companion resources in our USRDIR.
  */
+
+/* A read-only syscall snapshot BEFORE SpookyFlow exits. This is NOT memory
+ * available inside the later MAME process; the TXT states that limitation. */
+typedef struct {u32 total_user_memory;u32 available_user_memory;} SfArcadeUserMem;
+LV2_SYSCALL sf_arcade_memory_snapshot(SfArcadeUserMem *m)
+{
+    lv2syscall1(352,(u64)m);
+    return_to_user_prog(s32);
+}
+
 static int launch_arcade_native(const char *rom_path)
 {
     static const char fbneo[]=
@@ -433,6 +444,21 @@ static int launch_arcade_native(const char *rom_path)
         return -95;
     }
     arcade_diag_event("RUTA_ARCADE_BIOS_Y_ROMSET_CRC",engine,compat_reason);
+
+    {
+        SfArcadeUserMem mem={0,0};
+        char mem_text[170];
+        int mem_rc=sf_arcade_memory_snapshot(&mem);
+        if(mem_rc==0)
+            snprintf(mem_text,sizeof mem_text,
+                    "TOTAL_BYTES=%u DISPONIBLES_BYTES=%u MEDIDO_EN_SPOOKYFLOW_NO_EN_MAME",
+                    (unsigned)mem.total_user_memory,(unsigned)mem.available_user_memory);
+        else
+            snprintf(mem_text,sizeof mem_text,
+                     "SYSCALL_352_ERROR=%d NO_SE_PUEDE_ESTIMAR_RAM_MAME",mem_rc);
+        arcade_diag_event("MEMORIA_PS3_ANTES_DEL_CAMBIO_DE_PROCESO",mem_rc,mem_text);
+    }
+
     log_printf("arcade: automatic engine=%s reason=%s rom=%s",
                engine==ARCADE_ENGINE_MAME125?"MAME0125":
                engine==ARCADE_ENGINE_FBNEO?"FBNeo":"NONE",
