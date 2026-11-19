@@ -67,7 +67,7 @@ static FILE *append(void)
     long length;
     if(!f)return NULL;
     if(fseek(f,0,SEEK_END)!=0 || (length=ftell(f))<0 ||
-       length>=DIAG_CAP){fclose(f);return NULL;}
+       length>=DIAG_CAP-2048L){fclose(f);return NULL;}
     return f;
 }
 static void bootparam(FILE *f,const char *phase,const char *expected)
