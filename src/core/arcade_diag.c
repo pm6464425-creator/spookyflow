@@ -354,11 +354,12 @@ static void mame_resources(FILE *f,const char *rompath)
     fputs("AVISO_CONFIG=RETROARCH_CFG_PUEDE_NO_SER_INTERPRETADO_POR_MAME125_STANDALONE\n",f);
 }
 static void mame125_manifest(FILE *report,const char *romcode,
-                             const ZipArchive *game,const ZipArchive *bios)
+                             const ZipArchive *game,const ZipArchive *parent,
+                             const ZipArchive *bios)
 {
     FILE *f=fopen(SF_MAME125_CATALOG,"rb");
     char line[360],*crc_text,*size_text,*file_text,*tab,*end;
-    unsigned expected=0,ok_game=0,ok_bios=0,missing=0,nmissing=0;
+    unsigned expected=0,ok_game=0,ok_parent=0,ok_bios=0,missing=0,nmissing=0;
     uint64_t bytes_total=0;
     const uint32_t needs_crc[3]={0x97cf998bu,0x354029fcu,0xe09e253cu};
     const uint32_t needs_size[3]={131072u,131072u,65536u};
@@ -396,8 +397,10 @@ static void mame125_manifest(FILE *report,const char *romcode,
         expected++;bytes_total+=(uint64_t)sz;
         {
             const ZipMember *z=zip_crc_size(game,(uint32_t)crc,(uint32_t)sz);
+            const ZipMember *p=zip_crc_size(parent,(uint32_t)crc,(uint32_t)sz);
             const ZipMember *b=zip_crc_size(bios,(uint32_t)crc,(uint32_t)sz);
             if(z)ok_game++;
+            else if(p)ok_parent++;
             else if(b)ok_bios++;
             else{
                 missing++;
@@ -410,10 +413,16 @@ static void mame125_manifest(FILE *report,const char *romcode,
     fclose(f);
     fprintf(report,"MAME_DAT_VERSION=ORIGINAL_MAME_0_125\n"
               "MAME_ROM_CRC_ESPERADOS=%u\nMAME_ROM_CRC_JUEGO_OK=%u\n"
-              "MAME_ROM_CRC_BIOS_OK=%u\nMAME_ROM_FALTANTES=%u\n"
+              "MAME_ROM_CRC_PADRE_OK=%u\nMAME_ROM_CRC_BIOS_OK=%u\n"
+              "MAME_ROM_FALTANTES=%u\n"
               "MAME_BYTES_DESCOMPRIMIDOS_SUMADOS=%llu\n",
-            expected,ok_game,ok_bios,missing,(unsigned long long)bytes_total);
-    if(game->state!=1 || bios->state!=1)
+            expected,ok_game,ok_parent,ok_bios,missing,(unsigned long long)bytes_total);
+    fprintf(report,"VALIDACION_PADRE_CLON=%s\n",
+        parent && parent->state==1
+        ? ((expected>0 && !missing)?"CLON_CON_PADRE_CRC_COMPLETOS":"PADRE_EXISTE_PERO_FALTAN_CHIPS")
+        : (expected && !missing)?"SIN_PADRE_NECESARIO":"SIN_PADRE_O_NO_ABIERTO");
+    if(game->state!=1 || bios->state!=1 ||
+       (parent && parent->state==2))
         fputs("MAME_ROMSET_ESTADO=ZIP_NO_COMPLETO_O_ILEGIBLE\n",report);
     else if(!expected)
         fputs("MAME_ROMSET_ESTADO=ROM_NO_INCLUIDA_EN_MAME_0_125\n",report);
@@ -434,7 +443,7 @@ int arcade_diag_begin(const char *rom_path,int core,const char *core_file,
     int is_zip;
     f=fopen(SF_ARCADE_DIAG_PATH,"wb");/* always REPLACE prior report */
     if(!f)return -1;
-    fputs("SPOOKYFLOW V15.71 - DIAGNOSTICO UNICO ARCADE MULTI-ROM ARCADE / MAME / FBNEO\n"
+    fputs("SPOOKYFLOW V15.73 - DIAGNOSTICO AVANZADO PADRE-CLON ARCADE ARCADE / MAME / FBNEO\n"
           "SOLO ESTE TXT; reemplazado al pulsar X, nunca acumulado.\n"
           "SCOPE=ARCADE_ONLY, NO_MODIFICA_ROMS, NO_DESCARGA_BIOS\n"
           "NOTA=La PS3 sustituye SpookyFlow por el emulador. Este informe\n"
@@ -471,6 +480,26 @@ int arcade_diag_begin(const char *rom_path,int core,const char *core_file,
             fclose(manifest);
         }
     }
+    /* FBNeo DAT can use romof=parent for a clone. That is NOT the BIOS.
+     * Resolve the parent's own romof (Neo Geo -> neogeo.zip) before probing.
+     * Older diagnostics incorrectly said BIOS_ZIP=(no listado). */
+    if(parent_code[0] && !strcmp(parent_code,bios_code)){
+        FILE *manifest=fopen(SF_ARCADE_ROM_MANIFEST,"rb");
+        if(manifest){
+            char line[480],work[480],*fields[6];
+            while(fgets(line,sizeof line,manifest)){
+                if(line[0]=='#')continue;
+                memcpy(work,line,strlen(line)+1);
+                split_tab(work,fields,6);
+                if(!strcmp(fields[0],parent_code) && !strcmp(fields[3],"@")){
+                    if(fields[2][0] && strcmp(fields[2],parent_code))
+                        snprintf(bios_code,sizeof bios_code,"%s",fields[2]);
+                    break;
+                }
+            }
+            fclose(manifest);
+        }
+    }
     inspect_zip(f,"JUEGO",rom_path?rom_path:"", &game);
     if(parent_code[0] && strcmp(parent_code,code)!=0){
         companion_path(parent_path,sizeof parent_path,parent_code);
@@ -492,13 +521,16 @@ int arcade_diag_begin(const char *rom_path,int core,const char *core_file,
                   "ROM_ZIP_ORIGINAL=NO_MODIFICADO\n"
                   "BIOS_ZIP_ORIGINAL=NO_MODIFICADO\n",f);
         }
-        mame125_manifest(f,code,&game,&bios);
+        mame125_manifest(f,code,&game,&parent,&bios);
         fputs("FASE_POST_100_PORCIENTO=NO_OBSERVABLE_DESDE_SPOOKYFLOW\n"
               "MAME125_SELF_INSTRUMENTADO=NO\n"
               "NOTA=La ejecucion del motor posterior a sysProcessExitSpawn2\n"
               "     debe verificarse en PS3; este TXT analiza pre-lanzamiento.\n",f);
     }else {
-        fputs("RESULTADO=SIN_MOTOR_COMPATIBLE_PARA_EL_CODIGO\n",f);
+        fputs("RESULTADO=SIN_MOTOR_COMPATIBLE_PARA_EL_CODIGO\n"
+              "REVISION_ADICIONAL=MAME0125_PARENT_CLONE_CRC_AUDIT\n",f);
+        if(is_zip)mame125_manifest(f,code,&game,&parent,&bios);
+        fputs("ADVERTENCIA=ESTE_AUDIT_ES_METADATOS_NO_GARANTIZA_ROM_DESCOMPRIMIBLE\n",f);
     }
     fputs("FASE=PRE_LANZAMIENTO_FINALIZADA; ZIP_NO_MODIFICADO\n",f);
     fflush(f);fclose(f);
