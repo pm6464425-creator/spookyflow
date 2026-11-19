@@ -50,6 +50,21 @@ kof98_entries=[(n,int(crc,16),int(size)) for _,crc,size,n in kof98
                not n.endswith("_decrypted.bin")]
 central_only_zip(root/"kof98.zip",kof98_entries)
 central_only_zip(root/"not_in_map.zip",[("dummy.bin",0xdeadbeef,512)])
+# EXACT V15.72 real-user reproduction: 3-chip KOF2002 Magic Plus clone
+# inherits 11 other required game ROMs from the original kof2002 parent.
+magic=[ln.split("\t") for ln in mapping.read_text().splitlines()
+       if ln.startswith("kf2k2mp\t") and "\t@\t" not in ln]
+assert len(magic)==14,len(magic)
+magic_owned=[(n,int(crc,16),int(size)) for _,crc,size,n in magic
+             if n.startswith("kf02m-")]
+assert len(magic_owned)==3 and sorted(n for n,_,_ in magic_owned)==[
+    "kf02m-p1.bin","kf02m-p2.bin","kf02m-s1.bin"]
+assert {(crc,size) for n,crc,size in magic_owned}=={
+    (0xff7c6ec0,4194304),(0x91584716,4194304),(0x348d6f2c,131072)}
+central_only_zip(root/"kf2k2mp.zip",magic_owned)
+central_only_zip(root/"kf2k2mp_wrong.zip",[
+    (n,(crc ^ 1) if i==0 else crc,size)
+    for i,(n,crc,size) in enumerate(magic_owned)])
 central_only_zip(root/"kof2002.zip",game)
 central_only_zip(root/"neogeo.zip",legacy)
 central_only_zip(root/"neogeo_modern.zip",modern)
