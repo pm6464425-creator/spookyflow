@@ -1,9 +1,9 @@
-name: SpookyFlow V15.73 verified arcade parent clone
+name: SpookyFlow V15.74 expanded CRC-verified arcade clones
 on:
   workflow_dispatch:
   push:
     branches:
-      - fix/v15-73-arcade-parent-clone-verified
+      - fix/v15-74-arcade-crc-detection-33-clones
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
@@ -204,6 +204,14 @@ jobs:
           clones=(root/"fbneo_legacy_clones.tsv").read_text().splitlines()
           assert "kf2k2mp\tkof2002" in parent
           assert "kf2k2mp\tkof2002\t3\t14" in clones
+          new_aliases=(root/"fbneo_legacy_clone_aliases.tsv").read_text().splitlines()
+          all_aliases=(root/"fbneo_legacy_all_aliases.tsv").read_text().splitlines()
+          assert len([x for x in clones if x and not x.startswith("#")])>=33
+          assert len([x for x in new_aliases if x and not x.startswith("#")])>=135
+          assert len([x for x in all_aliases if x and not x.startswith("#")])>=850
+          for code in ("kf2k2pla","kof98k","garoubl","ms5plus"):
+              assert any(x.startswith(code+"\t") for x in clones),code
+          print("PASS V15.74 33 exact CRC-compatible NeoGeo clone drivers; 135+ extra binary aliases")
           print("PASS user clone=3 files + kof2002 parent=11 files")
           PY
           python3 tools/build_arcade_clone_maps.py \
@@ -211,9 +219,14 @@ jobs:
             --mame pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv \
             --legacy-games pkgfiles/USRDIR/ARCADE/fbneo_legacy_games.tsv \
             --parents /tmp/arcade_parent_regenerated.tsv \
-            --clones /tmp/arcade_clone_regenerated.tsv
+            --clones /tmp/arcade_clone_regenerated.tsv \
+            --base-aliases pkgfiles/USRDIR/ARCADE/fbneo_legacy_aliases.tsv \
+            --clone-aliases /tmp/arcade_clone_aliases_regenerated.tsv \
+            --all-aliases /tmp/arcade_all_aliases_regenerated.tsv
           cmp /tmp/arcade_parent_regenerated.tsv pkgfiles/USRDIR/ARCADE/arcade_parents.tsv
           cmp /tmp/arcade_clone_regenerated.tsv pkgfiles/USRDIR/ARCADE/fbneo_legacy_clones.tsv
+          cmp /tmp/arcade_clone_aliases_regenerated.tsv pkgfiles/USRDIR/ARCADE/fbneo_legacy_clone_aliases.tsv
+          cmp /tmp/arcade_all_aliases_regenerated.tsv pkgfiles/USRDIR/ARCADE/fbneo_legacy_all_aliases.tsv
           echo "PASS verified independent FBNeo and MAME clone/parent mappings"
       - name: Verify KOF2002 old BIOS automatic FBNeo legacy selection and 16:9
         run: |
@@ -282,6 +295,6 @@ jobs:
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-73-ARCADE-PARENT-CLONE-VERIFIED
+          name: SPOOKYFLOW-V15-74-ARCADE-CRC-CLONES-33
           path: spookyflow.pkg
           if-no-files-found: error
