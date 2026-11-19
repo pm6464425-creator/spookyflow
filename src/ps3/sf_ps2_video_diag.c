@@ -226,6 +226,21 @@ void sf_ps2_video_diag_event(const char *phase,int rc,const char *detail)
     safe(f,detail);fputc('\n',f);
     fflush(f);fclose(f);
 }
+/* Called only after PS2 Classics preparation has finished. Inspect the
+ * actual selected CONFIG, not a guess made from the initial ISO name. */
+void sf_ps2_video_diag_final_config(int finished_rc)
+{
+    FILE *f=append();
+    if(!f)return;
+    fprintf(f,"HEN_CONFIG_POST_PREPARACION_RC=%d\n",finished_rc);
+    fileprobe(f,"HEN_POST_ISO_BIN_ENC",PS2_HEN_PLACEHOLDER "/ISO.BIN.ENC");
+    fileprobe(f,"HEN_POST_CONFIG",PS2_HEN_PLACEHOLDER "/CONFIG");
+    fileprobe(f,"HEN_POST_CONFIG_ORIGEN",PS2_HEN_PLACEHOLDER "/CONFIG.sf-source");
+    fputs("HEN_CONFIG_NOTA=CONFIG_ES_ENCRIPTADO_NO_SE_DEDUCE_CORRECCION_VIDEO_SOLO_POR_EXISTIR\n"
+          "HEN_POST_LANZAMIENTO=PS2_CLASSICS_CORRE_FUERA_DE_SPOOKYFLOW\n",f);
+    fflush(f);fclose(f);
+}
+
 void sf_ps2_video_diag_resume(void)
 {
     FILE *f,*a;char head[96]={0};
