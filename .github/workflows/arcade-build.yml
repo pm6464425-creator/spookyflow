@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - fix/v15-68-arcade-mame-freeze-diagnostic
+      - research/v15-69-fbneo-legacy-bios-runtime
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
