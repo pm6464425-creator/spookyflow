@@ -51,6 +51,63 @@ static int legacy_allowlisted(const char *code)
     fclose(f);
     return valid;
 }
+
+#ifndef ARCADE_NATIVE_PARENT_MAP_PATH
+#define ARCADE_NATIVE_PARENT_MAP_PATH "/dev_hdd0/game/SPKF00001/USRDIR/ARCADE/arcade_parents.tsv"
+#endif
+#ifndef ARCADE_NATIVE_LEGACY_CLONES_PATH
+#define ARCADE_NATIVE_LEGACY_CLONES_PATH "/dev_hdd0/game/SPKF00001/USRDIR/ARCADE/fbneo_legacy_clones.tsv"
+#endif
+/* Read exact frozen 2021 FBNeo clone->parent metadata; no filename guessing,
+ * no parent/BIOS substitution, no changes to user ZIP or native emulators. */
+static int arcade_parent_lookup(const char *code,char *parent,size_t cap)
+{
+    FILE *f=fopen(ARCADE_NATIVE_PARENT_MAP_PATH,"rb");
+    char line[192];
+    if(parent && cap)parent[0]=0;
+    if(!f || !code || !parent || cap<4){if(f)fclose(f);return 0;}
+    while(fgets(line,sizeof line,f)){
+        char *tab=strchr(line,'\t');
+        if(!tab || line[0]=='#')continue;
+        *tab++=0;
+        tab[strcspn(tab,"\r\n")]=0;
+        if(!strcmp(line,code)){
+            size_t i,n=strlen(tab);
+            if(n==0 || n>=cap || n>90 || !strcmp(tab,code))break;
+            for(i=0;i<n;i++){
+                unsigned char c=(unsigned char)tab[i];
+                if(!isalnum(c)&&c!='_'&&c!='+'&&c!='-'&&c!='.')break;
+            }
+            if(i==n)snprintf(parent,cap,"%s",tab);
+            break;
+        }
+    }
+    fclose(f);
+    return parent[0]!=0;
+}
+/* Strictly require the actual PS3 FBNeo driver and its clone's own exact
+ * chip names/CRC matches in the original frozen DAT, not only a parent name. */
+static int arcade_legacy_clone_allowed(const char *code,const char *parent)
+{
+    FILE *f=fopen(ARCADE_NATIVE_LEGACY_CLONES_PATH,"rb");
+    char line[190];
+    int ok=0;
+    if(!f || !code || !parent){if(f)fclose(f);return 0;}
+    while(fgets(line,sizeof line,f)){
+        char *tab,*rest;
+        if(line[0]=='#')continue;
+        tab=strchr(line,'\t');if(!tab)continue;
+        *tab++=0;
+        if(strcmp(line,code))continue;
+        rest=strchr(tab,'\t');if(!rest)break;
+        *rest=0;
+        ok=(strcmp(tab,parent)==0);
+        break;
+    }
+    fclose(f);
+    return ok;
+}
+
 #define ARC_MAX_ZIP 512
 #define ARC_TAIL_SIZE 65557u
 
@@ -163,13 +220,15 @@ static int rom_code(const char *path,char *out,size_t max)
     return 1;
 }
 static int mame0125_check(const char *gamecode,const ArcZip *game,
-                         const ArcZip *bios,int *total,int *good)
+                         const ArcZip *parent,const ArcZip *bios,
+                         int *total,int *good,int *from_parent)
 {
     FILE *f=fopen(ARCADE_MAME125_CATALOG_PATH,"rb");
     char line[240];
     int header=0,count=0,matched=0;
     if(total)*total=0;
     if(good)*good=0;
+    if(from_parent)*from_parent=0;
     if(!f)return 0;
     while(fgets(line,sizeof line,f)){
         char *code,*a,*b,*c,*e;
@@ -194,8 +253,14 @@ static int mame0125_check(const char *gamecode,const ArcZip *game,
         sz=strtoul(b,&e,10);
         if(*e || sz==0 || sz>64*1024*1024u)continue;
         count++;
-        if(contains(game,(uint32_t)crc,(uint32_t)sz) ||
-           contains(bios,(uint32_t)crc,(uint32_t)sz))matched++;
+        /* Clone ZIPs often contain just 1-3 modified ROMs. The original
+         * MAME driver enumerates parent-shared chips as well. Validate all
+         * requirements against the child, exact parent and BIOS ZIP union. */
+        if(contains(game,(uint32_t)crc,(uint32_t)sz))matched++;
+        else if(contains(parent,(uint32_t)crc,(uint32_t)sz)){
+            matched++;
+            if(from_parent)(*from_parent)++;
+        }else if(contains(bios,(uint32_t)crc,(uint32_t)sz))matched++;
     }
     fclose(f);
     if(total)*total=count;
@@ -207,9 +272,9 @@ static int mame0125_check(const char *gamecode,const ArcZip *game,
 int arcade_native_engine_select(const char *game_path,int original_engine,
                                 char *reason,size_t reason_cap)
 {
-    ArcZip game={0},bios={0};
-    char code[96];
-    int expected=0,found=0;
+    ArcZip game={0},bios={0},parent={0};
+    char code[96],parentcode[96]="",parentpath[256]="";
+    int expected=0,found=0,from_parent=0,parent_found=0;
     int has_mame;
     if(original_engine==ARCADE_ENGINE_MAME125){
         set_reason(reason,reason_cap,"ORIGINAL_ROUTER_MAME_UNCHANGED");
@@ -240,7 +305,12 @@ int arcade_native_engine_select(const char *game_path,int original_engine,
         set_reason(reason,reason_cap,"ROM_ZIP_UNREADABLE_KEEP_ORIGINAL");
         return original_engine;
     }
-    has_mame=mame0125_check(code,&game,&bios,&expected,&found);
+    if(arcade_parent_lookup(code,parentcode,sizeof parentcode)){
+        snprintf(parentpath,sizeof parentpath,ARCADE_NATIVE_ROM_ROOT "%s.zip",parentcode);
+        parent_found=zip_probe(parentpath,&parent);
+    }
+    has_mame=mame0125_check(code,&game,&parent,&bios,
+                            &expected,&found,&from_parent);
     if(has_mame){
         /* The exact PS3-version FBNeo and original MAME catalogs both
          * confirm all game chips. Use a SECOND core with exact old BIOS
@@ -252,6 +322,16 @@ int arcade_native_engine_select(const char *game_path,int original_engine,
                        "NEOGEO_OLD_BIOS_ALL_CHIPS_MATCH_SELECT_FBNEO_LEGACY");
             return ARCADE_ENGINE_FBNEO_LEGACY;
         }
+        if(parentcode[0] && original_engine==ARCADE_ENGINE_FBNEO &&
+           legacy_allowlisted(parentcode) &&
+           arcade_legacy_clone_allowed(code,parentcode)){
+            char msg[160];
+            snprintf(msg,sizeof msg,
+                     "NEOGEO_CLON_CRC_OK_PADRE=%s HEREDADOS=%d/%d FBNEO_LEGACY",
+                     parentcode,from_parent,expected);
+            set_reason(reason,reason_cap,msg);
+            return ARCADE_ENGINE_FBNEO_LEGACY;
+        }
         set_reason(reason,reason_cap,
                    "MAME0125_GAME_MATCH_BUT_NOT_VERIFIED_IN_PS3_FBNEO_LEGACY");
         return ARCADE_ENGINE_MAME125;
@@ -260,9 +340,18 @@ int arcade_native_engine_select(const char *game_path,int original_engine,
      * MAME125 driver's ROMset, DO NOT guess that MAME can run it. */
     if(expected>0){
         char message[150];
-        snprintf(message,sizeof message,
-                 "NEOGEO_OLD_BIOS_MAME0125_CRC_MISMATCH %d_OF_%d",
-                 found,expected);
+        if(parentcode[0] && !parent_found)
+            snprintf(message,sizeof message,
+                     "NEOGEO_CLON_FALTA_PADRE=%s ESPERADOS=%d ENCONTRADOS=%d",
+                     parentcode,expected,found);
+        else if(parentcode[0])
+            snprintf(message,sizeof message,
+                     "NEOGEO_CLON_CRC_INCOMPLETO PADRE=%s %d_DE_%d",
+                     parentcode,found,expected);
+        else
+            snprintf(message,sizeof message,
+                     "NEOGEO_OLD_BIOS_MAME0125_CRC_MISMATCH %d_OF_%d",
+                     found,expected);
         set_reason(reason,reason_cap,message);
         /* FBNeo also requires three modern BIOS CRCs that are not present.
          * Do not hand off to a core that will certainly reject this set. */
