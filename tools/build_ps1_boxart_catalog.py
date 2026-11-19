@@ -16,6 +16,9 @@ from html import unescape
 from urllib.parse import unquote,urlparse
 from urllib.request import Request,urlopen
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from subprocess import run, check_output
+from urllib.error import HTTPError, URLError
 
 URL="https://thumbnails.libretro.com/Sony%20-%20PlayStation/Named_Boxarts/"
 OUTPUT=Path("pkgfiles/USRDIR/ps1_boxart_names.txt")
@@ -58,8 +61,31 @@ def main():
         data=args.fixture.read_bytes()
     else:
         request=Request(URL,headers={"User-Agent":"SpookyFlow-PS1-boxart-index/1.0"})
-        with urlopen(request,timeout=35) as r:
-            data=r.read(4*1024*1024)
-    write(parse(data),args.output,args.min_count)
+        try:
+            with urlopen(request,timeout=35) as r:
+                data=r.read(4*1024*1024)
+            names=parse(data)
+        except (HTTPError, URLError) as e:
+            # The thumbnails.libretro.com public HTML listing can return a
+            # transient 404 to CI bots. Fall back to the official Git tree:
+            # files are NOT downloaded (no cover images, ROMs or copyright
+            # data; only the published filename metadata).
+            print(f"PS1 listing unavailable ({e}); indexing official Git tree names")
+            with TemporaryDirectory(prefix="sf_ps1_list_") as tmp:
+                run(["git","clone","--filter=blob:none","--no-checkout",
+                     "--single-branch","--depth","1",
+                     "https://github.com/libretro-thumbnails/Sony_-_PlayStation.git",
+                     tmp],check=True,timeout=180)
+                ls=check_output(["git","-C",tmp,"ls-tree","-r","--name-only",
+                                 "HEAD"],timeout=90).decode("utf-8")
+                names=sorted({
+                    p[len("Named_Boxarts/"):]
+                    for p in ls.splitlines()
+                    if p.startswith("Named_Boxarts/") and p.endswith(".png")
+                    and "/" not in p[len("Named_Boxarts/"):]
+                },key=str.casefold)
+    if args.fixture:
+        names=parse(data)
+    write(names,args.output,args.min_count)
 
 if __name__=="__main__":main()
