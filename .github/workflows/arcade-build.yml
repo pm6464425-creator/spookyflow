@@ -1,9 +1,9 @@
-name: SpookyFlow V15.68 MAME125 focused single TXT diagnostics
+name: SpookyFlow V15.69 Legacy FBNeo NeoGeo 2002 automatic
 on:
   workflow_dispatch:
   push:
     branches:
-      - research/v15-69-fbneo-legacy-bios-runtime
+      - fix/v15-69-fbneo-legacy-kof2002
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
@@ -155,7 +155,14 @@ jobs:
           assert any('\t' in v for v in gng)
           print("PASS frozen PS3 FBNeo checksum map",len(lines),"entries, gng",len(gng))
           PY
-      - name: Verify KOF2002 old BIOS automatic MAME0.125 routing and 16:9
+      - name: Verify legacy FBNeo descriptor-only transformations
+        run: |
+          python3 tests/test_fbneo_legacy_binary_patch.py
+          grep -q 'ARCADE_ENGINE_FBNEO_LEGACY=3' src/core/arcade_engine.h
+          grep -q 'fb_neo_legacy.SELF' src/ps3/main.c
+          grep -q 'args\[9\]=engine==ARCADE_ENGINE_FBNEO_LEGACY ? fbneo_legacy : fbneo;' src/ps3/main.c
+          grep -q 'KOF2002_OLD_BIOS_15_OF_15_SELECT_FBNEO_LEGACY' src/core/arcade_native_select.c
+      - name: Verify KOF2002 old BIOS automatic FBNeo legacy selection and 16:9
         run: |
           test -s pkgfiles/USRDIR/ARCADE/mame0125_neogeo.tsv
           mkdir -p /tmp/arcade_native_route_test
@@ -172,7 +179,8 @@ jobs:
           grep -q 'arcade_native_engine_select(rom_path' src/ps3/main.c
           grep -q 'arcade_diag_event("RUTA_ARCADE_BIOS_Y_ROMSET_CRC"' src/ps3/main.c
           grep -q 'video_aspect_ratio = "1.777800"' pkgfiles/USRDIR/retroarch.cfg
-          echo "PASS: Auto MAME0125 KOF2002 original CRC + old BIOS; no modification to any game"
+          test -s pkgfiles/USRDIR/cores/fb_neo_legacy.SELF
+          echo "PASS: Auto FBNeo legacy KOF2002 original CRC + old BIOS; no modification to any game"
       - name: Verify focused MAME125 report and no extra TXT
         run: |
           printf 'kof2002\t\tneogeo\t@\t-\t-\n' > /tmp/arcade_native_route_test/fbneo_fixture.tsv
@@ -195,6 +203,7 @@ jobs:
           grep -q 'a->host.launch_arcade(path)' src/core/app.c
           grep -q 'host.launch_arcade = launch_arcade_native;' src/ps3/main.c
           test -s pkgfiles/USRDIR/cores/fb_neo.SELF
+          test -s pkgfiles/USRDIR/cores/fb_neo_legacy.SELF
           test -s pkgfiles/USRDIR/MAME125/mame125.SELF
           test -s pkgfiles/USRDIR/ARCADE/arcade_engines.tsv
           test -s spookyflow.pkg
@@ -202,6 +211,6 @@ jobs:
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-68-ARCADE-MAME-DIAGNOSTICO-UNICO
+          name: SPOOKYFLOW-V15-69-ARCADE-FBNEO-LEGACY-KOF2002
           path: spookyflow.pkg
           if-no-files-found: error
