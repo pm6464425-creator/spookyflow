@@ -496,13 +496,14 @@ static int launch_arcade_native(const char *rom_path)
     args[2]="-s";args[3]=saves;
     args[4]="-c";args[5]=config;
     args[6]="-S";args[7]=states;
-    /* Match the verified FBNeoRLPlus PS3 direct-launch argument convention:
-     * the -L loader argument is the installed fb_neo.SELF even when the
-     * independently spawned executable is MAME125/mame125.SELF. */
-    args[8]="-L";args[9]=fbneo;
+    /* Legacy FBNeo MUST load the same patched core via RetroArch -L.
+     * MAME continues to use original FBNeo RL Plus argument convention. */
+    args[8]="-L";
+    args[9]=engine==ARCADE_ENGINE_FBNEO_LEGACY ? fbneo_legacy : fbneo;
     args[10]="-v";args[11]=NULL;
     log_printf("arcade: SELECT engine=%s source=FBNeoRLPlus_v2.30_DB",
-               engine==ARCADE_ENGINE_MAME125?"MAME125":"FBNeo");
+               engine==ARCADE_ENGINE_MAME125?"MAME125":
+               engine==ARCADE_ENGINE_FBNEO_LEGACY?"FBNeo_LEGACY":"FBNeo");
     log_printf("arcade: SPAWN_FULL_SCREEN=true aspect=16:9 rom=%s exe=%s",
                rom_path,exe);
     /* The emulator's runtime screen cannot be intercepted by the prior
