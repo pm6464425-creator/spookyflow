@@ -1,0 +1,35 @@
+SPOOKYFLOW V15.72 - PC ARCADE BRIDGE (OPT-IN) - NO INCLUYE JUEGOS
+==================================================================
+La PS3 no ejecuta 100% de los ROMsets de MAME. Un PC puede ejecutar los
+no soportados y transmitir imagen/audio a Moonlight PS3 (se instala aparte).
+
+1. En tu PC Windows, configura y ejecuta ArcadeBridgePC.
+2. Instala y empareja Sunshine en el PC y Moonlight PS3 en la consola.
+3. Crea el archivo /dev_hdd0/tmp/spookyflow/pc_bridge.cfg en tu PS3:
+
+ENABLED=1
+PREFER_PC=0
+PC_IP=192.168.1.100
+PC_PORT=47371
+TOKEN=PEGA_AQUI_EL_TOKEN_PRIVADO_GENERADO_EN_EL_PC
+
+Sustituye PC_IP y TOKEN por los valores reales de tu red/config.json.
+El token debe tener al menos 24 caracteres, solo letras, numeros, _ y -.
+La IP debe ser de tu red local privada, nunca una direccion publica.
+
+PREFER_PC=0: intenta emulacion nativa de PS3 cuando esta soportada;
+si el juego no esta en su base de motores, consulta al PC.
+PREFER_PC=1: intenta el PC antes del motor nativo, para juegos complejos
+o ROMsets del PC. Si falla, deja el motor nativo como estaba.
+
+Cuando se acepta un lanzamiento PC, SpookyFlow indica que abras la
+aplicacion Moonlight PS3 para ver el juego. Es una app independiente
+y requiere configurar la conexion Sunshine una primera vez.
+El PKG de SpookyFlow no incluye ni instala Moonlight automaticamente.
+
+IMPORTANTE: los juegos en el PC han de estar en las carpetas definidas
+en config.json del servidor PC y ser validos para el MAME/FBNeo elegido.
+Esta opcion no permite ejecutar cualquier ROM corrupta o BIOS faltante.
+No exponer el puerto del PC a Internet ni compartir el token de acceso.
+
+Si NO creas pc_bridge.cfg o ENABLED=0, V15.72 funciona igual a V15.71.
