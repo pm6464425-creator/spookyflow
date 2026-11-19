@@ -416,6 +416,8 @@ static int launch_arcade_native(const char *rom_path)
         "/dev_hdd0/game/SPKF00001/USRDIR/cores/fb_neo.SELF";
     static const char mame[]=
         "/dev_hdd0/game/SPKF00001/USRDIR/MAME125/mame125.SELF";
+    static const char fbneo_legacy[]=
+        "/dev_hdd0/game/SPKF00001/USRDIR/cores/fb_neo_legacy.SELF";
     static const char reload[]=
         "/dev_hdd0/game/SPKF00001/USRDIR/RELOAD.SELF";
     static const char config[]=
@@ -438,6 +440,7 @@ static int launch_arcade_native(const char *rom_path)
     engine=arcade_native_engine_select(rom_path,
             arcade_engine_for_rom(rom_path),compat_reason,sizeof compat_reason);
     exe=engine==ARCADE_ENGINE_MAME125 ? mame :
+        engine==ARCADE_ENGINE_FBNEO_LEGACY ? fbneo_legacy :
         engine==ARCADE_ENGINE_FBNEO ? fbneo : NULL;
     if(arcade_diag_begin(rom_path,engine,exe,reload,config)!=0){
         log_printf("arcade: cannot open unique diagnostico_mame.txt");
@@ -461,7 +464,8 @@ static int launch_arcade_native(const char *rom_path)
 
     log_printf("arcade: automatic engine=%s reason=%s rom=%s",
                engine==ARCADE_ENGINE_MAME125?"MAME0125":
-               engine==ARCADE_ENGINE_FBNEO?"FBNeo":"NONE",
+               engine==ARCADE_ENGINE_FBNEO?"FBNeo":
+               engine==ARCADE_ENGINE_FBNEO_LEGACY?"FBNeoLegacy":"NONE",
                compat_reason,rom_path?rom_path:"(null)");
     if(!rom_path || !ps3_fs_is_file(NULL,rom_path)){
         arcade_diag_event("ROM_ZIP_NO_ENCONTRADO",-93,rom_path);
