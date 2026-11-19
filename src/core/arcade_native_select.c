@@ -214,6 +214,17 @@ int arcade_native_engine_select(const char *game_path,int original_engine,
     }
     has_mame=mame0125_check(code,&game,&bios,&expected,&found);
     if(has_mame){
+        /* KOF2002 original MAME-era ROM chips + BIOS are compatible by
+         * CRC, but MAME0125 PS3 is documented to fail on large ZIPs.
+         * Select the *isolated* FBNeo legacy core whose ROM descriptor
+         * names/CRCs match EXACTLY these old chips. Never modify the user's
+         * zip, and never change the normal FBNeo executable.
+         * This routes only known KOF2002; every other title unchanged. */
+        if(strcmp(code,"kof2002")==0){
+            set_reason(reason,reason_cap,
+                       "KOF2002_OLD_BIOS_15_OF_15_SELECT_FBNEO_LEGACY");
+            return ARCADE_ENGINE_FBNEO_LEGACY;
+        }
         set_reason(reason,reason_cap,
                    "MAME0125_NEO_GEO_OLD_BIOS_AND_ALL_GAME_CRC_MATCH");
         return ARCADE_ENGINE_MAME125;
