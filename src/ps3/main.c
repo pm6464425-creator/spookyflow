@@ -102,6 +102,7 @@ static int ps2_video_hen_start(const char *iso_path,const char *game_id)
                             rc==1?"CACHED_LISTO_LANZAR_DESDE_XMB":
                             rc==0?"CIFRANDO_Y_PREPARANDO_ASINCRONO":
                                   "PREPARACION_PS2_RECHAZADA");
+    if(rc==1)sf_ps2_video_diag_final_config(rc);
     return rc;
 }
 static int ps2_video_hen_poll(int *progress)
@@ -111,6 +112,7 @@ static int ps2_video_hen_poll(int *progress)
         sf_ps2_video_diag_event("FIN_PREPARACION_PS2_CLASSICS",rc,
                                 rc==1?"LISTO_PARA_XMB_SIN_OBSERVAR_PANTALLA":
                                       "FALLO_PREPARACION");
+        if(rc==1)sf_ps2_video_diag_final_config(rc);
         s_ps2_video_hen_last_poll=rc;
     }
     return rc;
