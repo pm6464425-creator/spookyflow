@@ -1,9 +1,9 @@
-name: SpookyFlow V15.67 Arcade auto MAME0125 compatible old NeoGeo BIOS
+name: SpookyFlow V15.68 MAME125 focused single TXT diagnostics
 on:
   workflow_dispatch:
   push:
     branches:
-      - fix/v15-67-arcade-mame0125-legacy-bios
+      - fix/v15-68-arcade-mame-freeze-diagnostic
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
@@ -173,6 +173,21 @@ jobs:
           grep -q 'arcade_diag_event("RUTA_ARCADE_BIOS_Y_ROMSET_CRC"' src/ps3/main.c
           grep -q 'video_aspect_ratio = "1.777800"' pkgfiles/USRDIR/retroarch.cfg
           echo "PASS: Auto MAME0125 KOF2002 original CRC + old BIOS; no modification to any game"
+      - name: Verify focused MAME125 report and no extra TXT
+        run: |
+          printf 'kof2002\t\tneogeo\t@\t-\t-\n' > /tmp/arcade_native_route_test/fbneo_fixture.tsv
+          gcc -std=gnu99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
+            '-DSF_ARCADE_DIAG_PATH="/tmp/arcade_native_route_test/diagnostico_mame.txt"' \
+            '-DSF_ARCADE_ROM_MANIFEST="/tmp/arcade_native_route_test/fbneo_fixture.tsv"' \
+            '-DSF_MAME125_CATALOG="/tmp/arcade_native_route_test/mame0125_neogeo.tsv"' \
+            '-DSF_ARCADE_ROM_ROOT="/tmp/arcade_native_route_test"' \
+            -Isrc/core src/core/arcade_diag.c tests/test_arcade_mame_freeze_diag.c \
+            -o /tmp/test_arcade_mame_freeze_diag
+          /tmp/test_arcade_mame_freeze_diag
+          grep -q 'sf_arcade_memory_snapshot' src/ps3/main.c
+          grep -q 'FASE_POST_100_PORCIENTO=NO_OBSERVABLE' src/core/arcade_diag.c
+          test "$(find /tmp/arcade_native_route_test -maxdepth 1 -name 'diagnostico_*.txt' | wc -l)" -eq 1
+          echo "PASS: MAME-specific prelaunch CRC, BIOS, resources, memory probe; one report"
       - name: Ensure original PS1, PS2, PS3, SNES, BDISO sources are untouched
         run: |
           grep -q "PLAT_ARCADE = 5, PLAT_COUNT = 6" src/core/layout.h
@@ -187,6 +202,6 @@ jobs:
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-67-ARCADE-MAME0125-NEOGEO-AUTOMATICO
+          name: SPOOKYFLOW-V15-68-ARCADE-MAME-DIAGNOSTICO-UNICO
           path: spookyflow.pkg
           if-no-files-found: error
