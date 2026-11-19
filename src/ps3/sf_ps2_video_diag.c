@@ -333,7 +333,7 @@ void sf_ps2_video_diag_resume(void)
         fclose(f);
         /* If primary contains an empty native probe, recover the real
          * fallback report. Never misreport this as no diagnosis. */
-        if(s_active_path==SF_PS2_VIDEO_DIAG_PATH){
+        if(strcmp(s_active_path,SF_PS2_VIDEO_DIAG_PATH)==0){
             s_active_path=SF_PS2_VIDEO_DIAG_FALLBACK_PATH;
             f=fopen(s_active_path,"rb");
             if(f){
@@ -343,7 +343,7 @@ void sf_ps2_video_diag_resume(void)
                     fclose(f);
                     s_write_status=2;
                     a=append();if(!a)return;
-                    fputs("REAPERTURA_SPOOKYFLOW=SI\\n",a);
+                    fputs("REAPERTURA_SPOOKYFLOW=SI\n",a);
                     bootparam(a,"DESPUES_DE_REGRESAR_DE_PS2",NULL);
                     fflush(a);fclose(a);
                     return;
@@ -354,7 +354,7 @@ void sf_ps2_video_diag_resume(void)
         return;
     }
     fclose(f);
-    s_write_status=s_active_path==SF_PS2_VIDEO_DIAG_PATH?1:2;
+    s_write_status=strcmp(s_active_path,SF_PS2_VIDEO_DIAG_PATH)==0?1:2;
     a=append();if(!a)return;
     fputs("REAPERTURA_SPOOKYFLOW=SI\n",a);
     bootparam(a,"DESPUES_DE_REGRESAR_DE_PS2",NULL);
