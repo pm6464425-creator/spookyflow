@@ -1,4 +1,4 @@
-/* V15.75: host regression for PS2 video-only report, valid for ANY ISO ID.
+/* V15.76: host regression for PS2 video-only report, valid for ANY ISO ID.
  * No PS2 game / BIOS / keys required. Test PS3bootparam is synthetic and
  * explicitly contains fake credentials, which must NEVER leak into TXT.
  */
@@ -32,11 +32,12 @@ int main(void)
     f=fopen("/tmp/ps2_video_test_game.iso","wb");assert(f);
     assert(fseek(f,0x20000,SEEK_SET)==0);assert(fputc(0,f)!=EOF);fclose(f);
     sf_ps2_video_diag_begin("/tmp/ps2_video_test_game.iso");
+    assert(sf_ps2_video_diag_status()==1);
     sf_ps2_video_diag_preflight(-41);
     sf_ps2_video_diag_game("/tmp/ps2_video_test_game.iso","SLUS_203.12");
     sf_ps2_video_diag_event("ANTES_DE_PS2CLASSICS",0,"NO_SE_MODIFICA_EL_CONFIG");
     assert(readreport()<18000);
-    assert(strstr(report,"SPOOKYFLOW_PS2_VIDEO_DIAG=V15.75"));
+    assert(strstr(report,"SPOOKYFLOW_PS2_VIDEO_DIAG=V15.76"));
     assert(strstr(report,"MOTOR_PREVISTO=HEN_PS2_CLASSICS_PS2_NETEMU"));
     assert(strstr(report,"BOOTPARAM_ESCALADOR=2"));
     assert(strstr(report,"BOOTPARAM_ESCALADOR_INTERPRETACION=FULL_ESCALADO_16_9_ESTIRADO"));
@@ -63,6 +64,6 @@ int main(void)
         sf_ps2_video_diag_event("RUN",0,"BOUNDED_LOG_WITH_NO_GROWTH_BEYOND_CAP");
     assert(readreport()<=48*1024);
     assert(!strstr(report,password));
-    puts("PASS PS2 V15.75: last-only TXT, >1 game, 16:9 bootparam, HDMI/output, exact ID, no secrets, cap");
+    puts("PASS PS2 V15.76: last-only TXT, >1 game, 16:9 bootparam, HDMI/output, exact ID, no secrets, cap");
     return 0;
 }
