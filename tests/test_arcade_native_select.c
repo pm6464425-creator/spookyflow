@@ -9,9 +9,9 @@ int main(void)
     char r[160];
     int engine=arcade_native_engine_select(ROOT "kof2002.zip",
              ARCADE_ENGINE_FBNEO,r,sizeof r);
-    assert(engine==ARCADE_ENGINE_MAME125);
-    assert(strstr(r,"ALL_GAME_CRC_MATCH"));
-    printf("PASS legacy BIOS + original MAME0125 kof2002 CRC => MAME0125 (%s)\n",r);
+    assert(engine==ARCADE_ENGINE_FBNEO_LEGACY);
+    assert(strstr(r,"SELECT_FBNEO_LEGACY"));
+    printf("PASS legacy BIOS + original KOF2002 CRC => isolated FBNeo legacy (%s)\n",r);
     engine=arcade_native_engine_select(ROOT "gng.zip",
               ARCADE_ENGINE_FBNEO,r,sizeof r);
     assert(engine==ARCADE_ENGINE_FBNEO);
