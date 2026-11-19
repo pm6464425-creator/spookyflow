@@ -1,9 +1,9 @@
-name: SpookyFlow V15.69 Legacy FBNeo NeoGeo 2002 automatic
+name: SpookyFlow V15.70 Arcade forced fullscreen stretch 16:9
 on:
   workflow_dispatch:
   push:
     branches:
-      - fix/v15-69-fbneo-legacy-kof2002
+      - fix/v15-70-arcade-fullscreen-stretch-16x9
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
@@ -134,6 +134,14 @@ jobs:
           c=Path("pkgfiles/USRDIR/retroarch.cfg").read_text()
           assert 'video_fullscreen = "true"' in c
           assert 'video_aspect_ratio = "1.777800"' in c
+          assert 'aspect_ratio_index = "1"' in c
+          assert 'video_force_aspect = "false"' in c
+          assert 'auto_overrides_enable = "false"' in c
+          assert 'config_save_on_exit = "false"' in c
+          assert 'custom_viewport_width = "1280"' in c
+          assert 'custom_viewport_height = "720"' in c
+          assert 'custom_viewport_x = "0"' in c
+          assert 'custom_viewport_y = "0"' in c
           assert 'FBNE00123' not in c
           m=Path("pkgfiles/USRDIR/ARCADE/arcade_engines.tsv").read_text()
           assert sum(len(l.split("\t"))==2 for l in m.splitlines() if not l.startswith("#"))>=6500
@@ -211,6 +219,6 @@ jobs:
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-69-ARCADE-FBNEO-LEGACY-KOF2002
+          name: SPOOKYFLOW-V15-70-ARCADE-FULLSCREEN-16X9
           path: spookyflow.pkg
           if-no-files-found: error
