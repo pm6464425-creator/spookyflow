@@ -282,6 +282,146 @@ static void compare_with_manifest(FILE *report,const char *romcode,
         fputs("RESULTADO=CRC_COINCIDEN_NO_GARANTIZA_EJECUCION\n",report);
     else fputs("RESULTADO=SIN_ROM_LISTADOS_EN_MANIFEST\n",report);
 }
+
+/* V15.68: MAME 0.125 uses a different ROM catalog from FBNeo. Diagnose
+ * each declared MAME chip by CRC+decompressed size (filename aliases are
+ * accepted), and preserve one single report. No ZIP is modified or extracted.
+ * Only the frontend can log: after sysProcessExitSpawn2, MAME runs alone. */
+#ifndef SF_MAME125_CATALOG
+#define SF_MAME125_CATALOG "/dev_hdd0/game/SPKF00001/USRDIR/ARCADE/mame0125_neogeo.tsv"
+#endif
+#define SF_MAME125_PATH "/dev_hdd0/game/SPKF00001/USRDIR/MAME125/"
+static const ZipMember *zip_crc_size(const ZipArchive *z,uint32_t crc,uint32_t size)
+{
+    int i;
+    if(!z || !z->entries || z->state<0)return NULL;
+    for(i=0;i<z->count;i++)
+        if(z->entries[i].crc==crc && z->entries[i].size==size)
+            return z->entries+i;
+    return NULL;
+}
+static void mame_resources(FILE *f,const char *rompath)
+{
+    FILE *ini;
+    char line[256],isodir[216]="";
+    int fullscreen=-1,aspect=-1,driver=-1,verbosity=-1,filelog=-1;
+    const char *cfg="/dev_hdd0/game/SPKF00001/USRDIR/retroarch.cfg";
+    probe_file(f,"MAME_INIT_INI",SF_MAME125_PATH "init.ini");
+    probe_file(f,"MAME_CFG_DEFAULT",SF_MAME125_PATH "cfg/default.cfg");
+    probe_file(f,"MAME_FONT",SF_MAME125_PATH "fonts/ui000-11.bdc");
+    ini=fopen(SF_MAME125_PATH "init.ini","rb");
+    if(ini){
+        while(fgets(line,sizeof line,ini)){
+            char *p=line,*eq;
+            while(*p==' ' || *p=='\t')p++;
+            if(strncmp(p,"isodir",6)!=0)continue;
+            eq=strchr(p,'=');if(!eq)continue;
+            p=eq+1;while(*p==' '||*p=='\t')p++;
+            p[strcspn(p,"\r\n")]=0;
+            snprintf(isodir,sizeof isodir,"%s",p);
+            break;
+        }
+        fclose(ini);
+    }
+    fprintf(f,"MAME_INIT_ISODIR=%s\n",isodir[0]?isodir:"(no recuperado)");
+    fprintf(f,"MAME_ROM_EN_ISODIR=%s\n",
+            (rompath && isodir[0] && !strncmp(rompath,isodir,strlen(isodir)) &&
+             rompath[strlen(isodir)]=='/')?"SI":"NO_O_NO_COMPROBADO");
+    ini=fopen(cfg,"rb");
+    if(ini){
+        while(fgets(line,sizeof line,ini)){
+            char *p=line;while(*p==' '||*p=='\t')p++;
+            if(!strncmp(p,"video_fullscreen =",18))
+                fullscreen=(strstr(p,"\"true\"")!=NULL);
+            if(!strncmp(p,"video_aspect_ratio =",20))
+                aspect=(strstr(p,"1.777800")!=NULL);
+            if(!strncmp(p,"video_driver =",14))
+                driver=(strstr(p,"\"gl\"")!=NULL);
+            if(!strncmp(p,"log_verbosity =",15))
+                verbosity=(strstr(p,"\"true\"")!=NULL);
+            if(!strncmp(p,"log_to_file =",13))
+                filelog=(strstr(p,"\"true\"")!=NULL);
+        }
+        fclose(ini);
+    }
+    fprintf(f,"RETROARCH_VIDEO_FULLSCREEN=%d\nRETROARCH_ASPECTO_16_9=%d\n"
+              "RETROARCH_DRIVER_GL=%d\nRETROARCH_VERBOSE=%d\n"
+              "RETROARCH_LOG_TO_FILE=%d\n",
+            fullscreen,aspect,driver,verbosity,filelog);
+    fputs("AVISO_CONFIG=RETROARCH_CFG_PUEDE_NO_SER_INTERPRETADO_POR_MAME125_STANDALONE\n",f);
+}
+static void mame125_manifest(FILE *report,const char *romcode,
+                             const ZipArchive *game,const ZipArchive *bios)
+{
+    FILE *f=fopen(SF_MAME125_CATALOG,"rb");
+    char line[360],gamecode[100],*crc_text,*size_text,*file_text,*tab,*end;
+    unsigned expected=0,ok_game=0,ok_bios=0,missing=0,nmissing=0;
+    uint64_t bytes_total=0;
+    const uint32_t needs_crc[3]={0x97cf998bu,0x354029fcu,0xe09e253cu};
+    const uint32_t needs_size[3]={131072u,131072u,65536u};
+    const char *needs_name[3]={"sm1.sm1","sfix.sfx","000-lo.lo"};
+    unsigned bios_good=0,i;
+    for(i=0;i<3;i++){
+        const ZipMember *b=zip_crc_size(bios,needs_crc[i],needs_size[i]);
+        if(b){bios_good++;fprintf(report,"MAME_BIOS_OK=%s encontrado=%s\n",needs_name[i],b->name);}
+        else fprintf(report,"MAME_BIOS_NO_ENCONTRADA=%s crc=%08x bytes=%u\n",
+                     needs_name[i],(unsigned)needs_crc[i],(unsigned)needs_size[i]);
+    }
+    fprintf(report,"MAME_BIOS_ANTIGUA_CLAVE=%u/3\n",bios_good);
+    if(!f){
+        fprintf(report,"MAME_DAT_ESTADO=NO_ENCONTRADO ruta=%s\n",SF_MAME125_CATALOG);
+        fputs("MAME_ROMSET_ESTADO=SIN_CATALOGO_NO_SE_PUEDE_VERIFICAR\n",report);
+        return;
+    }
+    while(fgets(line,sizeof line,f)){
+        unsigned long crc,sz;
+        snprintf(gamecode,sizeof gamecode,"%s",line);
+        tab=strchr(line,'\t');if(!tab)continue;
+        *tab++=0;
+        if(strcmp(line,romcode))continue;
+        crc_text=tab;
+        tab=strchr(crc_text,'\t');if(!tab)continue;
+        *tab++=0;size_text=tab;
+        tab=strchr(size_text,'\t');if(!tab)continue;
+        *tab++=0;file_text=tab;
+        file_text[strcspn(file_text,"\r\n")]=0;
+        if(!strcmp(crc_text,"@"))continue;
+        if(strlen(crc_text)!=8)continue;
+        crc=strtoul(crc_text,&end,16);
+        if(*end)continue;
+        sz=strtoul(size_text,&end,10);
+        if(*end || !sz || sz>64u*1024u*1024u)continue;
+        expected++;bytes_total+=(uint64_t)sz;
+        {
+            const ZipMember *z=zip_crc_size(game,(uint32_t)crc,(uint32_t)sz);
+            const ZipMember *b=zip_crc_size(bios,(uint32_t)crc,(uint32_t)sz);
+            if(z)ok_game++;
+            else if(b)ok_bios++;
+            else{
+                missing++;
+                if(nmissing++<20)
+                    fprintf(report,"MAME_ROM_AUSENTE=%s crc=%08lx bytes=%lu\n",
+                            file_text,crc,sz);
+            }
+        }
+    }
+    fclose(f);
+    fprintf(report,"MAME_DAT_VERSION=ORIGINAL_MAME_0_125\n"
+              "MAME_ROM_CRC_ESPERADOS=%u\nMAME_ROM_CRC_JUEGO_OK=%u\n"
+              "MAME_ROM_CRC_BIOS_OK=%u\nMAME_ROM_FALTANTES=%u\n"
+              "MAME_BYTES_DESCOMPRIMIDOS_SUMADOS=%llu\n",
+            expected,ok_game,ok_bios,missing,(unsigned long long)bytes_total);
+    if(game->state!=1 || bios->state!=1)
+        fputs("MAME_ROMSET_ESTADO=ZIP_NO_COMPLETO_O_ILEGIBLE\n",report);
+    else if(!expected)
+        fputs("MAME_ROMSET_ESTADO=ROM_NO_INCLUIDA_EN_MAME_0_125\n",report);
+    else if(missing || bios_good<3)
+        fputs("MAME_ROMSET_ESTADO=DEPENDENCIA_CRC_O_BIOS_FALTANTE\n",report);
+    else
+        fputs("MAME_ROMSET_ESTADO=METADATOS_CRC_COMPLETOS_NO_GARANTIZA_ARRANQUE\n",report);
+    fputs("AVISO_ZIP=CRC_DE_CABECERA_NO_COMPRUEBA_DESCOMPRESION_INTEGRAL\n",report);
+}
+
 int arcade_diag_begin(const char *rom_path,int core,const char *core_file,
                       const char *reload_file,const char *config_file)
 {
@@ -292,7 +432,7 @@ int arcade_diag_begin(const char *rom_path,int core,const char *core_file,
     int is_zip;
     f=fopen(SF_ARCADE_DIAG_PATH,"wb");/* always REPLACE prior report */
     if(!f)return -1;
-    fputs("SPOOKYFLOW V15.66 - DIAGNOSTICO UNICO ARCADE / MAME / FBNEO\n"
+    fputs("SPOOKYFLOW V15.68 - DIAGNOSTICO AVANZADO UNICO ARCADE / MAME / FBNEO\n"
           "SOLO ESTE TXT; reemplazado al pulsar X, nunca acumulado.\n"
           "SCOPE=ARCADE_ONLY, NO_MODIFICA_ROMS, NO_DESCARGA_BIOS\n"
           "NOTA=La PS3 sustituye SpookyFlow por el emulador. Este informe\n"
@@ -342,8 +482,13 @@ int arcade_diag_begin(const char *rom_path,int core,const char *core_file,
     if(core==1){
         compare_with_manifest(f,code,&game,&parent,&bios);
     }else if(core==2){
-        fputs("MANIFEST=FBNeo_NO_APLICA_A_MAME_0125\n"
-              "RESULTADO=MAME0125_ZIP_INSPECCIONADO_REQUIERE_DAT_DE_MAME_0125_PARA_COMPARAR_CRC\n",f);
+        fputs("MANIFEST=DAT_ORIGINAL_MAME_0125\n",f);
+        mame_resources(f,rom_path);
+        mame125_manifest(f,code,&game,&bios);
+        fputs("FASE_POST_100_PORCIENTO=NO_OBSERVABLE_DESDE_SPOOKYFLOW\n"
+              "MAME125_SELF_INSTRUMENTADO=NO\n"
+              "NOTA=La barra al 100 por ciento y el congelamiento ocurren DENTRO\n"
+              "     del proceso MAME; este TXT registra los hechos anteriores.\n",f);
     }else {
         fputs("RESULTADO=SIN_MOTOR_COMPATIBLE_PARA_EL_CODIGO\n",f);
     }
