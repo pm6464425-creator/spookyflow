@@ -1477,6 +1477,9 @@ static void launch_disc(App *a, int disc)
         }else{
             log_printf("arcade: direct launch failed rc=%d rom=%s",rc,path);
             if(rc==-90)app_show_toast(a,"ARCADE: ROM no compatible con los motores PS3");
+            else if(rc==-96)app_show_toast(a,"ARCADE: formato 7z no admitido. Requiere ROM ZIP");
+            else if(rc==-97)app_show_toast(a,"ARCADE: juego no incluido en el catalogo PS3");
+            else if(rc==-98)app_show_toast(a,"ARCADE: CRC/BIOS o version ROMset incompatible");
             else if(rc==-91)app_show_toast(a,"ARCADE: falta un motor incluido");
             else if(rc==-92)app_show_toast(a,"ARCADE: falta configuracion del motor");
             else if(rc==-93)app_show_toast(a,"ARCADE: archivo ZIP no disponible");
