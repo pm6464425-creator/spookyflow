@@ -34,6 +34,7 @@
 #include "arcade_engine.h"
 #include "arcade_native_select.h"
 #include "arcade_diag.h"
+#include "ps3_arcade_bridge.h"
 #include "sf_snes_diag.h"
 #include "sf_snes_screen.h"
 #include "sf_video_diag.h"
@@ -472,6 +473,23 @@ static int launch_arcade_native(const char *rom_path)
         log_printf("arcade: direct launch aborted, ZIP missing path=%s",
                    rom_path?rom_path:"NULL");
         return -93;
+    }
+    /* Optional PC fallback: never intercept a working native PS3 game
+     * unless the owner explicitly chooses PREFER_PC=1 in the LAN config.
+     * The PC runs the actual ROM using available Windows MAME/FBNeo cores.
+     * A positive result means PC accepted; Moonlight PS3 is a separate
+     * viewer to pair/launch from the XMB, NOT automatically included here. */
+    if(!engine || sf_pc_arcade_preferred()){
+        char pc_reason[150];
+        int pc_rc=sf_pc_arcade_try_launch(rom_path,pc_reason,sizeof pc_reason);
+        arcade_diag_event("PC_ARCADE_FALLBACK",pc_rc,pc_reason);
+        if(pc_rc==1){
+            log_printf("arcade: PC game started; use Moonlight PS3 on XMB");
+            return 1;
+        }
+        if(pc_rc<0 && sf_pc_arcade_preferred()){
+            log_printf("arcade: selected PC path failed, keeping native motor if available");
+        }
     }
     if(!engine){
         /* Never call everything "incompatible": missing PS3 driver, 7z
