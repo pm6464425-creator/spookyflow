@@ -1,15 +1,30 @@
-name: SpookyFlow V15.74 expanded CRC-verified arcade clones
+name: SpookyFlow V15.75 PS2 widescreen forensic HEN safe
 on:
   workflow_dispatch:
   push:
     branches:
-      - fix/v15-74-arcade-crc-detection-33-clones
+      - feature/v15-75-ps2-video-forensic-hen-safe
 jobs:
   arcade-pkg:
     runs-on: ubuntu-22.04
     timeout-minutes: 55
     steps:
       - uses: actions/checkout@v4
+      - name: Verify universal PS2 fullscreen video forensic diagnostics, one bounded TXT
+        run: |
+          gcc -std=gnu99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
+            -DSF_PS2_VIDEO_HOST_TEST=1 \
+            '-DSF_PS2_VIDEO_DIAG_PATH="/tmp/diagnostico_pantalla_ps2.txt"' \
+            '-DSF_PS2_VIDEO_BOOTPARAM_PATH="/tmp/synthetic_ps2bootparam.dat"' \
+            -Isrc/ps3 src/ps3/sf_ps2_video_diag.c tests/test_ps2_video_forensic.c \
+            -o /tmp/test_ps2_video_forensic
+          /tmp/test_ps2_video_forensic
+          grep -q 'host.ps2_preflight = ps2_video_preflight;' src/ps3/main.c
+          grep -q 'host.ps2_hen_start = ps2_video_hen_start;' src/ps3/main.c
+          grep -q 'host.launch_ps2 = ps2_video_cobra_mount;' src/ps3/main.c
+          grep -q 'diagnostico_pantalla_ps2.txt' src/ps3/ps3_fs.c
+          grep -q 'PS2_BOOTPARAM' src/ps3/sf_ps2_video_diag.c
+          echo 'PASS PS2 HEN+CFW video measurement isolated; no firmware registry writes; capped single report'
       - name: Check Arcade settings compatibility (reproduces original black-screen crash)
         run: |
           gcc -std=c99 -O1 -g -Wall -Wextra -Werror=implicit-function-declaration \
@@ -295,7 +310,7 @@ jobs:
           sha256sum spookyflow.pkg
       - uses: actions/upload-artifact@v4
         with:
-          name: SPOOKYFLOW-V15-74-ARCADE-CRC-CLONES-33
+          name: SPOOKYFLOW-V15-75-PS2-VIDEO-FORENSIC
           path: |
             spookyflow.pkg
             build/pkg/USRDIR/EBOOT.BIN
