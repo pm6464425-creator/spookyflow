@@ -25,7 +25,10 @@
 #endif
 
 #define DIAG_DIR "/dev_hdd0/tmp/spookyflow"
-#define PS2_BOOTPARAM "/dev_hdd0/tmp/game/ps2bootparam.dat"
+#ifndef SF_PS2_VIDEO_BOOTPARAM_PATH
+#define SF_PS2_VIDEO_BOOTPARAM_PATH "/dev_hdd0/tmp/game/ps2bootparam.dat"
+#endif
+#define PS2_BOOTPARAM SF_PS2_VIDEO_BOOTPARAM_PATH
 #define PS2_HEN_PLACEHOLDER "/dev_hdd0/game/PS2U10000/USRDIR"
 #define PS2_HEN_PS2CONFIG "/dev_hdd0/game/PS2CONFIG/USRDIR/CONFIG/ENC"
 #define PS2_HEN_BUNDLED "/dev_hdd0/game/SPKF00001/USRDIR/ps2configs"
@@ -36,7 +39,6 @@
 #endif
 #endif
 
-static int s_begin_ok=0;
 static int s_resume_checked=0;
 static void safe(FILE *f,const char *s)
 {
@@ -150,7 +152,6 @@ void sf_ps2_video_diag_begin(const char *iso_path)
     /* Installer may not have created tmp/spookyflow yet. */
     (void)mkdir("/dev_hdd0/tmp/spookyflow",0777);
     f=fopen(SF_PS2_VIDEO_DIAG_PATH,"wb");
-    s_begin_ok=f!=NULL;
     if(!f)return;
     fputs("SPOOKYFLOW_PS2_VIDEO_DIAG=V15.75\n"
           "SCOPE=PS2_ONLY\nFORMATO=DIAGNOSTICO_AVANZADO_XMB_PS2_CLASSICS\n"
@@ -175,7 +176,7 @@ void sf_ps2_video_diag_begin(const char *iso_path)
     fputs("PS2_VIDEO_FIX_MODO=PROTEGIDO_POR_JUEGO\n"
           "PS2_VIDEO_FIX_BASE=RESPETAR_ESCALADOR_DE_PS3_Y_CONFIG_NETEMU_ORIGINAL\n"
           "PS2_VIDEO_FIX_PROHIBIDO=FORZAR_720P_O_1080I_DENTRO_DEL_GS_PS2_NETEMU\n"
-          "PS2_VIDEO_REAL_16_9=REQUIERE_SOPORTE_JUEGO_O_PAR​CHE_VERIFICADO\n"
+          "PS2_VIDEO_REAL_16_9=REQUIERE_SOPORTE_JUEGO_O_PARCHE_VERIFICADO\n"
           "SI_HAY_BARRAS_NEGRAS=COMPROBAR_AJUSTES_JUEGO_PS2_Y_UPSCALER_FULL_PS3\n"
           "SI_SE_ESTIRA=UPSCALER_FULL_NO_ES_WIDESCREEN_3D_REAL\n",f);
     fflush(f);fclose(f);
@@ -238,7 +239,7 @@ void sf_ps2_video_diag_resume(void)
     a=append();if(!a)return;
     fputs("REAPERTURA_SPOOKYFLOW=SI\n",a);
     bootparam(a,"DESPUES_DE_REGRESAR_DE_PS2",NULL);
-    fputs("LIMITACION=NO_OBSERVA_PIXELES_IA_PS2_NETEMU_FPS_GS_BUFFER_NI_HDMI_FINAL\n"
+    fputs("LIMITACION=NO_OBSERVA_PIXELES_DE_PS2_NETEMU_FPS_GS_BUFFER_NI_HDMI_FINAL\n"
           "PARA_VERIFICAR_BORDES_SE_NECESITA_FOTO_DE_PANTALLA_EN_PS2\n",a);
     fflush(a);fclose(a);
 }
