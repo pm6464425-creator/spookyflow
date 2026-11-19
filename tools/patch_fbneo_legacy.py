@@ -51,11 +51,41 @@ def mapping() -> list[Descriptor]:
     assert len(rows)==19
     return [Descriptor(*x) for x in rows]
 
-def transform(raw: bytes, verbose:bool=True)->tuple[bytes,dict[str,int]]:
+def load_aliases(path:Path)->list[Descriptor]:
+    """Only permit exact name+CRC+size aliases derived from the frozen
+    ORIGINAL PS3 FBNeo 2021 source and authentic MAME 0.125 driver."""
+    rows=[]
+    seen={}
+    for ln in path.read_text(encoding="ascii").splitlines():
+        if not ln or ln.startswith("#"):continue
+        p=ln.split("\t")
+        assert len(p)==4,ln
+        modern,crc,size,legacy=p
+        crc=int(crc,16);size=int(size)
+        assert size>0 and len(modern)<NAME_MAX and len(legacy)<NAME_MAX
+        key=(modern,crc,size)
+        assert key not in seen or seen[key]==legacy,key
+        seen[key]=legacy
+    for (modern,crc,size),legacy in sorted(seen.items()):
+        rows.append(Descriptor(modern,legacy,size,size,crc,crc))
+    assert len(rows)>=700,len(rows)
+    return rows
+
+def transform(raw: bytes, verbose:bool=True, aliases_path:Path|None=None)->tuple[bytes,dict[str,int]]:
     assert raw.startswith(b"\x7fELF"),"Input must be decrypted ELF, NOT SELF"
     out=bytearray(raw)
     applied={}
-    for row in mapping():
+    rows=mapping()
+    if aliases_path is not None:
+        old={(x.modern,x.crc_modern,x.size_modern):x for x in rows}
+        for x in load_aliases(aliases_path):
+            key=(x.modern,x.crc_modern,x.size_modern)
+            if key in old:
+                assert old[key].legacy==x.legacy,key
+            else:
+                old[key]=x;rows.append(x)
+        print("FBNEO_LEGACY_ALIASES",len(rows),"unique descriptors expected")
+    for row in rows:
         name=row.modern.encode("ascii")
         target=row.legacy.encode("ascii")
         assert len(target)<NAME_MAX and len(name)<NAME_MAX
@@ -81,7 +111,7 @@ def transform(raw: bytes, verbose:bool=True)->tuple[bytes,dict[str,int]]:
             count+=1
         if count==0:
             raise AssertionError(f"ELF incompatible; expected descriptor absent: {row.modern} CRC {row.crc_modern:08x}")
-        applied[row.modern]=count
+        applied[f"{row.modern}@{row.crc_modern:08x}"]=count
         if verbose:print(f"PATCH_LEGACY_NEOGEO {row.modern}->{row.legacy} descriptor_count={count} oldCRC={row.crc_legacy:08x}")
     assert len(out)==len(raw)
     # Make sure only descriptor payloads changed -- no PPC code, functions,
@@ -96,11 +126,12 @@ def main():
     p=argparse.ArgumentParser()
     p.add_argument("source")
     p.add_argument("dest")
+    p.add_argument("--aliases",type=Path,default=None)
     a=p.parse_args()
     src=Path(a.source).read_bytes()
-    target,stats=transform(src)
-    assert stats["sm1.sm1"]>=1 and stats["sfix.sfix"]>=1 and stats["000-lo.lo"]>=1
-    assert stats["265-p1.p1"]>=1 and stats["265-c1.c1"]>=1
+    target,stats=transform(src,aliases_path=a.aliases)
+    assert stats["sm1.sm1@94416d67"]>=1 and stats["sfix.sfix@c2ea0cfd"]>=1 and stats["000-lo.lo@5a86cff2"]>=1
+    assert stats["265-p1.p1@9ede7323"]>=1 and stats["265-c1.c1@2b65a656"]>=1
     Path(a.dest).write_bytes(target)
 if __name__=="__main__":
     main()
