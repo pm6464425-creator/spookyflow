@@ -133,11 +133,19 @@ cfg=Path(sys.argv[1]).read_text()
 assert cfg.count("FBNE00123")>6
 cfg=cfg.replace("FBNE00123","SPKF00001")
 updates={
+ "aspect_ratio_index":"1",
  "video_fullscreen":"true",
  "video_windowed_fullscreen":"true",
  "video_aspect_ratio_auto":"false",
  "video_aspect_ratio":"1.777800",
+ "video_force_aspect":"false",
  "video_scale_integer":"false",
+ "custom_viewport_width":"1280",
+ "custom_viewport_height":"720",
+ "custom_viewport_x":"0",
+ "custom_viewport_y":"0",
+ "auto_overrides_enable":"false",
+ "config_save_on_exit":"false",
  "video_shader_enable":"false",
  "input_overlay_enable":"false",
  "video_force_aspect":"true",
@@ -153,7 +161,11 @@ init=Path(sys.argv[2]).read_text()
 assert "/dev_hdd0/MAME" in init
 init=init.replace("/dev_hdd0/MAME","/dev_hdd0/ARCADE")
 Path("pkgfiles/USRDIR/MAME125/init.ini").write_text(init)
-print("PASS fullscreen 16:9 config, all original bindings, isolated ARCADE paths")
+assert 'aspect_ratio_index = "1"' in cfg
+assert 'video_force_aspect = "false"' in cfg
+assert 'auto_overrides_enable = "false"' in cfg
+assert 'custom_viewport_width = "1280"' in cfg
+print("PASS forced stretch 16:9 without pillarbox; game overrides and config rewrite disabled, original Arcade controls preserved")
 PY
 mkdir -p pkgfiles/USRDIR/cores/savefiles pkgfiles/USRDIR/cores/savestates
 cat > pkgfiles/USRDIR/ARCADE/SOURCE_ENGINES.txt <<'NOTE'
