@@ -20,7 +20,7 @@
 #include <ctype.h>
 
 #ifndef SF_PC_ARCADE_CONFIG
-#define SF_PC_ARCADE_CONFIG "/dev_hdd0/game/SPKF00001/USRDIR/ARCADE/pc_bridge.cfg"
+#define SF_PC_ARCADE_CONFIG "/dev_hdd0/tmp/spookyflow/pc_bridge.cfg"
 #endif
 
 typedef struct {
