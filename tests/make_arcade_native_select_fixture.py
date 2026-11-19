@@ -49,6 +49,7 @@ kof98_entries=[(n,int(crc,16),int(size)) for _,crc,size,n in kof98
                if n not in ("sfix.sfx","sm1.sm1","000-lo.lo") and
                not n.endswith("_decrypted.bin")]
 central_only_zip(root/"kof98.zip",kof98_entries)
+central_only_zip(root/"not_in_map.zip",[("dummy.bin",0xdeadbeef,512)])
 central_only_zip(root/"kof2002.zip",game)
 central_only_zip(root/"neogeo.zip",legacy)
 central_only_zip(root/"neogeo_modern.zip",modern)
