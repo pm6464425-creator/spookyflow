@@ -20,6 +20,9 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from subprocess import run,check_output
+from urllib.error import HTTPError,URLError
 
 FBNEO_DAT="FinalBurn Neo (ClrMame Pro XML, Arcade only).dat"
 DAT_URL="https://raw.githubusercontent.com/libretro/FBNeo/master/dats/"+urllib.parse.quote(FBNEO_DAT)
@@ -31,10 +34,38 @@ UA={"User-Agent":"SpookyFlow-Arcade-Index/1.0 (open-source)"}
 
 def retrieve(url, cap):
     req=urllib.request.Request(url,headers=UA)
-    with urllib.request.urlopen(req,timeout=120) as r:
-        data=r.read(cap+1)
-    if len(data)>cap:raise RuntimeError("Source unexpectedly large: "+url)
-    return data
+    try:
+        with urllib.request.urlopen(req,timeout=120) as r:
+            data=r.read(cap+1)
+        if len(data)>cap:raise RuntimeError("Source unexpectedly large: "+url)
+        return data
+    except (HTTPError,URLError) as error:
+        sources={
+            SOURCE_URLS[0][1]:"FBNeo_-_Arcade_Games",
+            SOURCE_URLS[1][1]:"MAME",
+        }
+        if url not in sources:raise
+        repo=sources[url]
+        print(f"Official {repo} boxart HTTP directory unavailable ({error}); using original Git tree")
+        with TemporaryDirectory(prefix="sf_arcade_list_") as tmp:
+            run(["git","clone","--filter=blob:none","--no-checkout",
+                 "--single-branch","--depth","1",
+                 "https://github.com/libretro-thumbnails/"+repo+".git",
+                 tmp],check=True,timeout=180)
+            listing=check_output(["git","-C",tmp,"ls-tree","-r","--name-only",
+                                  "HEAD"],timeout=90).decode("utf-8")
+            names=sorted({
+                p[len("Named_Boxarts/"):]
+                for p in listing.splitlines()
+                if p.startswith("Named_Boxarts/") and p.endswith(".png")
+                and "/" not in p[len("Named_Boxarts/"):]
+            },key=str.casefold)
+        # Reuse the same IndexParser and matching logic; names all originate
+        # from the official published Git tree, no synthesized cover names.
+        data="".join("<a href='"+urllib.parse.quote(n)+"'>x</a>\n"
+                     for n in names).encode("utf-8")
+        if len(data)>cap:raise RuntimeError("Official Git index too large")
+        return data
 
 class IndexParser(HTMLParser):
     def __init__(self):
