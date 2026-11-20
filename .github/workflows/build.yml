@@ -449,6 +449,27 @@ jobs:
 
       - name: Verify compiled PKG title, transparent icon, Title ID, and package payload
         run: python3 tests/verify_compiled_pkg.py spookyflow.pkg
+      - name: V15.78 preserve exact signed PS1 and SNES engine verification pins
+        if: startsWith(github.ref, 'refs/heads/fix/v15-78-arcade-') || startsWith(github.head_ref, 'fix/v15-78-arcade-')
+        run: |
+          # The complete build above is checked against its own generated
+          # engines first. The final user PKG retains the engine resources of
+          # the previously installed V15.77, so recompile only the launcher
+          # with their original, SHA-verified fingerprints. No engine rebuild.
+          python3 tools/v15_78_pin_previous_engines.py
+          python3 tools/v15_78_pin_previous_engines.py --check
+          export PATH="$PS3DEV/bin:$PS3DEV/ppu/bin:$PS3DEV/spu/bin:$PATH"
+          make clean >/dev/null 2>&1 || true
+          make pkg SF_TLS=1
+          python3 tools/v15_78_pin_previous_engines.py --check
+          python3 - <<'PY'
+          import struct
+          from pathlib import Path
+          pkg=Path("spookyflow.pkg").read_bytes()
+          assert pkg[:8]==b'\x7fPKG\x00\x00\x00\x01'
+          assert struct.unpack_from(">Q",pkg,0x18)[0]==len(pkg)
+          print("PASS: V15.78 signed EBOOT compiled for original installed engine fingerprints")
+          PY
 
       - name: Publish V15.47 border-fill PKG only after host and native checks
         if: github.ref == 'refs/heads/fix/v15-47-snes-border-fill'
