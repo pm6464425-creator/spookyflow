@@ -30,6 +30,17 @@ jobs:
         run: python3 tests/probe_sensacine.py
       - name: Unit tests (portable core, ASan + UBSan)
         run: make -f Makefile.host test
+      - name: V15.77 PS2 horizontal bars forensic regression (host, single TXT, ID correlation)
+        run: |
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror \
+            -DSF_PS2_VIDEO_HOST_TEST=1 \
+            -DSF_PS2_VIDEO_DIAG_PATH='"/tmp/sf1577_ps2_video_diag.txt"' \
+            -DSF_PS2_VIDEO_DIAG_FALLBACK_PATH='"/tmp/sf1577_ps2_fallback.txt"' \
+            -DSF_PS2_VIDEO_BOOTPARAM_PATH='"/tmp/sf1577_ps2bootparam.dat"' \
+            -Isrc/ps3 src/ps3/sf_ps2_video_diag.c \
+            tests/test_v15_77_ps2_video_diag.c \
+            -o /tmp/sf1577_ps2_diag_test
+          /tmp/sf1577_ps2_diag_test
       - name: V15.31 SNES realistic case, ROM directory and 10 isolated regression checks
         run: python3 tests/test_snes_v15_31.py
       - name: V15.37 PS1 auto-repair missing cover, protect existing art, 12 checks
