@@ -346,7 +346,7 @@ static void previous_session(FILE *f,char id[32],int *already)
     id[0]=0;*already=0;
     if(fseek(f,0,SEEK_SET)!=0)return;
     while(fgets(line,sizeof line,f)){
-        if(strncmp(line,"REAPERTURA_SPOOKYFLOW=SI",23)==0)
+        if(strncmp(line,"REAPERTURA_SPOOKYFLOW=SI",24)==0)
             *already=1;
         if(strncmp(line,"JUEGO_ID=",9)!=0)continue;
         n=strcspn(line+9,"\r\n");
