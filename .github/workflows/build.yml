@@ -26,8 +26,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: V15.78 Arcade-only HTTPS keepalive framing and platform isolation
-        run: python3 tests/test_v15_78_arcade_fast_http.py
+      - name: V15.78 Arcade HTTPS keepalive and signed-engine compatibility preparation
+        run: |
+          python3 tests/test_v15_78_arcade_fast_http.py
+          python3 -m py_compile tools/v15_78_pin_previous_engines.py
   ps2-diagnostic-test:
     runs-on: ubuntu-latest
     steps:
