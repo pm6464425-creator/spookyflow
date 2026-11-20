@@ -22,6 +22,22 @@ on:
   workflow_dispatch:
 
 jobs:
+  ps2-diagnostic-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: V15.77 PS2 horizontal bars forensic regression (host, single TXT, ID correlation)
+        run: |
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror \
+            -DSF_PS2_VIDEO_HOST_TEST=1 \
+            -DSF_PS2_VIDEO_DIAG_PATH='"/tmp/sf1577_ps2_video_diag.txt"' \
+            -DSF_PS2_VIDEO_DIAG_FALLBACK_PATH='"/tmp/sf1577_ps2_fallback.txt"' \
+            -DSF_PS2_VIDEO_BOOTPARAM_PATH='"/tmp/sf1577_ps2bootparam.dat"' \
+            -Isrc/ps3 src/ps3/sf_ps2_video_diag.c \
+            tests/test_v15_77_ps2_video_diag.c \
+            -o /tmp/sf1577_ps2_diag_test
+          /tmp/sf1577_ps2_diag_test
+
   host-tests:
     runs-on: ubuntu-latest
     steps:
@@ -379,7 +395,7 @@ jobs:
           path: preview/*.png
 
   ps3-pkg:
-    needs: host-tests
+    needs: ps2-diagnostic-test
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -1136,7 +1152,7 @@ jobs:
           fi
 
   ps3-pkg-docker:
-    needs: host-tests
+    needs: ps2-diagnostic-test
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
