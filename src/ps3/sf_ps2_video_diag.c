@@ -1,4 +1,4 @@
-/* SpookyFlow V15.75 - PS2-ONLY forensic video diagnostics.
+/* SpookyFlow V15.77 - PS2 horizontal-border forensic video diagnostics.
  *
  * In HEN, SpookyFlow stages PS2 Classics but PS2U10000/ps2_netemu renders
  * after our process ends. We do NOT assert that PS3 frontend video state
@@ -40,6 +40,8 @@
 #endif
 #endif
 
+/* Never call this a confirmed PS2 return: reopening the frontend is not
+ * proof that ps2_netemu displayed a frame. Only compare saved title metadata. */
 static int s_resume_checked=0;
 static int s_write_status=0; /* 0=not writable, 1=primary, 2=fallback */
 static const char *s_active_path=SF_PS2_VIDEO_DIAG_PATH;
@@ -113,6 +115,8 @@ static FILE *append(void)
        length>=DIAG_CAP-2048L){fclose(f);return NULL;}
     return f;
 }
+/* Reads only non-sensitive title/video fields. This helper deliberately
+ * never dumps the raw bootparam (which may contain unrelated private data). */
 static void bootparam(FILE *f,const char *phase,const char *expected)
 {
     FILE *b=fopen(PS2_BOOTPARAM,"rb");
@@ -120,7 +124,13 @@ static void bootparam(FILE *f,const char *phase,const char *expected)
     char id[12]={0},clean[12]={0},wanted[12]={0};
     size_t i,j;
     long len=-1;
+    struct stat bst;
     fprintf(f,"BOOTPARAM_PHASE=%s\n",phase);
+    if(stat(PS2_BOOTPARAM,&bst)==0 && S_ISREG(bst.st_mode))
+        fprintf(f,"BOOTPARAM_ARCHIVO_BYTES=%ld\nBOOTPARAM_MTIME_UNIX=%ld\n",
+                (long)bst.st_size,(long)bst.st_mtime);
+    else
+        fputs("BOOTPARAM_ARCHIVO_BYTES=-1\nBOOTPARAM_MTIME_UNIX=-1\n",f);
     field(f,"BOOTPARAM_PATH",PS2_BOOTPARAM);
     if(!b){fputs("BOOTPARAM_ESTADO=NO_DISPONIBLE\n",f);return;}
     if(fseek(b,0,SEEK_END)!=0 || (len=ftell(b))<0x4ce ||
@@ -145,9 +155,15 @@ static void bootparam(FILE *f,const char *phase,const char *expected)
     }
     fputs("BOOTPARAM_ESTADO=LEIDO_SOLO_CAMPOS_VIDEO\n",f);
     field(f,"BOOTPARAM_TITULO_ANTERIOR",clean[0]?clean:"(sin_id)");
-    if(wanted[0])fprintf(f,"BOOTPARAM_COINCIDE_JUEGO=%s\n",
-                           strcmp(wanted,clean)==0?"SI":"NO_O_DESCONOCIDO");
-    else fputs("BOOTPARAM_COINCIDE_JUEGO=ID_NO_SUMINISTRADO\n",f);
+    fputs(clean[0]?"BOOTPARAM_ID_ESTADO=LEGIBLE\n":
+                     "BOOTPARAM_ID_ESTADO=VACIO_O_NO_RECONOCIBLE\n",f);
+    if(wanted[0] && clean[0])
+        fprintf(f,"BOOTPARAM_COINCIDE_JUEGO=%s\n",
+                strcmp(wanted,clean)==0?"SI":"NO");
+    else if(wanted[0])
+        fputs("BOOTPARAM_COINCIDE_JUEGO=NO_DETERMINABLE_SIN_ID\n",f);
+    else
+        fputs("BOOTPARAM_COINCIDE_JUEGO=ID_NO_SUMINISTRADO\n",f);
     fprintf(f,"BOOTPARAM_PORT_TIPO=%u\nBOOTPARAM_VIDEO_MODES_BITFIELD=0x%02X%02X\n",
             (unsigned)port,(unsigned)vm[0],(unsigned)vm[1]);
     fprintf(f,"BOOTPARAM_ESCALADOR=%u\nBOOTPARAM_SUAVIZADO=%u\n",
@@ -157,7 +173,8 @@ static void bootparam(FILE *f,const char *phase,const char *expected)
     else if(up==1)fputs("NORMAL_RELACION_ORIGINAL_4_3\n",f);
     else if(up==2)fputs("FULL_ESCALADO_16_9_ESTIRADO\n",f);
     else fputs("DESCONOCIDO\n",f);
-    fputs("BOOTPARAM_AVISO=ARCHIVO_DEL_ULTIMO_PS2_EJECUTADO_NO_ES_MEDICION_EN_VIVO\n",f);
+    fputs("BOOTPARAM_AVISO=ARCHIVO_DEL_ULTIMO_PS2_EJECUTADO_NO_ES_MEDICION_EN_VIVO\n"
+          "BOOTPARAM_NO_PRUEBA=QUE_EL_EMULADOR_HAYA_MOSTRADO_IMAGEN_O_FRANJAS\n",f);
 }
 static void frontend_video(FILE *f)
 {
@@ -224,7 +241,13 @@ void sf_ps2_video_diag_begin(const char *iso_path)
           "ARCHIVO_UNICO=SI_REEMPLAZADO_CADA_INTENTO\n"
           "MODIFICA_ROM=NO\nMODIFICA_CONFIG_PS2=NO\n"
           "MODIFICA_XREGISTRY=NO\nMODIFICA_PS2_NETEMU=NO\n"
-          "FUNDAMENTO=PS2_NETEMU_SE_EJECUTA_FUERA_DE_SPOOKYFLOW\n",f);
+          "FUNDAMENTO=PS2_NETEMU_SE_EJECUTA_FUERA_DE_SPOOKYFLOW\n"
+          "DIAG_OBJETIVO=FRANJAS_NEGRAS_HORIZONTALES_SUPERIOR_E_INFERIOR_EN_TODOS_LOS_PS2\n"
+          "EVIDENCIA_BORDES_REALES=NO_MEDIBLE_DESDE_SPOOKYFLOW\n"
+          "DIAG_SEPARA=ESTADO_FRONTEND_ESTADO_BOOTPARAM_PREVIO_Y_ESTADO_PREPARACION\n"
+          "CANDIDATOS_A_COMPROBAR=SALIDA_PS2_NETEMU_ESCALADOR_HDMI_Y_AREA_ACTIVA_PS2\n"
+          "GEOMETRIA_REFERENCIA=4_3_A_16_9_SIN_DISTORSION_EXIGE_RECORTE_VERTICAL_25_PORCIENTO\n"
+          "GEOMETRIA_ADVERTENCIA=CALCULO_TEORICO_NO_MEDIDA_DE_TU_TV\n",f);
     fprintf(f,"DIAGNOSTICO_RUTA=%s\n",s_active_path);
     fprintf(f,"DIAGNOSTICO_GUARDADO=%s\n",s_write_status==1?"PRINCIPAL":"ALTERNATIVA");
     field(f,"ISO_RUTA",iso_path);
@@ -265,7 +288,10 @@ void sf_ps2_video_diag_game(const char *iso_path,const char *game_id)
     if(!f)return;
     field(f,"JUEGO_ID",game_id && *game_id?game_id:"DESCONOCIDO");
     field(f,"JUEGO_ISO",iso_path);
-    fileprobe(f,"PS2_CLASSICS_EBOOT",PS2_HEN_PLACEHOLDER "/EBOOT.BIN");
+    fileprobe(f,"PS2_CLASSICS_EBOOT_USRDIR",PS2_HEN_PLACEHOLDER "/EBOOT.BIN");
+    fileprobe(f,"PS2_CLASSICS_EBOOT_RAIZ","/dev_hdd0/game/PS2U10000/EBOOT.BIN");
+    fileprobe(f,"PS2_CLASSICS_PARAM_SFO","/dev_hdd0/game/PS2U10000/PARAM.SFO");
+    fputs("PS2_CLASSICS_EBOOT_NOTA=LA_AUSENCIA_EN_USRDIR_NO_IMPLICA_LANZADOR_AUSENTE\n",f);
     fileprobe(f,"PS2_CLASSICS_ISO_BIN_ENC",PS2_HEN_PLACEHOLDER "/ISO.BIN.ENC");
     fileprobe(f,"CONFIG_ACTUAL",PS2_HEN_PLACEHOLDER "/CONFIG");
     fileprobe(f,"CONFIG_OWNERSHIP",PS2_HEN_PLACEHOLDER "/CONFIG.sf-source");
@@ -305,13 +331,37 @@ void sf_ps2_video_diag_final_config(int finished_rc)
     fileprobe(f,"HEN_POST_CONFIG",PS2_HEN_PLACEHOLDER "/CONFIG");
     fileprobe(f,"HEN_POST_CONFIG_ORIGEN",PS2_HEN_PLACEHOLDER "/CONFIG.sf-source");
     fputs("HEN_CONFIG_NOTA=CONFIG_ES_ENCRIPTADO_NO_SE_DEDUCE_CORRECCION_VIDEO_SOLO_POR_EXISTIR\n"
-          "HEN_POST_LANZAMIENTO=PS2_CLASSICS_CORRE_FUERA_DE_SPOOKYFLOW\n",f);
+          "HEN_POST_LANZAMIENTO=PS2_CLASSICS_CORRE_FUERA_DE_SPOOKYFLOW\n"
+          "HEN_POST_CONFIG_AUSENTE_NO_PRUEBA=CAUSA_DE_FRANJAS_HORIZONTALES\n"
+          "COLUMNA_EVIDENCIA=CONFIG_SOLO_COMPATIBILIDAD_NO_ZOOM_UNIVERSAL_VERIFICADO\n",f);
     fflush(f);fclose(f);
 }
 
+/* Read the previous session's title ID from our sole TXT.
+ * Do not infer that a game ran because the frontend was opened again. */
+static void previous_session(FILE *f,char id[32],int *already)
+{
+    char line[600];
+    size_t i,n;
+    id[0]=0;*already=0;
+    if(fseek(f,0,SEEK_SET)!=0)return;
+    while(fgets(line,sizeof line,f)){
+        if(strncmp(line,"REAPERTURA_SPOOKYFLOW=SI",23)==0)
+            *already=1;
+        if(strncmp(line,"JUEGO_ID=",9)!=0)continue;
+        n=strcspn(line+9,"\r\n");
+        if(n!=11)continue; /* ID PS2 esperado: SLUS_219.78 */
+        for(i=0;i<n;i++){
+            unsigned char c=(unsigned char)line[9+i];
+            if(!isalnum(c) && c!='_' && c!='.')break;
+        }
+        if(i==n){memcpy(id,line+9,n);id[n]=0;}
+    }
+}
 void sf_ps2_video_diag_resume(void)
 {
-    FILE *f,*a;char head[96]={0};
+    FILE *f,*a;char head[96]={0},previous_id[32]={0};
+    int already=0;
     if(s_resume_checked++)return;
     s_active_path=SF_PS2_VIDEO_DIAG_PATH;
     f=fopen(s_active_path,"rb");
@@ -340,11 +390,15 @@ void sf_ps2_video_diag_resume(void)
                 memset(head,0,sizeof head);
                 if(fgets(head,sizeof head,f) &&
                    strstr(head,"SPOOKYFLOW_PS2_VIDEO_DIAG=")){
+                    previous_session(f,previous_id,&already);
                     fclose(f);
+                    if(already)return; /* Avoid repeat entries on ordinary starts. */
                     s_write_status=2;
                     a=append();if(!a)return;
-                    fputs("REAPERTURA_SPOOKYFLOW=SI\n",a);
-                    bootparam(a,"DESPUES_DE_REGRESAR_DE_PS2",NULL);
+                    fputs("REAPERTURA_SPOOKYFLOW=SI\n"
+                          "REAPERTURA_NO_CONFIRMA=QUE_PS2_NETEMU_HAYA_CORRIDO\n",a);
+                    field(a,"JUEGO_ID_PARA_COMPARAR",previous_id[0]?previous_id:"NO_DISPONIBLE");
+                    bootparam(a,"RELECTURA_TRAS_ABRIR_SPOOKYFLOW",previous_id[0]?previous_id:NULL);
                     fflush(a);fclose(a);
                     return;
                 }
@@ -353,11 +407,15 @@ void sf_ps2_video_diag_resume(void)
         }
         return;
     }
+    previous_session(f,previous_id,&already);
     fclose(f);
+    if(already)return; /* Do not duplicate the same report on every startup. */
     s_write_status=strcmp(s_active_path,SF_PS2_VIDEO_DIAG_PATH)==0?1:2;
     a=append();if(!a)return;
-    fputs("REAPERTURA_SPOOKYFLOW=SI\n",a);
-    bootparam(a,"DESPUES_DE_REGRESAR_DE_PS2",NULL);
+    fputs("REAPERTURA_SPOOKYFLOW=SI\n"
+          "REAPERTURA_NO_CONFIRMA=QUE_PS2_NETEMU_HAYA_CORRIDO\n",a);
+    field(a,"JUEGO_ID_PARA_COMPARAR",previous_id[0]?previous_id:"NO_DISPONIBLE");
+    bootparam(a,"RELECTURA_TRAS_ABRIR_SPOOKYFLOW",previous_id[0]?previous_id:NULL);
     fputs("LIMITACION=NO_OBSERVA_PIXELES_DE_PS2_NETEMU_FPS_GS_BUFFER_NI_HDMI_FINAL\n"
           "PARA_VERIFICAR_BORDES_SE_NECESITA_FOTO_DE_PANTALLA_EN_PS2\n",a);
     fflush(a);fclose(a);
