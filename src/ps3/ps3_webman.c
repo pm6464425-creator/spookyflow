@@ -486,13 +486,15 @@ static int arcade_keep_get(const char *url,uint8_t *buf,uint32_t cap,
         if(rc<=0)return COVER_HTTP_NET;
         got+=(uint32_t)rc;
         if(!hend){
-            if(got>16384u)return COVER_HTTP_NET; /* bound header parsing */
             for(i=0;i+3<got;i++)
                 if(buf[i]=='\r' && buf[i+1]=='\n' &&
                    buf[i+2]=='\r' && buf[i+3]=='\n'){
                     hend=i+4;break;
                 }
-            if(!hend)continue;
+            if(!hend){
+                if(got>16384u)return COVER_HTTP_NET; /* bounded headers */
+                continue;
+            }
             if(got<12 || memcmp(buf,"HTTP/",5)!=0)return COVER_HTTP_NET;
             {
                 const char *sp=memchr(buf,' ',hend);
