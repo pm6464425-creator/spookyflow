@@ -18,9 +18,26 @@ name: build
 
 on:
   push:
+  pull_request:
   workflow_dispatch:
 
 jobs:
+  ps2-diagnostic-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: V15.77 PS2 horizontal bars forensic regression (host, single TXT, ID correlation)
+        run: |
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror \
+            -DSF_PS2_VIDEO_HOST_TEST=1 \
+            -DSF_PS2_VIDEO_DIAG_PATH='"/tmp/sf1577_ps2_video_diag.txt"' \
+            -DSF_PS2_VIDEO_DIAG_FALLBACK_PATH='"/tmp/sf1577_ps2_fallback.txt"' \
+            -DSF_PS2_VIDEO_BOOTPARAM_PATH='"/tmp/sf1577_ps2bootparam.dat"' \
+            -Isrc/ps3 src/ps3/sf_ps2_video_diag.c \
+            tests/test_v15_77_ps2_video_diag.c \
+            -o /tmp/sf1577_ps2_diag_test
+          /tmp/sf1577_ps2_diag_test
+
   host-tests:
     runs-on: ubuntu-latest
     steps:
@@ -30,6 +47,17 @@ jobs:
         run: python3 tests/probe_sensacine.py
       - name: Unit tests (portable core, ASan + UBSan)
         run: make -f Makefile.host test
+      - name: V15.77 PS2 horizontal bars forensic regression (host, single TXT, ID correlation)
+        run: |
+          cc -std=gnu99 -O2 -Wall -Wextra -Werror \
+            -DSF_PS2_VIDEO_HOST_TEST=1 \
+            -DSF_PS2_VIDEO_DIAG_PATH='"/tmp/sf1577_ps2_video_diag.txt"' \
+            -DSF_PS2_VIDEO_DIAG_FALLBACK_PATH='"/tmp/sf1577_ps2_fallback.txt"' \
+            -DSF_PS2_VIDEO_BOOTPARAM_PATH='"/tmp/sf1577_ps2bootparam.dat"' \
+            -Isrc/ps3 src/ps3/sf_ps2_video_diag.c \
+            tests/test_v15_77_ps2_video_diag.c \
+            -o /tmp/sf1577_ps2_diag_test
+          /tmp/sf1577_ps2_diag_test
       - name: V15.31 SNES realistic case, ROM directory and 10 isolated regression checks
         run: python3 tests/test_snes_v15_31.py
       - name: V15.37 PS1 auto-repair missing cover, protect existing art, 12 checks
@@ -367,7 +395,7 @@ jobs:
           path: preview/*.png
 
   ps3-pkg:
-    needs: host-tests
+    needs: ps2-diagnostic-test
     runs-on: ubuntu-22.04
     permissions:
       contents: write
@@ -403,7 +431,7 @@ jobs:
           curl -sL https://github.com/ps3dev/PSL1GHT/raw/master/ppu/include/sysutil/sysutil.h -o ps3dev/ppu/include/sysutil/sysutil.h
 
       - name: Install NVIDIA Cg shader compiler for independently built PS1 RSX engine
-        if: github.ref == 'refs/heads/fix/v15-53-ps1-integrated-true-fullbleed'
+        if: github.ref == 'refs/heads/fix/v15-53-ps1-integrated-true-fullbleed' || startsWith(github.head_ref, 'fix/v15-77-ps2-') || startsWith(github.ref, 'refs/heads/fix/v15-77-ps2-')
         run: |
           sudo apt-get update -qq
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nvidia-cg-toolkit
@@ -1124,7 +1152,7 @@ jobs:
           fi
 
   ps3-pkg-docker:
-    needs: host-tests
+    needs: ps2-diagnostic-test
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -1132,7 +1160,7 @@ jobs:
       - name: Build PKG in flipacholas/ps3devextra
         run: |
           docker run --rm -v "$PWD:/src" -w /src flipacholas/ps3devextra:latest \
-            sh -c 'command -v bash >/dev/null || apk add --no-cache bash git; bash ci/build_ps3.sh'
+            sh -c 'apk add --no-cache bash git python3 curl >/dev/null; bash ci/build_ps3.sh'
       - uses: actions/upload-artifact@v4
         with:
           name: spookyflow-pkg-docker-fallback
