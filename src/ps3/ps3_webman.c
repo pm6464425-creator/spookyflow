@@ -381,6 +381,185 @@ static int ps3_http_get_single(void *ctx, const char *url, uint8_t *buf, uint32_
     }
     return status;
 }
+/* V15.78: ARCADE-ONLY persistent HTTPS connection for Libretro boxarts.
+ *
+ * Previously every .png reopened TCP, repeated TLS and DNS, then waited
+ * for the server to close an HTTP/1.0 socket. For ~7000 ROMs that makes
+ * connection setup dominate downloads. This path is allowlisted to EXACT
+ * FBNeo/MAME Named_Boxarts HTTPS URLs; every other platform continues to
+ * use the unmodified ps3_http_get_single() implementation.
+ *
+ * The existing g_http_busy lock also protects this cache. Never share the
+ * TLS context between threads and never use unknown-length keepalive bodies.
+ * On a stale socket/error fall back to the original one-shot request. */
+static HttpConn s_arcade_keep;
+static int s_arcade_keep_alive;
+static unsigned s_arcade_keep_hits;
+
+static int arcade_boxart_url(const char *url)
+{
+    static const char base[]="https://thumbnails.libretro.com/";
+    const char *path;
+    if(!url || strncmp(url,base,sizeof(base)-1)!=0)return 0;
+    path=url+sizeof(base)-1;
+    return strncmp(path,"FBNeo%20-%20Arcade%20Games/Named_Boxarts/",
+                   sizeof("FBNeo%20-%20Arcade%20Games/Named_Boxarts/")-1)==0 ||
+           strncmp(path,"MAME/Named_Boxarts/",
+                   sizeof("MAME/Named_Boxarts/")-1)==0;
+}
+static void arcade_keep_close(void)
+{
+    if(!s_arcade_keep_alive)return;
+    conn_close(&s_arcade_keep);
+    netDeinitialize();
+    s_arcade_keep_alive=0;
+}
+/* -1 malformed, 0 incomplete, 1 complete. Bound every offset and count. */
+static int arcade_chunk_complete(const uint8_t *p,uint32_t n)
+{
+    uint32_t i=0;
+    while(i<n){
+        uint32_t count=0,digits=0;
+        int extension=0;
+        for(;i<n && p[i]!='\r';i++){
+            unsigned v;
+            if(p[i]==';'){extension=1;continue;}
+            if(extension)continue;
+            if(p[i]>='0' && p[i]<='9')v=(unsigned)(p[i]-'0');
+            else if(p[i]>='a' && p[i]<='f')v=(unsigned)(p[i]-'a'+10);
+            else if(p[i]>='A' && p[i]<='F')v=(unsigned)(p[i]-'A'+10);
+            else return -1;
+            if(count>0x0fffffffu)return -1;
+            count=(count<<4)|v;digits++;
+        }
+        if(i+1>=n)return 0;
+        if(!digits || p[i]!='\r' || p[i+1]!='\n')return -1;
+        i+=2;
+        if(!count){
+            uint32_t j;
+            if(i+1<n && p[i]=='\r' && p[i+1]=='\n')return 1;
+            for(j=i;j+3<n;j++)
+                if(p[j]=='\r' && p[j+1]=='\n' &&
+                   p[j+2]=='\r' && p[j+3]=='\n')return 1;
+            return 0;
+        }
+        if(count>n-i)return 0;
+        i+=count;
+        if(i+1>=n)return 0;
+        if(p[i]!='\r' || p[i+1]!='\n')return -1;
+        i+=2;
+    }
+    return 0;
+}
+static int arcade_keep_get(const char *url,uint8_t *buf,uint32_t cap,
+                           uint32_t *len,char *loc,size_t loc_cap)
+{
+    static const char host[]="thumbnails.libretro.com";
+    static const char base[]="https://thumbnails.libretro.com";
+    const char *path=url+sizeof(base)-1;
+    char req[1800];
+    uint32_t got=0,hend=0,clen=0;
+    int n,rc,framed=0,chunked=0,must_close=0,status=0;
+    *len=0;
+    if(loc && loc_cap)loc[0]=0;
+    if(!s_arcade_keep_alive){
+        if(netInitialize()<0)return COVER_HTTP_NET;
+        rc=conn_open(&s_arcade_keep,host,443,1);
+        if(rc!=0){netDeinitialize();return rc;}
+        s_arcade_keep_alive=1;
+        s_arcade_keep_hits=0;
+        log_printf("arcade: FAST_HTTPS opened persistent Libretro boxart session");
+    }
+    n=snprintf(req,sizeof(req),
+        "GET %s HTTP/1.1\r\nHost: %s\r\n"
+        "User-Agent: spookyflow/%s (PS3)\r\n"
+        "Accept: image/png,image/jpeg,*/*\r\n"
+        "Accept-Encoding: identity\r\n"
+        "Connection: keep-alive\r\n\r\n",path,host,APP_VERSION);
+    if(n<=0 || n>=(int)sizeof(req))return COVER_HTTP_NET;
+    if(conn_send(&s_arcade_keep,req,n)!=0)return COVER_HTTP_NET;
+    for(;;){
+        uint32_t i;
+        int got_complete=0;
+        if(got>=cap)return COVER_HTTP_BIG;
+        rc=conn_recv(&s_arcade_keep,buf+got,cap-got);
+        if(rc<=0)return COVER_HTTP_NET;
+        got+=(uint32_t)rc;
+        if(!hend){
+            for(i=0;i+3<got;i++)
+                if(buf[i]=='\r' && buf[i+1]=='\n' &&
+                   buf[i+2]=='\r' && buf[i+3]=='\n'){
+                    hend=i+4;break;
+                }
+            if(!hend){
+                if(got>16384u)return COVER_HTTP_NET; /* bounded headers */
+                continue;
+            }
+            if(got<12 || memcmp(buf,"HTTP/",5)!=0)return COVER_HTTP_NET;
+            {
+                const char *sp=memchr(buf,' ',hend);
+                if(!sp)return COVER_HTTP_NET;
+                status=atoi(sp+1);
+            }
+            /* Header names are case-insensitive. CDN may choose either
+             * Content-Length or Transfer-Encoding: chunked. */
+            for(i=0;i<hend;){
+                uint32_t e=i,j;
+                while(e<hend && buf[e]!='\r' && buf[e]!='\n')e++;
+                if(e>i && e-i>=15 &&
+                   lower_eq((const char*)buf+i,"content-length:",15)){
+                    uint32_t v=0;int digits=0;
+                    j=i+15;
+                    while(j<e && (buf[j]==' ' || buf[j]=='\t'))j++;
+                    while(j<e && buf[j]>='0' && buf[j]<='9'){
+                        if(v>0x0fffffffu)return COVER_HTTP_BIG;
+                        v=v*10u+(uint32_t)(buf[j]-'0');
+                        digits++;j++;
+                    }
+                    if(digits){framed=1;clen=v;}
+                }else if(e-i>=18 &&
+                         lower_eq((const char*)buf+i,"transfer-encoding:",18)){
+                    j=i+18;
+                    while(j<e && (buf[j]==' ' || buf[j]=='\t'))j++;
+                    if(j+7<=e && lower_eq((const char*)buf+j,"chunked",7))
+                        chunked=1;
+                }else if(e-i>=11 &&
+                         lower_eq((const char*)buf+i,"connection:",11)){
+                    j=i+11;
+                    while(j<e && (buf[j]==' ' || buf[j]=='\t'))j++;
+                    if(j+5<=e && lower_eq((const char*)buf+j,"close",5))
+                        must_close=1;
+                }else if(loc && loc_cap && e-i>=9 &&
+                         lower_eq((const char*)buf+i,"location:",9)){
+                    size_t k=0;
+                    j=i+9;
+                    while(j<e && (buf[j]==' ' || buf[j]=='\t'))j++;
+                    while(j<e && k+1<loc_cap)loc[k++]=(char)buf[j++];
+                    loc[k]=0;
+                }
+                i=e;
+                while(i<hend && (buf[i]=='\r' || buf[i]=='\n'))i++;
+            }
+            if(chunked)framed=1; /* RFC: chunked takes precedence */
+            if(!framed)return COVER_HTTP_NET; /* never wait for socket close */
+            if(!chunked && clen>cap-hend)return COVER_HTTP_BIG;
+        }
+        if(chunked){
+            rc=arcade_chunk_complete(buf+hend,got-hend);
+            if(rc<0)return COVER_HTTP_NET;
+            got_complete=(rc==1);
+        }else if(got-hend>=clen)got_complete=1;
+        if(!got_complete)continue;
+        *len=chunked ? got-hend : clen;
+        memmove(buf,buf+hend,*len);
+        if(chunked && http_dechunk(buf,len)!=0)return COVER_HTTP_NET;
+        if(must_close)arcade_keep_close();
+        else if((++s_arcade_keep_hits & 127u)==0)
+            log_printf("arcade: FAST_HTTPS reused session for %u images",
+                       s_arcade_keep_hits);
+        return status;
+    }
+}
 /* PS3 game-cover and movie-cover workers share netInitialize/netDeinitialize.
  * Serialize public HTTP requests to avoid one worker deinitializing network
  * while the other has an open connection. */
@@ -390,7 +569,20 @@ int ps3_http_get(void *ctx, const char *url, uint8_t *buf, uint32_t cap,
 {
     int result;
     while(__sync_lock_test_and_set(&g_http_busy,1)) usleep(1000);
-    result=ps3_http_get_single(ctx,url,buf,cap,len,loc,loc_cap);
+    if(arcade_boxart_url(url)){
+        /* All Arcade connections remain serialized, but thousands of TCP
+         * connects/TLS handshakes disappear. Retry a stale keepalive socket
+         * using the proven original implementation, then reopen next time. */
+        result=arcade_keep_get(url,buf,cap,len,loc,loc_cap);
+        if(result<0){
+            arcade_keep_close();
+            result=ps3_http_get_single(ctx,url,buf,cap,len,loc,loc_cap);
+        }
+    }else{
+        /* A PS1/SNES/PS2/PS3/BDISO fetch is NEVER changed by this mode. */
+        arcade_keep_close();
+        result=ps3_http_get_single(ctx,url,buf,cap,len,loc,loc_cap);
+    }
     __sync_lock_release(&g_http_busy);
     return result;
 }
