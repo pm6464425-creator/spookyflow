@@ -41,9 +41,21 @@ for path,size_key,sha_key,array_name,size,hexsha in OLD_ASSETS:
         arr=re.search(r'static const unsigned char '+array_name+r'\[32\]\s*=\s*\{([^}]*)\}',text,re.S)
         assert arr and bytes(int(x,16) for x in re.findall(r'0x[0-9a-fA-F]{2}',arr.group(1))) == bytes.fromhex(hexsha),path
     else:
-        text=replace_exact(text,rf"^#define {size_key} .+$",
+        text=replace_exact(text,rf"^#define {size_key} [^\r\n]+$",
                            f"#define {size_key} {size}ULL",size_key)
-        text=replace_exact(text,rf'^#define {sha_key} .+$',
+        text=replace_exact(text,rf'^#define {sha_key} [^\r\n]+,
+                           f'#define {sha_key} "{hexsha}"',sha_key)
+        values=bytes.fromhex(hexsha)
+        rows=[",".join("0x%02x"%b for b in values[i:i+8]) for i in range(0,32,8)]
+        line="static const unsigned char "+array_name+"[32]={\n    "+",\n    ".join(rows)+"\n};"
+        text=replace_exact(text,
+            r"static const unsigned char "+array_name+r"\[32\]\s*=\s*\{[^}]*\};",
+            line,array_name)
+        path.write_text(text,encoding="utf-8")
+    print(("VERIFIED" if check_only else "PINNED"),
+          path.name,"bytes",size,"sha256",hexsha)
+print("PASS: old V15.77 PS1/SNES signed engine signatures match new launcher pins")
+,
                            f'#define {sha_key} "{hexsha}"',sha_key)
         values=bytes.fromhex(hexsha)
         rows=[",".join("0x%02x"%b for b in values[i:i+8]) for i in range(0,32,8)]
