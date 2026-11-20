@@ -11,6 +11,9 @@ from html import unescape
 from urllib.parse import unquote
 from urllib.request import Request, urlopen
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from subprocess import run, check_output
+from urllib.error import HTTPError, URLError
 
 ROOT = "https://thumbnails.libretro.com/Nintendo%20-%20Super%20Nintendo%20Entertainment%20System/"
 KINDS = ("Named_Boxarts", "Named_Titles", "Named_Logos", "Named_Snaps")
@@ -62,9 +65,28 @@ def main():
         html = args.fixture.read_bytes()
     else:
         req = Request(ROOT + args.kind + "/", headers={"User-Agent": "SpookyFlow-SNES-cover-catalog/1.0"})
-        with urlopen(req, timeout=45) as response:
-            html = response.read(3 * 1024 * 1024)
-    write(parse(html), args.output, args.min_count, args.kind)
+        try:
+            with urlopen(req, timeout=45) as response:
+                html = response.read(3 * 1024 * 1024)
+            names=parse(html)
+        except (HTTPError,URLError) as e:
+            print(f"SNES listing unavailable ({e}); indexing official Git tree names")
+            with TemporaryDirectory(prefix="sf_snes_list_") as tmp:
+                run(["git","clone","--filter=blob:none","--no-checkout",
+                     "--single-branch","--depth","1",
+                     "https://github.com/libretro-thumbnails/Nintendo_-_Super_Nintendo_Entertainment_System.git",
+                     tmp],check=True,timeout=180)
+                ls=check_output(["git","-C",tmp,"ls-tree","-r","--name-only",
+                                 "HEAD"],timeout=90).decode("utf-8")
+                names=sorted({
+                    p[len(args.kind)+1:]
+                    for p in ls.splitlines()
+                    if p.startswith(args.kind+"/") and p.endswith(".png")
+                    and "/" not in p[len(args.kind)+1:]
+                },key=str.casefold)
+    if args.fixture:
+        names=parse(html)
+    write(names, args.output, args.min_count, args.kind)
 
 if __name__ == "__main__":
     main()
