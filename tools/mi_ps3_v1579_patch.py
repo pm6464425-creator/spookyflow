@@ -308,15 +308,15 @@ s=replace_once(s,
     FAIL(PLAT_ARCADE,"/dev_hdd0/ARCADE/neogeo.zip",0);
     assert(exists("/dev_hdd0/ARCADE/neogeo.zip"));
     /* 20. Detect file removal interrupted after one CUE track. */
-    make_file("/dev_hdd0/PSXISO/Partial 1.bin","TRACK1");
-    make_file("/dev_hdd0/PSXISO/Partial 2.bin","TRACK2");
-    make_file("/dev_hdd0/PSXISO/Partial.cue",
+    make_file("/dev_hdd0/PSXISO/PartialTests/Partial 1.bin","TRACK1");
+    make_file("/dev_hdd0/PSXISO/PartialTests/Partial 2.bin","TRACK2");
+    make_file("/dev_hdd0/PSXISO/PartialTests/Partial.cue",
               "FILE \\"Partial 1.bin\\" BINARY\\nFILE \\"Partial 2.bin\\" BINARY\\n");
     fail_unlink_after=1;
-    assert(sf_delete_game(PLAT_PS1,"/dev_hdd0/PSXISO/Partial.cue",0)==SF_DEL_PARTIAL);
+    assert(sf_delete_game(PLAT_PS1,"/dev_hdd0/PSXISO/PartialTests/Partial.cue",0)==SF_DEL_PARTIAL);
     fail_unlink_after=-1;
-    assert(exists("/dev_hdd0/PSXISO/Partial.cue"));
-    assert(exists("/dev_hdd0/PSXISO/Partial 2.bin"));
+    assert(exists("/dev_hdd0/PSXISO/PartialTests/Partial.cue"));
+    assert(exists("/dev_hdd0/PSXISO/PartialTests/Partial 2.bin"));
     /* 21. Missing split chunk cannot silently delete a healthy first piece. */
     make_file("/dev_hdd0/PS3ISO/Gap.iso.0","PART0");
     make_file("/dev_hdd0/PS3ISO/Gap.iso.2","PART2");
