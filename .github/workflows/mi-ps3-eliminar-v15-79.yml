@@ -124,7 +124,7 @@ jobs:
            '10 avoid multidisc':'g->ndisc>1' in app,
            '11 CUE/BIN cleanup':'delete_cue_bundle(path)' in back,
            '12 split ISO':'delete_split_iso(path)' in back,
-           '13 folders':'delete_tree(path,0,&n)' in back,
+           '13 folders':'delete_tree(path,0,&n,&removed)' in back,
            '14 allowed path policy':'sf_del_root' in policy,
            '15 protect covers':'"COVERS"' in policy,
            '16 correct host':'host.delete_game = sf_delete_game_with_ntfs;' in main,
