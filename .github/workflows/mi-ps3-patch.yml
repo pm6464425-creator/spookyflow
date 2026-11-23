@@ -38,8 +38,10 @@ jobs:
           echo "$PWD/ps3dev/bin" >> "$GITHUB_PATH"
           echo "$PWD/ps3dev/ppu/bin" >> "$GITHUB_PATH"
           echo "$PWD/ps3dev/portlibs/ppu/bin" >> "$GITHUB_PATH"
-          ls -l ps3dev/ppu/bin/pkg
-          test -x ps3dev/ppu/bin/pkg
+          echo "PKG packager candidates:"
+          find ps3dev -type f \( -name pkg -o -name pkg.exe -o -name ps3pkg \) -print | head -20
+          ls -la ps3dev/bin | head -20 || true
+          ls -la ps3dev/ppu/bin | head -20 || true
       - name: Build lightweight MI PS3 update PKG for existing SPKF00001
         run: |
           pkg --contentid UP0001-SPKF00001_00-0000000000000000 \
