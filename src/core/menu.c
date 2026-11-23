@@ -18,6 +18,7 @@ int menu_rows(int panel, int plat, RowKind *out, int max)
         } else { tmp[n++] = ROW_G_OFFLINE; }
         tmp[n++] = ROW_G_HIDE;                  /* 1.1 */
         }
+        tmp[n++] = ROW_G_DELETE;  /* Last in Triangle menu, all platforms */
     } else if (panel == PANEL_FLOW) {
         /* 0.7.0: grouped; Quit and Power Off stay on the first page */
         tmp[n++] = ROW_FG_LOOK; tmp[n++] = ROW_FG_SOUND; tmp[n++] = ROW_FG_GAMES; tmp[n++] = ROW_FG_SYSTEM;
@@ -78,6 +79,7 @@ const char *menu_label(RowKind k)
     case ROW_G_OFFLINE: return "Modo sin conexión";
     case ROW_G_PS2CFG: return "Config. de PS2";
     case ROW_G_HIDE: return "Ocultar juego";
+    case ROW_G_DELETE: return "Eliminar";
     case ROW_F_SHOW_HIDDEN: return "Mostrar juegos ocultos";
     case ROW_F_PS3_ONLY: return "Solo juegos de PS3";
     case ROW_F_AUTOPLAY: return "Inicio automático";
@@ -108,7 +110,7 @@ const char *menu_label(RowKind k)
 
 int menu_is_action(RowKind k)
 {
-    return k == ROW_D_DISC || menu_is_group(k) || k == ROW_F_COVERS || k == ROW_F_RESCAN || k == ROW_F_QUIT || k == ROW_F_POWEROFF || k == ROW_F_ABOUT || k == ROW_F_STORAGE;
+    return k == ROW_D_DISC || k == ROW_G_DELETE || menu_is_group(k) || k == ROW_F_COVERS || k == ROW_F_RESCAN || k == ROW_F_QUIT || k == ROW_F_POWEROFF || k == ROW_F_ABOUT || k == ROW_F_STORAGE;
 }
 
 int menu_is_slider(RowKind k) { return k == ROW_F_VOLUME || k == ROW_F_SFX; }
@@ -283,6 +285,7 @@ static int menu_change_raw(RowKind k, int plat, int dir, Settings *s, GameCfg *g
     case ROW_F_CASE_LIGHT: s->case_light = cycle(s->case_light, CASE_LIGHT_COUNT, dir); return MENU_FX_CHANGED;
     case ROW_F_HIDE_UI: s->hide_ui = cycle(s->hide_ui, 2, dir); return MENU_FX_CHANGED;
     case ROW_G_HIDE: g->hidden = (signed char)cycle(g->hidden, 2, dir); return MENU_FX_CHANGED;
+    case ROW_G_DELETE: return dir == 0 ? MENU_FX_DELETE : MENU_FX_NONE;
     case ROW_F_SHOW_HIDDEN: s->show_hidden = cycle(s->show_hidden, 2, dir); return MENU_FX_HIDDEN;
     case ROW_F_PS3_ONLY: s->ps3_only = cycle(s->ps3_only, 2, dir); return MENU_FX_PS3_ONLY;
     case ROW_F_STORAGE: return dir == 0 ? MENU_FX_STORAGE : MENU_FX_NONE;
