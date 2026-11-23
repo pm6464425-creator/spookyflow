@@ -1,4 +1,4 @@
 PKG_PUBLISHED=YES
-PKG_URL=https://github.com/pm6464425-creator/spookyflow/releases/download/mi-ps3-eliminar-v1579-10eebac0/MI_PS3_ELIMINAR_MEJORADO.pkg
-PKG_SHA256=ba044fb14f737fa4610b8dde7257f650f4cb2bcce11ded3dfbf2d810e7c5d790
-VERIFIED_SOURCE=10eebac08f910e4d256b6e3623a76867681ef814
+PKG_URL=https://github.com/pm6464425-creator/spookyflow/releases/download/mi-ps3-eliminar-v1579-bc1ed8e2/MI_PS3_ELIMINAR_MEJORADO.pkg
+PKG_SHA256=ba89d579a21ce6e49e17b62dc7622586a1a693a3cd1df8f563982b7879e52a30
+VERIFIED_SOURCE=bc1ed8e21e4d8232088e436406958ab41cd5dd0e
