@@ -44,6 +44,10 @@ jobs:
           p=Path('sfo.xml');s=p.read_text()
           assert s.count('MIS JUEGOS PS3 PS2 PS1')==1
           p.write_text(s.replace('MIS JUEGOS PS3 PS2 PS1','MI PS3'))
+          p=Path('tests/verify_compiled_pkg.py');s=p.read_text()
+          old='EXPECTED_TITLE = "MIS JUEGOS PS3 PS2 PS1"';new='EXPECTED_TITLE = "MI PS3"'
+          assert s.count(old)==1
+          p.write_text(s.replace(old,new))
           PY
           sha256sum -c /tmp/protected
       - name: Support native NTFS BDISO user movie removal with strict path validation
