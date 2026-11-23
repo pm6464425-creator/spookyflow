@@ -42,9 +42,14 @@ jobs:
           find ps3dev -type f \( -name pkg -o -name pkg.exe -o -name ps3pkg \) -print | head -20
           ls -la ps3dev/bin | head -20 || true
           ls -la ps3dev/ppu/bin | head -20 || true
+      - name: Install Python 2 for PSL1GHT legacy PKG packager
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python2
+          python2 --version
       - name: Build lightweight MI PS3 update PKG for existing SPKF00001
         run: |
-          python3 ps3dev/bin/pkg.py --contentid UP0001-SPKF00001_00-0000000000000000 \
+          python2 ps3dev/bin/pkg.py --contentid UP0001-SPKF00001_00-0000000000000000 \
             build/mi_ps3_patch MI_PS3_PARCHE_ELIMINAR.pkg
           test -s MI_PS3_PARCHE_ELIMINAR.pkg
       - name: Verify real installer contains ONLY MI PS3 EBOOT and identity
