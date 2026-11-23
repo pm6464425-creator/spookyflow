@@ -1,0 +1,149 @@
+name: MI PS3 - Eliminar integrado V15.78
+on:
+  push:
+    branches: [feature/mi-ps3-eliminar-v15-78-integrado]
+    paths: ['.github/workflows/mi-ps3-eliminar-v15-78.yml']
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-verified-pkg:
+    runs-on: ubuntu-22.04
+    env:
+      TOOLCHAIN_URL: https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Integrate deletion on V15.78 without downgrading latest PS2, NTFS or Arcade code
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin fix/v15-74-arcade-crc-detection-33-clones feature/mi-ps3-eliminar-seguro feature/mi-ps3-parche-eliminar-solo-eboot fix/v15-78-arcade-fast-covers-keepalive
+          old=origin/fix/v15-74-arcade-crc-detection-33-clones
+          new=origin/fix/v15-78-arcade-fast-covers-keepalive
+          del=origin/feature/mi-ps3-eliminar-seguro
+          git diff --exit-code "$old" "$new" -- src/core/app.c src/core/app.h src/core/menu.c src/core/menu.h src/core/ui.c
+          sha256sum src/core/scanner.c src/core/library.c src/core/coverart.c src/core/cover_cache.c src/ps3/ps3_fs.c src/ps3/ps3_webman.c src/ps3/sf_ps2_hen.c src/ps3/sf_cobra_mount.c > /tmp/protected
+          git diff --binary "$old" "$del" -- src/core/app.c src/core/app.h src/core/menu.c src/core/menu.h src/core/ui.c src/core/sf_delete_policy.c src/core/sf_delete_policy.h src/ps3/sf_delete_game.c src/ps3/sf_delete_game.h tests/test_mi_ps3_delete_policy.c tests/test_mi_ps3_delete_backend.c tests/mi_ps3_fs_stub/sys/file.h > /tmp/delete.patch
+          test -s /tmp/delete.patch
+          git apply --check /tmp/delete.patch
+          git apply /tmp/delete.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('src/ps3/main.c');s=p.read_text()
+          a='#include "ps3_platform.h"';b='    host.remove_file = ps3_fs_remove_file;'
+          assert s.count(a)==1 and s.count(b)==1
+          p.write_text(s.replace(a,a+'\n#include "sf_delete_game.h"').replace(b,b+'\n    host.delete_game = sf_delete_game;'))
+          p=Path('Makefile');s=p.read_text()
+          assert s.count('TITLE     := MIS JUEGOS PS3 PS2 PS1')==1
+          p.write_text(s.replace('TITLE     := MIS JUEGOS PS3 PS2 PS1','TITLE     := MI PS3'))
+          p=Path('sfo.xml');s=p.read_text()
+          assert s.count('MIS JUEGOS PS3 PS2 PS1')==1
+          p.write_text(s.replace('MIS JUEGOS PS3 PS2 PS1','MI PS3'))
+          PY
+          sha256sum -c /tmp/protected
+      - name: Verify 20 functionality invariants
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          def read(p): return Path(p).read_text()
+          app=read('src/core/app.c');menu=read('src/core/menu.c');main=read('src/ps3/main.c')
+          back=read('src/ps3/sf_delete_game.c');policy=read('src/core/sf_delete_policy.c')
+          checks={
+           '01 six tabs':'PLAT_COUNT = 6' in read('src/core/layout.h'),
+           '02 same menu all platforms':'tmp[n++] = ROW_G_DELETE;' in menu,
+           '03 Spanish label':'case ROW_G_DELETE: return "Eliminar";' in menu,
+           '04 X action':'MENU_FX_DELETE' in menu,
+           '05 confirmation':'a->delete_confirm=1;' in app,
+           '06 cancel Circle':'if(in->pressed&SFB_CIRCLE)' in app,
+           '07 accept X':'else if(in->pressed&SFB_CROSS)' in app,
+           '08 correct game':'lib_path(a->lib,g)' in app,
+           '09 protect demo':'g->flags&GAME_DEMO' in app,
+           '10 avoid multidisc':'g->ndisc>1' in app,
+           '11 CUE/BIN cleanup':'delete_cue_bundle(path)' in back,
+           '12 split ISO':'delete_split_iso(path)' in back,
+           '13 folders':'delete_tree(path,0,&n)' in back,
+           '14 allowed path policy':'sf_del_root' in policy,
+           '15 protect covers':'"COVERS"' in policy,
+           '16 correct host':'host.delete_game = sf_delete_game;' in main,
+           '17 success only if rc0':'if(rc==0)' in app,
+           '18 rescan':'start_loading(a,1)' in app,
+           '19 latest PS2 diagnostics':'#include "sf_ps2_video_diag.h"' in main,
+           '20 identical TITLE_ID':'SPKF00001' in read('sfo.xml'),
+          }
+          for k,v in checks.items(): print('PASS' if v else 'FAIL',k)
+          assert all(checks.values())
+          PY
+      - name: 48 authorization policy tests
+        run: |
+          mkdir -p build-host
+          cc -std=c99 -O2 -g -Wall -Wextra -Werror -fsanitize=undefined -Isrc/core src/core/sf_delete_policy.c tests/test_mi_ps3_delete_policy.c -o build-host/test_policy
+          ./build-host/test_policy
+      - name: 18 backend filesystem tests
+        run: |
+          cc -std=gnu99 -O1 -g -Wall -Wextra -Werror -fsanitize=address,undefined -fno-omit-frame-pointer -Itests/mi_ps3_fs_stub -Isrc/core -Isrc/ps3 src/core/sf_delete_policy.c src/ps3/sf_delete_game.c tests/test_mi_ps3_delete_backend.c -o build-host/test_backend
+          ./build-host/test_backend
+      - name: Cache PS3 toolchain
+        uses: actions/cache@v4
+        id: cache-ps3dev
+        with:
+          path: ps3dev
+          key: mi-ps3-ps3dev-v1
+      - name: Toolchain and compiler
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ steps.cache-ps3dev.outputs.cache-hit }}" != 'true' ]; then curl -fSL "$TOOLCHAIN_URL" | tar xz -C ./; fi
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq nvidia-cg-toolkit
+          command -v cgc
+          test -f ps3dev/bin/pkg.py
+          if [ ! -f ps3dev/ppu/include/sysutil/sysutil.h ]; then curl -fSL https://raw.githubusercontent.com/ps3dev/PSL1GHT/master/ppu/include/sysutil/sysutil.h -o ps3dev/ppu/include/sysutil/sysutil.h; fi
+      - name: Build full source and verify all engine resources
+        shell: bash
+        env:
+          PS3DEV: ${{ github.workspace }}/ps3dev
+          PSL1GHT: ${{ github.workspace }}/ps3dev
+        run: |
+          set -euo pipefail
+          bash ci/build_ps3.sh
+          python3 tests/verify_compiled_pkg.py spookyflow.pkg
+          test -s spookyflow.pkg
+      - name: Produce SURGICAL installer with only EBOOT, original icon, SFO
+        shell: bash
+        run: |
+          set -euo pipefail
+          git show origin/feature/mi-ps3-parche-eliminar-solo-eboot:tools/build_mi_ps3_patch.py > tools/build_mi_ps3_patch.py
+          python3 - <<'PY'
+          import hashlib
+          from pathlib import Path
+          p=Path('tools/build_mi_ps3_patch.py');s=p.read_text()
+          old='24df719e3b4e6ef4425b1175bd61ed9db90433f0e9718d6d8afb76cdc944c5da'
+          assert s.count(old)==1
+          p.write_text(s.replace(old,hashlib.sha256(Path('spookyflow.pkg').read_bytes()).hexdigest()))
+          PY
+          python3 tools/build_mi_ps3_patch.py extract spookyflow.pkg build/mi_ps3_patch
+          test "$(find build/mi_ps3_patch -type f | wc -l)" -eq 3
+          echo '6f356b58e7a89d1913b4a317bec6d7b86a2587622e0a86fe5896658977a223ee  build/mi_ps3_patch/ICON0.PNG' | sha256sum -c -
+          (python2 ps3dev/bin/pkg.py --contentid UP0001-SPKF00001_00-0000000000000000 build/mi_ps3_patch/ MI_PS3_ELIMINAR.pkg) || (python3 ps3dev/bin/pkg.py --contentid UP0001-SPKF00001_00-0000000000000000 build/mi_ps3_patch/ MI_PS3_ELIMINAR.pkg)
+          python3 tools/build_mi_ps3_patch.py verify spookyflow.pkg MI_PS3_ELIMINAR.pkg
+          test -s MI_PS3_ELIMINAR.pkg
+          sha256sum MI_PS3_ELIMINAR.pkg
+      - name: Publish ONLY verified installable PKG and SHA
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="mi-ps3-eliminar-v1578-$(echo "$GITHUB_SHA" | cut -c1-8)"
+          gh release create "$tag" MI_PS3_ELIMINAR.pkg --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title 'MI PS3 - Eliminar integrado V15.78' --notes 'Instalar encima de SPKF00001 sin desinstalar. Solo EBOOT, icono y SFO; protege caratulas, motores y configuraciones. NTFS no se borra sin control; multidisco bloqueado. No probado en consola real.'
+          sha="$(sha256sum MI_PS3_ELIMINAR.pkg | cut -d' ' -f1)"
+          url="https://github.com/$GITHUB_REPOSITORY/releases/download/$tag/MI_PS3_ELIMINAR.pkg"
+          printf 'PKG_PUBLISHED=YES\nPKG_URL=%s\nPKG_SHA256=%s\nVERIFIED_SOURCE=%s\n' "$url" "$sha" "$GITHUB_SHA" > MI_PS3_BUILD_REPORT.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add MI_PS3_BUILD_REPORT.txt
+          git commit -m 'Publish verified MI PS3 deletion PKG link and SHA'
+          git push origin HEAD:refs/heads/feature/mi-ps3-eliminar-v15-78-integrado
