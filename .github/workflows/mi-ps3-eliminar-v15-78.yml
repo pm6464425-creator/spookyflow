@@ -113,8 +113,8 @@ jobs:
           from pathlib import Path
           p=Path("tools/build_ps1_fullbleed_engine.sh")
           s=p.read_text()
-          old='if [ ! -e "$src/.git" ]; then git clone -q --depth 1 --branch ps3 "$repo" "$src"; fi\\ntest "$(git -C "$src" rev-parse HEAD)" = "$rev"'
-          new='if [ ! -e "$src/.git" ]; then git clone -q --depth 1 --branch ps3 "$repo" "$src"; fi\\ngit -C "$src" fetch -q --depth 1 origin "$rev"\\ngit -C "$src" checkout -q --detach "$rev"\\ntest "$(git -C "$src" rev-parse HEAD)" = "$rev"'
+          old='if [ ! -e "$src/.git" ]; then git clone -q --depth 1 --branch ps3 "$repo" "$src"; fi\ntest "$(git -C "$src" rev-parse HEAD)" = "$rev"'
+          new='if [ ! -e "$src/.git" ]; then git clone -q --depth 1 --branch ps3 "$repo" "$src"; fi\ngit -C "$src" fetch -q --depth 1 origin "$rev"\ngit -C "$src" checkout -q --detach "$rev"\ntest "$(git -C "$src" rev-parse HEAD)" = "$rev"'
           assert s.count(old)==1, 'Pinned source expected'
           p.write_text(s.replace(old,new))
           PY
