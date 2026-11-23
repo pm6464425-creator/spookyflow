@@ -55,7 +55,7 @@ static int is_shared_bios(const char *rom)
       "awbios","stvbios","megatech","megadriv","konamigx",
       "taitofx1","tps","tpsbios","decocass","segasp","hng64",
       "hod2bios","f355bios","hikaru","chihiro","triforce",
-      "sys573","cvs2mf","cvs2","atomiswave","naomigd","atlantis",
+      "sys573","atomiswave","naomigd","atlantis",
       "taitogn","nss","playch10","vsnes","cps1qs","qsound",
       "coh1000c","coh1000a","coh1002e","coh1002m","coh1002v",
       "coh3002c","coh3002t","konamigv"
