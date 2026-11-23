@@ -142,15 +142,25 @@ def main():
     games=read_games(retrieve(DAT_URL,24*1024*1024))
     indexes=[]
     for name,url in SOURCE_URLS:
-        try:
-            parser=IndexParser()
-            parser.feed(retrieve(url,12*1024*1024).decode("utf-8","replace"))
-            names=parser.names
-            if len(names)<1000:
-                raise RuntimeError(f"{name}: only {len(names)} source names")
-        except Exception as exc:
-            print(f"ARCADE {name} CDN unavailable ({exc}); using verified official GitHub tree")
-            names=official_github_names(name)
+        # Pinned snapshots of verified real Libretro names avoid changing
+        # artwork matches whenever remote CDN / GitHub REST is unavailable.
+        snapshot=Path(__file__).resolve().parent/"catalog_snapshots"/(name.lower()+"_boxarts.txt")
+        if snapshot.exists():
+            names=set(
+                line.strip() for line in snapshot.read_text(encoding="utf-8").splitlines()
+                if line.strip().lower().endswith(".png") and not "/" in line
+            )
+            print(f"ARCADE {name}: verified original names snapshot {len(names)}")
+        else:
+            try:
+                parser=IndexParser()
+                parser.feed(retrieve(url,12*1024*1024).decode("utf-8","replace"))
+                names=parser.names
+                if len(names)<1000:
+                    raise RuntimeError(f"{name}: only {len(names)} source names")
+            except Exception as exc:
+                print(f"ARCADE {name} CDN unavailable ({exc}); using verified official GitHub tree")
+                names=official_github_names(name)
         if len(names)<1000:
             raise RuntimeError(f"{name}: official thumbnail index unexpectedly small")
         print("THUMBNAIL DIRECTORY",name,len(names))
