@@ -29,6 +29,7 @@
 #include "cover_diag.h"
 #include "sound.h"
 #include "ps3_platform.h"
+#include "sf_delete_game.h"
 #include "snes_name_match.h"
 #include "sf_snes_bundle.h"
 #include "arcade_engine.h"
@@ -801,6 +802,7 @@ int main(int argc, const char *argv[])
     host.is_file = ps3_fs_is_file;
     host.write_file = ps3_fs_write_file;
     host.remove_file = ps3_fs_remove_file;
+    host.delete_game = sf_delete_game; /* isolated user-confirmed menu action */
     host.covers = ps3_covers_start();
     host.http_get = ps3_http_get;          /* 0.9.2: Download Missing Covers */
     {   /* 1.1: the real clock, different on every start (the shuffle) */
