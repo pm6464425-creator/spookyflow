@@ -1,0 +1,95 @@
+name: MI PS3 - Eliminar seguro PKG
+
+on:
+  push:
+    branches:
+      - feature/mi-ps3-eliminar-seguro
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: mi-ps3-eliminar-seguro
+  cancel-in-progress: true
+
+jobs:
+  deletion-regressions:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Pure deletion policy - 48 cases
+        run: |
+          mkdir -p build-host
+          cc -std=c99 -O2 -g -Wall -Wextra -Werror -fsanitize=undefined \
+             -Isrc/core src/core/sf_delete_policy.c \
+             tests/test_mi_ps3_delete_policy.c -o build-host/test_mi_ps3_delete_policy
+          ./build-host/test_mi_ps3_delete_policy
+      - name: Real deletion backend on sandbox filesystem - 18 scenarios
+        run: |
+          cc -std=gnu99 -O1 -g -Wall -Wextra -Werror \
+             -fsanitize=address,undefined -fno-omit-frame-pointer \
+             -Itests/mi_ps3_fs_stub -Isrc/core -Isrc/ps3 \
+             src/core/sf_delete_policy.c src/ps3/sf_delete_game.c \
+             tests/test_mi_ps3_delete_backend.c -o build-host/test_mi_ps3_delete_backend
+          ./build-host/test_mi_ps3_delete_backend
+      - name: Source-level protection checks (original launch and cover code unchanged)
+        run: python3 tests/test_mi_ps3_delete_source.py
+
+  ps3-pkg:
+    needs: deletion-regressions
+    runs-on: ubuntu-22.04
+    env:
+      TOOLCHAIN_URL: https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up PSL1GHT toolchain environment
+        run: |
+          echo "PS3DEV=$GITHUB_WORKSPACE/ps3dev" >> "$GITHUB_ENV"
+          echo "PSL1GHT=$GITHUB_WORKSPACE/ps3dev" >> "$GITHUB_ENV"
+      - name: Install Python 2 packager dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq python2.7 || true
+          sudo apt-get install -y -qq python2 || true
+      - name: Cache PS3 toolchain
+        id: cache-ps3dev
+        uses: actions/cache@v4
+        with:
+          path: ps3dev
+          key: mi-ps3-ps3dev-v1
+      - name: Download PS3 toolchain
+        if: steps.cache-ps3dev.outputs.cache-hit != 'true'
+        run: |
+          curl -fSL "$TOOLCHAIN_URL" | tar xz -C ./
+          curl -fSL https://github.com/ps3dev/PSL1GHT/raw/master/ppu/include/sysutil/sysutil.h -o ps3dev/ppu/include/sysutil/sysutil.h
+      - name: Build real PS3 PKG
+        run: bash ci/build_ps3.sh
+      - name: Verify actual compiled package (identity, payload and engine SHA)
+        run: python3 tests/verify_compiled_pkg.py spookyflow.pkg
+      - name: Verify artifact integrity and preserve original TITLE_ID
+        run: |
+          test -s spookyflow.pkg
+          sha256sum spookyflow.pkg
+          cp spookyflow.pkg MI_PS3_ELIMINAR_SEGURO.pkg
+          test -s MI_PS3_ELIMINAR_SEGURO.pkg
+      - name: Upload tested PKG
+        uses: actions/upload-artifact@v4
+        with:
+          name: MI_PS3_ELIMINAR_SEGURO
+          path: MI_PS3_ELIMINAR_SEGURO.pkg
+          if-no-files-found: error
+      - name: Publish downloadable prerelease ONLY after all checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current="$(git ls-remote origin refs/heads/feature/mi-ps3-eliminar-seguro | cut -f1)"
+          test "$current" = "$GITHUB_SHA" || { echo "Superseded commit: no publish"; exit 0; }
+          tag="mi-ps3-eliminar-$(echo "$GITHUB_SHA" | cut -c1-8)"
+          gh release create "$tag" MI_PS3_ELIMINAR_SEGURO.pkg \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "MI PS3 - Eliminar con confirmacion (experimental)" \
+            --notes "Fuente V15.74. Nueva opcion Triangulo > Eliminar con confirmacion, validacion de rutas y soporte ISO, ROM, PS1 CUE/BIN y carpetas PS3. Protege sistema, referencias NTFS y juegos multidisco. Pruebas automatizadas y compilacion PS3 pasadas. No probado todavia en consola fisica. Conserva motores, recursos, controles y caratulas existentes."
