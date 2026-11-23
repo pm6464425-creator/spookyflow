@@ -210,6 +210,7 @@ static void download_cancel(App *a);
 
 static void start_loading(App *a, int rescan)
 {
+    a->delete_confirm = 0;
     sizes_cancel(a);
     download_cancel(a);
     a->mode = MODE_LOADING;
@@ -955,6 +956,7 @@ void app_close_panel(App *a)
         }
     }
     a->panel_open = 0;
+    a->delete_confirm = 0;
 }
 
 /* Make our PARAM.SFO's ITEM_PRIORITY match the setting. Returns 1 if the
@@ -1288,6 +1290,24 @@ static void apply_fx(App *a, RowKind k, int fx)
         }
         app_save(a);
         break;
+    case MENU_FX_DELETE: {
+        const Game *g = NULL;
+        if(a->panel == PANEL_GAME && a->panel_plat>=0 &&
+           a->panel_plat<PLAT_COUNT && a->panel_game>=0 &&
+           a->panel_game<a->lib->tab[a->panel_plat].count)
+            g=&a->lib->tab[a->panel_plat].games[a->panel_game];
+        if(!g || (g->flags&GAME_DEMO) || !a->host.delete_game) {
+            app_show_toast(a,"Eliminar no disponible");
+        } else if(g->ndisc>1) {
+            app_show_toast(a,"Multidisco: usa un gestor de archivos");
+        } else {
+            a->delete_confirm=1;
+            sound_play(SND_OPEN);
+            log_printf("delete: confirmation requested platform=%d game=%s",
+                       a->panel_plat,lib_title(a->lib,g));
+        }
+        break;
+    }
     case MENU_FX_RESORT:
         log_printf("flow setting: Ignore \"The\" = %s", a->settings.ignore_the ? "On" : "Off");
         sort_all(a, 1);
@@ -1366,6 +1386,45 @@ static void panel_input(App *a)
     RowKind k;
     int vis = app_panel_visible_rows(a), first;
     if (!a->panel_open || a->nrows <= 0) return;
+    /* Modal only accepts a fresh X to confirm or Circle to cancel.
+     * Never pass that X through to launch(), settings or panel navigation. */
+    if(a->delete_confirm){
+        if(in->pressed&SFB_CIRCLE){
+            a->delete_confirm=0;
+            sound_play(SND_CLOSE);
+        }else if(in->pressed&SFB_CROSS){
+            const Game *g=NULL;
+            if(a->panel==PANEL_GAME && a->panel_plat>=0 &&
+               a->panel_plat<PLAT_COUNT && a->panel_game>=0 &&
+               a->panel_game<a->lib->tab[a->panel_plat].count)
+                g=&a->lib->tab[a->panel_plat].games[a->panel_game];
+            a->delete_confirm=0;
+            if(g && !(g->flags&GAME_DEMO) && g->ndisc<=1 &&
+               a->host.delete_game){
+                char path[SCAN_PATH_MAX];
+                int rc;
+                sf_strlcpy(path,lib_path(a->lib,g),sizeof(path));
+                rc=a->host.delete_game(a->panel_plat,path,
+                                       (g->flags&GAME_DIR)!=0);
+                if(rc==0){
+                    log_printf("delete: success platform=%d path=%s",
+                               a->panel_plat,path);
+                    sound_play(SND_CONFIRM);
+                    /* Reuse existing rescan; do not touch any launch backend. */
+                    a->usb_auto_rescan=1; /* no unrelated webMAN NTFS refresh */
+                    app_close_panel(a);
+                    start_loading(a,1);
+                }else{
+                    log_printf("delete: rejected or failed rc=%d",rc);
+                    sound_play(SND_CLOSE);
+                    app_show_toast(a,rc==-2?
+                        "No se puede borrar este formato con seguridad":
+                        "No se pudo eliminar: revisa el archivo o el USB");
+                }
+            }
+        }
+        return;
+    }
     if (a->about) {                          /* the About card: only ◯ (back to Flow Settings) */
         if (in->pressed & SFB_CIRCLE) { a->about = 0; sound_play(SND_CLOSE); }
         return;
