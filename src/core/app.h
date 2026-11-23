@@ -137,6 +137,8 @@ typedef struct {
     FsListPageFn arcade_fs_page;
     /* Only ARCADE: choose and spawn embedded native PS3 MAME/FBNeo core. */
     int (*launch_arcade)(const char *zip_path);
+    /* MI PS3: optional, isolated user-game removal; NEVER called by launch. */
+    int (*delete_game)(int platform, const char *path, int is_dir);
 } AppHost;
 
 typedef struct {
@@ -242,6 +244,7 @@ typedef struct {
     int panel_plat;         /* platform of the game being edited */
     int panel_game;         /* index of game being edited */
     GameCfg panel_cfg;
+    int delete_confirm;       /* second deliberate X, Circle cancels; modal input lock */
     int usb_roots;                  /* 1.1: the default roots: FAT32 USB drives are added at each scan */
     int flow_group;         /* Flow Settings: the group open (ROW_FG_*), -1 = the first page */
     /* the user's background pictures (in host.bg_dir) */
