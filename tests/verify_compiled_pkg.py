@@ -9,7 +9,7 @@ from pathlib import Path
 import struct
 import sys
 
-EXPECTED_TITLE = "MIS JUEGOS PS3 PS2 PS1"
+EXPECTED_TITLE = "MI PS3"
 EXPECTED_ID = "SPKF00001"
 
 def be32(blob, pos):
