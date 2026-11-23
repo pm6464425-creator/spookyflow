@@ -3027,6 +3027,8 @@ static void draw_loading(const App *a, float alpha)
 
 /* the cover flow and everything over it; ia = its opacity (0.7.1: also used
  * to fade it out when Rescan Library starts) */
+static void draw_delete_confirm(const App *a);
+
 static void draw_flow_ui(App *a, const UiMetrics *mm, float intro, float ia)
 {
     UiMetrics m = *mm;
