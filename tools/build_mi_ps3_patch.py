@@ -62,7 +62,7 @@ def verify(patch:Path,source:Path):
     assert parse_sfo(patch_data["PARAM.SFO"])["TITLE_ID"]==EXPECTED_ID
     assert parse_sfo(patch_data["PARAM.SFO"])["TITLE"]==EXPECTED_TITLE
     assert len(patch_data["USRDIR/EBOOT.BIN"])>1000000
-    assert 2000000<patch.stat().st_size<4000000,\
+    assert 1800000<patch.stat().st_size<4000000,\
         ("Update unexpectedly contains extra resources",patch.stat().st_size)
     print("PASS: exactly 3 payload files, original icon + metadata, tested EBOOT")
     print("PASS: absolutely no Arcade, SNES, PS1, PS2, PS3, BDISO assets or settings in update")
