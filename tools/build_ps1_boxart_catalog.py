@@ -11,6 +11,7 @@ Only public image names are indexed; no ROM files, accounts, or private data.
 """
 from __future__ import annotations
 import argparse
+import json
 from html.parser import HTMLParser
 from html import unescape
 from urllib.parse import unquote,urlparse
@@ -18,6 +19,7 @@ from urllib.request import Request,urlopen
 from pathlib import Path
 
 URL="https://thumbnails.libretro.com/Sony%20-%20PlayStation/Named_Boxarts/"
+GITHUB_TREE_URL="https://api.github.com/repos/libretro-thumbnails/Sony_-_PlayStation/git/trees/master?recursive=1"
 OUTPUT=Path("pkgfiles/USRDIR/ps1_boxart_names.txt")
 
 class CoverNames(HTMLParser):
@@ -39,6 +41,31 @@ def parse(html:bytes)->list[str]:
     p.feed(html.decode("utf-8","replace"))
     return sorted(p.names,key=str.casefold)
 
+def github_names() -> list[str]:
+    """Official Libretro repository fallback when the CDN directory returns 404."""
+    req=Request(GITHUB_TREE_URL,headers={
+        "User-Agent":"MI-PS3-PS1-boxart-index/1.0",
+        "Accept":"application/vnd.github+json"
+    })
+    with urlopen(req,timeout=60) as response:
+        doc=json.load(response)
+    assert doc.get("truncated") is False, "GitHub tree truncated: refuse incomplete catalog"
+    prefix="Named_Boxarts/"
+    names=[]
+    for item in doc.get("tree",[]):
+        path=item.get("path","")
+        if item.get("type")!="blob" or not path.startswith(prefix):
+            continue
+        name=path[len(prefix):]
+        if "/" in name or "\\" in name or not name.lower().endswith(".png"):
+            continue
+        if len(name.encode("utf-8"))>220 or any(x in name for x in ("\n","\r","\t")):
+            continue
+        names.append(name)
+    result=sorted(set(names),key=str.casefold)
+    print(f"PS1 official GitHub thumbnail tree: {len(result)} verified boxart names")
+    return result
+
 def write(names:list[str],path:Path,min_count:int)->None:
     assert len(names)>=min_count, f"Only {len(names)} boxart names; aborting partial index"
     assert "Disney Tarzan (Spain).png" in names, "Tarzan must be present in catalog"
@@ -55,11 +82,17 @@ def main():
     ap.add_argument("--min-count",type=int,default=7000)
     args=ap.parse_args()
     if args.fixture:
-        data=args.fixture.read_bytes()
+        names=parse(args.fixture.read_bytes())
     else:
-        request=Request(URL,headers={"User-Agent":"SpookyFlow-PS1-boxart-index/1.0"})
-        with urlopen(request,timeout=35) as r:
-            data=r.read(4*1024*1024)
-    write(parse(data),args.output,args.min_count)
+        try:
+            request=Request(URL,headers={"User-Agent":"SpookyFlow-PS1-boxart-index/1.0"})
+            with urlopen(request,timeout=35) as r:
+                names=parse(r.read(4*1024*1024))
+            if len(names)<args.min_count:
+                raise ValueError("CDN listing incomplete; use official repository fallback")
+        except Exception as exc:
+            print(f"PS1 CDN directory unavailable ({exc}); trying official Libretro GitHub tree")
+            names=github_names()
+    write(names,args.output,args.min_count)
 
 if __name__=="__main__":main()
