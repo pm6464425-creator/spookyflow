@@ -1,0 +1,105 @@
+name: Audit published MI PS3 Eliminar PKG
+on:
+  push:
+    branches: [feature/mi-ps3-eliminar-v15-78-integrado]
+    paths: [.github/workflows/mi-ps3-audit-published.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  audit-release:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Download exact RELEASED binary, never rebuild
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download mi-ps3-eliminar-v1578-f137e085 --repo "$GITHUB_REPOSITORY" --pattern MI_PS3_ELIMINAR.pkg
+          test -s MI_PS3_ELIMINAR.pkg
+      - name: Independently decrypt package and audit 24 structural and compatibility criteria
+        run: |
+          python3 - <<'PY'
+          import hashlib,sys,struct
+          from pathlib import Path
+          sys.path.insert(0,"tests")
+          from verify_compiled_pkg import decrypt_debug_pkg, parse_sfo
+          path=Path('MI_PS3_ELIMINAR.pkg')
+          raw=path.read_bytes()
+          checks=[]
+          def check(label,ok,details=""):
+              checks.append((label,bool(ok),str(details)))
+              print("PASS" if ok else "FAIL",label,details,flush=True)
+          sha=lambda x:hashlib.sha256(x).hexdigest()
+          be32=lambda d,i:struct.unpack_from('>I',d,i)[0]
+          be64=lambda d,i:struct.unpack_from('>Q',d,i)[0]
+          released_sha="fc2cefc76856b5037467b6080620693336a03b2d9c6bb55abddb454601690948"
+          orig_eboot="1d81e06e184aa41945732913e5f57d5bf1a5bd2a36b99d78202a8fb25525a7cb"
+          orig_icon="6f356b58e7a89d1913b4a317bec6d7b86a2587622e0a86fe5896658977a223ee"
+          orig_sfo="28cad0db4f3734a99a53dd09980d90f85f57d932c566ff213d73325285163331"
+          check("01 release SHA256",sha(raw)==released_sha,sha(raw))
+          check("02 PKG magic",raw[:4]==b'\x7fPKG')
+          check("03 expected debug PKG version",raw[4:8]==bytes([0,0,0,1]))
+          check("04 package header length",be64(raw,0x18)==len(raw),len(raw))
+          check("05 nonzero payload",be64(raw,0x28)>0)
+          check("06 payload bounds",be64(raw,0x20)+be64(raw,0x28)<=len(raw))
+          check("07 original package CONTENTID",raw[0x30:0x60].startswith(b'UP0001-SPKF00001'))
+          count=be32(raw,0x14)
+          check("08 exactly three installer entries",count==3,count)
+          decr=decrypt_debug_pkg(raw)
+          files={};valid=True
+          for i in range(count):
+              no,nl,fo,fl,t,_=struct.unpack_from('>IIQQII',decr,32*i)
+              if not (no>=count*32 and no+nl<=len(decr) and fo+fl<=len(decr)):
+                  valid=False;break
+              name=bytes(decr[no:no+nl]).decode('ascii')
+              if name in files:valid=False;break
+              files[name]=bytes(decr[fo:fo+fl])
+          check("09 item table and encrypted offsets",valid)
+          want={"ICON0.PNG","PARAM.SFO","USRDIR/EBOOT.BIN"}
+          check("10 ONLY executable and original installer identity",set(files)==want,sorted(files))
+          check("11 no existing console engines overwritten",not any('ENGINE' in k or 'cores/' in k for k in files))
+          check("12 no cover cache overwritten",not any('cover' in k.lower() for k in files))
+          check("13 no game saves overwritten",not any('save' in k.lower() for k in files))
+          check("14 no NTFS or BDISO data replaced",not any('BDISO' in k or 'ntfs' in k.lower() for k in files))
+          check("15 original ICON0 PNG preserved",sha(files.get('ICON0.PNG',b''))==orig_icon,sha(files.get('ICON0.PNG',b'')))
+          check("16 original PARAM.SFO bytes preserved",sha(files.get('PARAM.SFO',b''))==orig_sfo,sha(files.get('PARAM.SFO',b'')))
+          sf={}
+          try:sf=parse_sfo(files.get('PARAM.SFO',b''))
+          except Exception as e: print('SFO parse failed:',e)
+          check("17 same original TITLE_ID",sf.get('TITLE_ID')=='SPKF00001',sf.get('TITLE_ID'))
+          check("18 title MI PS3",sf.get('TITLE')=='MI PS3',sf.get('TITLE'))
+          check("19 homebrew game category",sf.get('CATEGORY')=='HG')
+          exe=files.get('USRDIR/EBOOT.BIN',b'')
+          check("20 signed PS3 SELF magic",exe[:4]==b'SCE\0',exe[:4].hex())
+          check("21 plausible executable size",1200000<len(exe)<4000000,len(exe))
+          check("22 updated executable differs from user's original",sha(exe)!=orig_eboot,sha(exe))
+          check("23 expected old PS1 engine SHA pinned in source", 'd77c24b182acd8bb1dc2771fc562b13b0f85811fbe5bc59fed52c831da29b720' in Path('tools/v15_78_pin_previous_engines.py').read_text())
+          check("24 expected old SNES engine SHA pinned in source", '65a3462a4bbfccf2ec1c089d99f7dede1c2336430ca78d29876ebc25e0671701' in Path('tools/v15_78_pin_previous_engines.py').read_text())
+          lines=['# MI PS3 - independent audit of RELEASED PKG','',
+                 'Release: mi-ps3-eliminar-v1578-f137e085',
+                 'Binary SHA256: '+sha(raw), 'Executable SHA256: '+sha(exe),
+                 'Entries: '+', '.join(sorted(files)), '',
+                 '24 static package, assets and compatibility validations:',
+                 '']
+          lines += [('- **PASS**' if ok else '- **FAIL**')+' '+label+((' — '+details) if details else '') for label,ok,details in checks]
+          lines += ['','**RESULT: '+('ALL 24 PASS' if all(c[1] for c in checks) else 'AUDIT FAILED')+'**',
+                    '','Not a physical PS3 execution test; runtime deletion on NTFS not independently exercised.']
+          Path('MI_PS3_PUBLISHED_AUDIT.md').write_text('\n'.join(lines)+'\n')
+          Path('MI_PS3_PUBLISHED_AUDIT.exit').write_text(str(int(not all(c[1] for c in checks))))
+          PY
+      - name: Publish full audit even on failure
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add MI_PS3_PUBLISHED_AUDIT.md MI_PS3_PUBLISHED_AUDIT.exit
+          git commit -m 'Audit exact published MI PS3 deletion PKG against user's original assets'
+          git push origin HEAD:refs/heads/feature/mi-ps3-eliminar-v15-78-integrado
+      - name: Fail if any of 24 tests failed
+        run: test "$(cat MI_PS3_PUBLISHED_AUDIT.exit)" = 0
