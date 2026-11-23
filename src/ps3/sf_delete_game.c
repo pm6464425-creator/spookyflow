@@ -3,7 +3,7 @@
  */
 #include "sf_delete_game.h"
 #include "sf_delete_policy.h"
-#include "ps3_platform.h"
+#include "layout.h"
 #include "log.h"
 #include <sys/file.h>
 #include <stdio.h>
