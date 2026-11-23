@@ -3109,6 +3109,34 @@ static void draw_flow_ui(App *a, const UiMetrics *mm, float intro, float ia)
     g_ui_k = 1.0f;
     draw_letter(a);
     draw_toast(a);
+    draw_delete_confirm(a);
+}
+
+/* Modal drawn above all existing panels. Does not change animation,
+ * artwork, navigation or controller bindings used by any game launcher. */
+static void draw_delete_confirm(const App *a)
+{
+    const Game *g;
+    float w,h,x,y;
+    if(!a->delete_confirm || a->panel!=PANEL_GAME ||
+       a->panel_plat<0 || a->panel_plat>=PLAT_COUNT ||
+       a->panel_game<0 || a->panel_game>=a->lib->tab[a->panel_plat].count)
+        return;
+    g=&a->lib->tab[a->panel_plat].games[a->panel_game];
+    w=W()*0.62f;h=H()*0.32f;
+    x=(W()-w)*0.5f;y=(H()-h)*0.5f;
+    d_rect(0,0,W(),H(),0x000000D8u);
+    d_rrect_glow(x,y,w,h,0.030f*H(),0.035f*H(),sf_col_alpha(accent(),0.40f));
+    d_rrect(x,y,w,h,0.030f*H(),sf_col_alpha(TH_TAB_INACTIVE,1.0f));
+    d_rrect_stroke(x,y,w,h,0.030f*H(),0.003f*H(),sf_col_alpha(accent(),1.0f));
+    d_text_fit(&g_font_main,x+w*0.5f,y+h*0.20f,0.050f*H(),
+               TH_TEXT,"¿Eliminar?",ALIGN_CENTER,w*0.88f);
+    d_text_fit(&g_font_main,x+w*0.5f,y+h*0.42f,0.030f*H(),
+               TH_TEXT,lib_title(a->lib,g),ALIGN_CENTER,w*0.88f);
+    d_text_fit(&g_font_main,x+w*0.5f,y+h*0.61f,0.025f*H(),
+               TH_TEXT_DIM,"Esta accion es irreversible",ALIGN_CENTER,w*0.88f);
+    d_text_fit(&g_font_main,x+w*0.5f,y+h*0.82f,0.029f*H(),
+               TH_TEXT,"X Confirmar     O Cancelar",ALIGN_CENTER,w*0.88f);
 }
 
 void ui_draw(App *a)
