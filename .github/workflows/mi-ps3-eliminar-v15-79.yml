@@ -148,7 +148,7 @@ jobs:
           mkdir -p build-host
           cc -std=c99 -O2 -g -Wall -Wextra -Werror -fsanitize=undefined -Isrc/core src/core/sf_delete_policy.c tests/test_mi_ps3_delete_policy.c -o build-host/test_policy
           ./build-host/test_policy
-      - name: 22 isolated backend scenarios including partial deletion and Arcade protection
+      - name: 23 isolated scenarios including arcade real games parent BIOS and partial failures
         run: |
           cc -std=gnu99 -O1 -g -Wall -Wextra -Werror -DSF_DELETE_HOST_TEST=1 -fsanitize=address,undefined -fno-omit-frame-pointer -Itests/mi_ps3_fs_stub -Isrc/core -Isrc/ps3 src/core/sf_delete_policy.c src/ps3/sf_delete_arcade_guard.c src/ps3/sf_delete_game.c tests/test_mi_ps3_delete_backend.c -o build-host/test_backend
           ./build-host/test_backend
