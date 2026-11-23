@@ -50,7 +50,7 @@ jobs:
       - name: Build lightweight MI PS3 update PKG for existing SPKF00001
         run: |
           python2 ps3dev/bin/pkg.py --contentid UP0001-SPKF00001_00-0000000000000000 \
-            build/mi_ps3_patch MI_PS3_PARCHE_ELIMINAR.pkg
+            build/mi_ps3_patch/ MI_PS3_PARCHE_ELIMINAR.pkg
           test -s MI_PS3_PARCHE_ELIMINAR.pkg
       - name: Verify real installer contains ONLY MI PS3 EBOOT and identity
         run: |
