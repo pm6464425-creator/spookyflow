@@ -6,6 +6,10 @@ repo='https://github.com/Calyps0man/pcsx_rearmed_for_ps3'
 rev='cce9fc67f46a495d4746aa49cff8e3367a9a315e'
 mkdir -p "$out"
 if [ ! -e "$src/.git" ]; then git clone -q --depth 1 --branch ps3 "$repo" "$src"; fi
+# Always compile the ORIGINAL PINNED upstream commit, even if ps3 branch moved.
+# No PS1 game engine source is changed compared with V15.53.
+git -C "$src" fetch -q --depth 1 origin "$rev"
+git -C "$src" checkout -q --detach "$rev"
 test "$(git -C "$src" rev-parse HEAD)" = "$rev"
 python3 tools/patch_ps1_fullbleed_source.py "$src"
 test -n "$PS3DEV"
