@@ -6,6 +6,9 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: mi-ps3-integrated-pkg
+  cancel-in-progress: true
 jobs:
   build-verified-pkg:
     runs-on: ubuntu-22.04
@@ -145,6 +148,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          current="$(git ls-remote origin refs/heads/feature/mi-ps3-eliminar-v15-78-integrado | cut -f1)"
+          test "$current" = "$GITHUB_SHA" || { echo "Outdated build; no release"; exit 0; }
           tag="mi-ps3-eliminar-v1578-$(echo "$GITHUB_SHA" | cut -c1-8)"
           gh release create "$tag" MI_PS3_ELIMINAR.pkg --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease --title 'MI PS3 - Eliminar integrado V15.78' --notes 'Instalar encima de SPKF00001 sin desinstalar. Solo EBOOT, icono y SFO; protege caratulas, motores y configuraciones. NTFS no se borra sin control; multidisco bloqueado. No probado en consola real.'
           sha="$(sha256sum MI_PS3_ELIMINAR.pkg | cut -d' ' -f1)"
