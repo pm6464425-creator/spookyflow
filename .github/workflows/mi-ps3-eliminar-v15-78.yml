@@ -46,6 +46,54 @@ jobs:
           p.write_text(s.replace('MIS JUEGOS PS3 PS2 PS1','MI PS3'))
           PY
           sha256sum -c /tmp/protected
+      - name: Support native NTFS BDISO user movie removal with strict path validation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("src/ps3/main.c");s=p.read_text()
+          include='#include "sf_delete_game.h"'
+          assert s.count(include)==1
+          s=s.replace(include,include+'\n#include "sf_delete_policy.h"\n#include <ntfs.h>')
+          call='    host.delete_game = sf_delete_game;'
+          assert s.count(call)==1
+          s=s.replace(call,'    host.delete_game = sf_delete_game_with_ntfs;')
+          main='int main(int argc, const char *argv[])'
+          assert s.count(main)==1
+          wrapper=r"""
+          /* Only a BDISO movie that LV2 cannot stat is eligible for native NTFS.
+           * Never follow a webMAN pointer and never delete a root or cover. */
+          static int sf_delete_game_with_ntfs(int platform,const char *path,int is_dir)
+          {
+              sysFSStat st;
+              char native[512];
+              const char *leaf;
+              size_t n;
+              int rc;
+              if(platform!=PLAT_BDISO || is_dir || !path || sysFsStat(path,&st)==0)
+                  return sf_delete_game(platform,path,is_dir);
+              if(sf_delete_path_allowed(platform,path,0)!=SF_DEL_OK ||
+                 strncmp(path,"/dev_usb00",10)!=0 ||
+                 path[10]<'0' || path[10]>'7' ||
+                 strncmp(path+11,"/BDISO/",7)!=0) return -2;
+              leaf=path+18;
+              n=strlen(leaf);
+              if(n<5 || strchr(leaf,'/') || !sf_ends_with_i(leaf,".iso"))
+                  return -2;  /* no paths under COVERS; split NTFS images unsafe */
+              if(!sf_bdntfs_is_file(path) ||
+                 !sf_bdntfs_path(path,native,sizeof(native))) return -2;
+              rc=ps3ntfs_unlink(native);
+              if(rc==0 && sf_bdntfs_is_file(path)) rc=-1;
+              log_printf("delete: BDISO native NTFS rc=%d path=%s",rc,path);
+              return rc==0?0:-1;
+          }
+
+          """
+          s=s.replace(main,wrapper+main)
+          p.write_text(s)
+          assert s.count('ps3ntfs_unlink(native)')==1
+          assert s.count('sf_bdntfs_path(path,native,sizeof(native))')==1
+          PY
       - name: Verify 20 functionality invariants
         shell: bash
         run: |
@@ -70,11 +118,12 @@ jobs:
            '13 folders':'delete_tree(path,0,&n)' in back,
            '14 allowed path policy':'sf_del_root' in policy,
            '15 protect covers':'"COVERS"' in policy,
-           '16 correct host':'host.delete_game = sf_delete_game;' in main,
+           '16 correct host':'host.delete_game = sf_delete_game_with_ntfs;' in main,
            '17 success only if rc0':'if(rc==0)' in app,
            '18 rescan':'start_loading(a,1)' in app,
            '19 latest PS2 diagnostics':'#include "sf_ps2_video_diag.h"' in main,
            '20 identical TITLE_ID':'SPKF00001' in read('sfo.xml'),
+           '21 native NTFS BDISO safely protected':'sf_delete_path_allowed(platform,path,0)' in main and 'ps3ntfs_unlink(native)' in main,
           }
           for k,v in checks.items(): print('PASS' if v else 'FAIL',k)
           assert all(checks.values())
