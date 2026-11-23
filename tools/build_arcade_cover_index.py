@@ -16,6 +16,7 @@ import html
 from html.parser import HTMLParser
 import io
 import re
+import time
 import unicodedata
 import urllib.parse
 import urllib.request
@@ -59,8 +60,16 @@ def official_github_names(source):
         "User-Agent":"MI-PS3-Arcade-Index/1.0",
         "Accept":"application/vnd.github+json"
     })
-    with urllib.request.urlopen(req,timeout=120) as response:
-        payload=json.load(response)
+    payload=None
+    for attempt in range(4):
+        try:
+            with urllib.request.urlopen(req,timeout=120) as response:
+                payload=json.load(response)
+            break
+        except Exception as exc:
+            if attempt==3:
+                raise RuntimeError(f"{source}: official catalog unavailable after 4 attempts") from exc
+            time.sleep(2*(attempt+1))
     if payload.get("truncated") is not False:
         raise RuntimeError(f"{source}: official Libretro GitHub tree truncated")
     prefix="Named_Boxarts/"
