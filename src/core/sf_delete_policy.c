@@ -80,6 +80,11 @@ int sf_delete_path_allowed(int platform,const char *path,int is_dir)
     if(!sf_del_remainder_ok(name,is_dir))return SF_DEL_DENIED;
 
     if(is_dir){
+        /* Real PS3 games are directories, not ROM/ISO filenames. */
+        if(sf_del_ends(name,".iso") || sf_del_ends(name,".sfc") ||
+           sf_del_ends(name,".smc") || sf_del_ends(name,".zip") ||
+           sf_del_ends(name,".pkg") || sf_del_ends(name,".cue") ||
+           sf_del_ends(name,".bin"))return SF_DEL_DENIED;
         return platform==PLAT_PS3 &&
             (!strcmp(root,"GAMES") || !strcmp(root,"GAMEZ")) ?
             SF_DEL_OK:SF_DEL_DENIED;
