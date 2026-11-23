@@ -11,6 +11,7 @@ unverified guesses. ROM DAT names and cloneof associations come from FBNeo.
 """
 import argparse
 import collections
+import json
 import html
 from html.parser import HTMLParser
 import io
@@ -28,6 +29,10 @@ SOURCE_URLS=(
  ("MAME","https://thumbnails.libretro.com/MAME/Named_Boxarts/"),
 )
 UA={"User-Agent":"SpookyFlow-Arcade-Index/1.0 (open-source)"}
+GITHUB_TREES={
+    "FBNeo":"https://api.github.com/repos/libretro-thumbnails/FBNeo_-_Arcade_Games/git/trees/master?recursive=1",
+    "MAME":"https://api.github.com/repos/libretro-thumbnails/MAME/git/trees/master?recursive=1",
+}
 
 def retrieve(url, cap):
     req=urllib.request.Request(url,headers=UA)
@@ -47,6 +52,28 @@ class IndexParser(HTMLParser):
         name=urllib.parse.unquote(urllib.parse.urlsplit(src).path).rsplit("/",1)[-1]
         if name.lower().endswith(".png") and "\t" not in name and "\n" not in name:
             self.names.add(name)
+
+def official_github_names(source):
+    """Actual public Libretro boxart filenames. Reject truncated trees."""
+    req=urllib.request.Request(GITHUB_TREES[source],headers={
+        "User-Agent":"MI-PS3-Arcade-Index/1.0",
+        "Accept":"application/vnd.github+json"
+    })
+    with urllib.request.urlopen(req,timeout=120) as response:
+        payload=json.load(response)
+    if payload.get("truncated") is not False:
+        raise RuntimeError(f"{source}: official Libretro GitHub tree truncated")
+    prefix="Named_Boxarts/"
+    names=set()
+    for entry in payload.get("tree",[]):
+        p=entry.get("path","")
+        if entry.get("type")!="blob" or not p.startswith(prefix):
+            continue
+        name=p[len(prefix):]
+        if ("/" not in name and "\\" not in name and name.lower().endswith(".png")
+                and not any(ch in name for ch in ("\n","\r","\t"))):
+            names.add(name)
+    return names
 
 def normalized(s):
     s=unicodedata.normalize("NFKD",s).casefold()
@@ -106,11 +133,19 @@ def main():
     games=read_games(retrieve(DAT_URL,24*1024*1024))
     indexes=[]
     for name,url in SOURCE_URLS:
-        parser=IndexParser()
-        parser.feed(retrieve(url,12*1024*1024).decode("utf-8","replace"))
-        if len(parser.names)<1000:raise RuntimeError(f"{name}: only {len(parser.names)} source names")
-        print("THUMBNAIL DIRECTORY",name,len(parser.names))
-        indexes.append(catalog(parser.names))
+        try:
+            parser=IndexParser()
+            parser.feed(retrieve(url,12*1024*1024).decode("utf-8","replace"))
+            names=parser.names
+            if len(names)<1000:
+                raise RuntimeError(f"{name}: only {len(names)} source names")
+        except Exception as exc:
+            print(f"ARCADE {name} CDN unavailable ({exc}); using verified official GitHub tree")
+            names=official_github_names(name)
+        if len(names)<1000:
+            raise RuntimeError(f"{name}: official thumbnail index unexpectedly small")
+        print("THUMBNAIL DIRECTORY",name,len(names))
+        indexes.append(catalog(names))
     lines=["# rom<TAB>verified FBNeo filename<TAB>verified MAME/community filename; UTF8; no guessed URLs\n"]
     exact=parent=0
     examples={}
