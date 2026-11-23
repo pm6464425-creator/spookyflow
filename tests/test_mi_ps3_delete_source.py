@@ -80,7 +80,7 @@ allowed={
     "tests/test_mi_ps3_delete_backend.c",
     "tests/mi_ps3_fs_stub/sys/file.h",
     "tests/test_mi_ps3_delete_source.py",
-    "tests/verify_compiled_pkg.py","tools/build_ps1_boxart_catalog.py","tools/build_snes_boxart_catalog.py","tools/build_arcade_cover_index.py","Makefile","sfo.xml",
+    "tests/verify_compiled_pkg.py","tools/build_ps1_boxart_catalog.py","tools/build_snes_boxart_catalog.py","tools/build_arcade_cover_index.py","tools/build_ps1_fullbleed_engine.sh","Makefile","sfo.xml",
 }
 check(set(changed).issubset(allowed),"only approved files changed")
 print("PASS: MI PS3 deletion source safety audit complete")
