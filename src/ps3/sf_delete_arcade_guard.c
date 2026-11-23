@@ -71,7 +71,7 @@ int sf_delete_arcade_allowed(const char *path)
     const char *base,*ext;
     char dir[ARCADE_PATH_MAX],code[96],line[192];
     FILE *f;
-    size_t n,stem,dirlen,i;
+    size_t stem,dirlen,i;
     int children=0,rows=0,fd,io_rc;
     u64 got=0;
     sysFSDirent ent;
