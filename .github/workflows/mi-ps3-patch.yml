@@ -1,0 +1,67 @@
+name: MI PS3 - Parche quirurgico solo EBOOT
+
+on:
+  push:
+    branches:
+      - feature/mi-ps3-parche-eliminar-solo-eboot
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  surgical-pkg:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download previously tested full MI PS3 PKG
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p original-build
+          gh release download mi-ps3-eliminar-ff8ec281 \
+            --repo "$GITHUB_REPOSITORY" \
+            --pattern MI_PS3_ELIMINAR_SEGURO.pkg \
+            --dir original-build
+          test -s original-build/MI_PS3_ELIMINAR_SEGURO.pkg
+          echo "24df719e3b4e6ef4425b1175bd61ed9db90433f0e9718d6d8afb76cdc944c5da  original-build/MI_PS3_ELIMINAR_SEGURO.pkg" | sha256sum -c -
+      - name: Extract ONLY executable and installation identity
+        run: |
+          python3 tools/build_mi_ps3_patch.py extract \
+            original-build/MI_PS3_ELIMINAR_SEGURO.pkg build/mi_ps3_patch
+          test "$(find build/mi_ps3_patch -type f | wc -l)" -eq 3
+      - name: Download original PSL1GHT PKG packager
+        env:
+          TOOLCHAIN_URL: https://github.com/bucanero/ps3toolchain/releases/download/ubuntu-latest-fad3b5fb/ps3dev-ubuntu-latest-2020-08-31.tar.gz
+        run: |
+          curl -fSL "$TOOLCHAIN_URL" | tar xz -C ./
+          echo "$PWD/ps3dev/bin" >> "$GITHUB_PATH"
+          test -x ps3dev/bin/pkg
+      - name: Build lightweight MI PS3 update PKG for existing SPKF00001
+        run: |
+          pkg --contentid UP0001-SPKF00001_00-0000000000000000 \
+            build/mi_ps3_patch MI_PS3_PARCHE_ELIMINAR.pkg
+          test -s MI_PS3_PARCHE_ELIMINAR.pkg
+      - name: Verify real installer contains ONLY MI PS3 EBOOT and identity
+        run: |
+          python3 tools/build_mi_ps3_patch.py verify \
+            original-build/MI_PS3_ELIMINAR_SEGURO.pkg MI_PS3_PARCHE_ELIMINAR.pkg
+          sha256sum MI_PS3_PARCHE_ELIMINAR.pkg
+      - name: Upload verified installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: MI_PS3_PARCHE_ELIMINAR
+          path: MI_PS3_PARCHE_ELIMINAR.pkg
+          if-no-files-found: error
+      - name: Publish patch PKG ONLY after surgical payload checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          current="$(git ls-remote origin refs/heads/feature/mi-ps3-parche-eliminar-solo-eboot | cut -f1)"
+          if [ "$current" != "$GITHUB_SHA" ]; then echo "Outdated commit"; exit 0; fi
+          tag="mi-ps3-parche-eliminar-$(echo "$GITHUB_SHA" | cut -c1-8)"
+          gh release create "$tag" MI_PS3_PARCHE_ELIMINAR.pkg \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "MI PS3 - Actualizacion solo Eliminar (conserva recursos instalados)" \
+            --notes "INSTALAR EXCLUSIVAMENTE ENCIMA DE MI PS3 SPKF00001 EXISTENTE, SIN DESINSTALAR. Este PKG contiene SOLO EBOOT.BIN actualizado, PARAM.SFO e ICON0.PNG originales. No contiene ni sobrescribe portadas, motores PS1/SNES/Arcade, BIOS, personalizacion, configuraciones o partidas. Opcion Triangulo > Eliminar, doble confirmacion, restriccion de rutas, 18 escenarios y pruebas de seguridad aprobadas. Es experimental hasta prueba en PS3 real; hacer copia del EBOOT original por FTP antes de instalar."
