@@ -179,4 +179,159 @@ s=replace_once(s,"    if(sysFsStat(path,&st)!=0)return -1;",
 s=replace_once(s,"        rc=delete_tree(path,0,&n);",
 "        rc=delete_tree(path,0,&n,&removed);\n        if(rc!=0 && removed)rc=SF_DEL_PARTIAL;",p)
 save(p,s)
-print("PASS V15.79 changed only App, UI, safe policy, and isolated delete backend")
+# Do not delete chunk zero of a broken .iso.0/.iso.2 layout.
+p="src/ps3/sf_delete_game.c";s=source(p)
+start=s.index("static int delete_split_iso(")
+end=s.index("/* Only selected PS3 game folders",start)
+new_impl=r'''static int delete_split_iso(const char *path)
+{
+    char root[SF_DEL_PATH],part[SF_DEL_PATH],dir[SF_DEL_PATH];
+    const char *slash=strrchr(path,'/');
+    size_t n=strlen(path),stem;
+    int i,parts=0,fd,rc=0;
+    u64 got=0;
+    sysFSDirent ent;
+    if(!slash || slash==path || n<6 || n>=sizeof(root) ||
+       !ends_ci(path,".iso.0"))return -2;
+    if((size_t)(slash-path)>=sizeof(dir))return -2;
+    memcpy(dir,path,(size_t)(slash-path));dir[slash-path]=0;
+    memcpy(root,path,n-1);root[n-1]=0; /* '.iso.0' -> '.iso.' */
+    stem=strlen(slash+1)-1;
+    for(i=0;i<64;i++){
+        sysFSStat st;
+        if(snprintf(part,sizeof(part),"%s%d",root,i)>=(int)sizeof(part))
+            return -2;
+        if(sysFsStat(part,&st)!=0)break;
+        if((st.st_mode&SF_DEL_IFMT)==SF_DEL_IFDIR)return -2;
+        parts++;
+    }
+    /* Require at least .0 and .1; a lone head may be a damaged set. */
+    if(parts<2 || parts==64)return -2;
+    if(sysFsOpendir(dir,&fd)!=0)return -2;
+    while((rc=sysFsReaddir(fd,&ent,&got))==0 && got){
+        const char *other=ent.d_name,*digits;
+        int number=0;
+        if(strncmp(other,slash+1,stem)!=0)continue;
+        digits=other+stem;
+        if(!*digits)continue;
+        while(*digits>='0' && *digits<='9'){
+            if(number>100000)break;
+            number=number*10+(*digits++-'0');
+        }
+        if(!*digits && number>=parts){rc=-2;break;}
+    }
+    if(sysFsClosedir(fd)!=0 || rc!=0)return -2;
+    for(i=0;i<parts;i++){
+        if(snprintf(part,sizeof(part),"%s%d",root,i)>=(int)sizeof(part) ||
+           sysFsUnlink(part)!=0)
+            return i>0?SF_DEL_PARTIAL:-1;
+    }
+    return 0;
+}
+'''
+s=s[:start]+new_impl+s[end:]
+save(p,s)
+
+# Real NTFS runtime uses the separately host-tested safety module.
+p="src/ps3/main.c";s=source(p)
+s=replace_once(s,'#include "sf_delete_policy.h"',
+'#include "sf_delete_policy.h"\n#include "sf_delete_ntfs.h"',p)
+start=s.index("          /* Only a BDISO movie") if "          /* Only a BDISO movie" in s else s.index("/* Only a BDISO movie")
+end=s.index("int main(int argc, const char *argv[])",start)
+new_wrapper=r'''/* Only a real user movie qualifies for NTFS; the pure guarded
+ * transaction below is also executed in host tests with fake media. */
+static int sf_delete_game_with_ntfs(int platform,const char *path,int is_dir)
+{
+    sysFSStat st;
+    int rc;
+    if(platform!=PLAT_BDISO || is_dir || !path || sysFsStat(path,&st)==0)
+        return sf_delete_game(platform,path,is_dir);
+    rc=sf_delete_bdiso_ntfs_safe(path,sf_bdntfs_is_file,
+                                 sf_bdntfs_path,ps3ntfs_unlink);
+    log_printf("delete: native BDISO NTFS rc=%d path=%s",rc,path);
+    return rc;
+}
+
+'''
+s=s[:start]+new_wrapper+s[end:]
+save(p,s)
+
+# Adapt the existing 18 scenario host tests to parent-protecting semantics.
+p="tests/test_mi_ps3_delete_backend.c";s=source(p)
+s=replace_once(s,'#include "sf_delete_game.h"',
+'#include "sf_delete_game.h"\n#include "sf_delete_policy.h"',p)
+s=replace_once(s,'static char root[PATH_MAX];',
+'''static char root[PATH_MAX];
+static char arcade_map[PATH_MAX];
+static int fail_unlink_after=-1;
+const char *sf_delete_arcade_test_map(void) {return arcade_map;}''',p)
+s=replace_once(s,
+'''s32 sysFsUnlink(const char *p)
+{
+    char dst[PATH_MAX];real_path(p,dst,sizeof(dst));
+    return unlink(dst)==0?0:-1;
+}''',
+'''s32 sysFsUnlink(const char *p)
+{
+    char dst[PATH_MAX];real_path(p,dst,sizeof(dst));
+    if(fail_unlink_after==0)return -1;
+    if(fail_unlink_after>0)fail_unlink_after--;
+    return unlink(dst)==0?0:-1;
+}''',p)
+s=replace_once(s,'''    char *p=mkdtemp(templ);assert(p);strcpy(root,p);''',
+'''    char *p=mkdtemp(templ);assert(p);strcpy(root,p);
+    assert(snprintf(arcade_map,sizeof(arcade_map),
+        "%s/dev_hdd0/game/SPKF00001/USRDIR/ARCADE/arcade_parents.tsv",
+        root)<(int)sizeof(arcade_map));
+    make_file("/dev_hdd0/game/SPKF00001/USRDIR/ARCADE/arcade_parents.tsv",
+              "kof2002b\\tkof2002\\n");
+    {
+        FILE *map=fopen(arcade_map,"ab");
+        int i;assert(map);
+        for(i=0;i<20;i++)fprintf(map,"fake_child%d\\tfake_parent%d\\n",i,i);
+        fclose(map);
+    }''',p)
+s=replace_once(s,
+'''    DEL(PLAT_ARCADE,"/dev_hdd0/ARCADE/kof2002.zip",0);
+    assert(!exists("/dev_hdd0/ARCADE/kof2002.zip"));
+    assert(exists("/dev_hdd0/ARCADE/kof2002b.zip"));''',
+'''    FAIL(PLAT_ARCADE,"/dev_hdd0/ARCADE/kof2002.zip",0);
+    assert(exists("/dev_hdd0/ARCADE/kof2002.zip"));
+    DEL(PLAT_ARCADE,"/dev_hdd0/ARCADE/kof2002b.zip",0);
+    assert(!exists("/dev_hdd0/ARCADE/kof2002b.zip"));
+    DEL(PLAT_ARCADE,"/dev_hdd0/ARCADE/kof2002.zip",0);
+    assert(!exists("/dev_hdd0/ARCADE/kof2002.zip"));''',p)
+s=replace_once(s,
+'''    printf("PASS 18 MI PS3 end-to-end deletion and safety scenarios\\n");''',
+'''    /* 19. BIOS is shared and cannot be removed from the ROM browser. */
+    make_file("/dev_hdd0/ARCADE/neogeo.zip","BIOS");
+    FAIL(PLAT_ARCADE,"/dev_hdd0/ARCADE/neogeo.zip",0);
+    assert(exists("/dev_hdd0/ARCADE/neogeo.zip"));
+    /* 20. Detect file removal interrupted after one CUE track. */
+    make_file("/dev_hdd0/PSXISO/Partial 1.bin","TRACK1");
+    make_file("/dev_hdd0/PSXISO/Partial 2.bin","TRACK2");
+    make_file("/dev_hdd0/PSXISO/Partial.cue",
+              "FILE \\"Partial 1.bin\\" BINARY\\nFILE \\"Partial 2.bin\\" BINARY\\n");
+    fail_unlink_after=1;
+    assert(sf_delete_game(PLAT_PS1,"/dev_hdd0/PSXISO/Partial.cue",0)==SF_DEL_PARTIAL);
+    fail_unlink_after=-1;
+    assert(exists("/dev_hdd0/PSXISO/Partial.cue"));
+    assert(exists("/dev_hdd0/PSXISO/Partial 2.bin"));
+    /* 21. Missing split chunk cannot silently delete a healthy first piece. */
+    make_file("/dev_hdd0/PS3ISO/Gap.iso.0","PART0");
+    make_file("/dev_hdd0/PS3ISO/Gap.iso.2","PART2");
+    FAIL(PLAT_PS3,"/dev_hdd0/PS3ISO/Gap.iso.0",0);
+    assert(exists("/dev_hdd0/PS3ISO/Gap.iso.0"));
+    assert(exists("/dev_hdd0/PS3ISO/Gap.iso.2"));
+    /* 22. A protected malformed mapping fails closed. */
+    {
+        FILE *m=fopen(arcade_map,"wb");assert(m);
+        fputs("broken",m);fclose(m);
+    }
+    make_file("/dev_hdd0/ARCADE/1942.zip","ROM");
+    FAIL(PLAT_ARCADE,"/dev_hdd0/ARCADE/1942.zip",0);
+    assert(exists("/dev_hdd0/ARCADE/1942.zip"));
+    printf("PASS 22 MI PS3 end-to-end deletion and safety scenarios\\n");''',p)
+save(p,s)
+print("PASS V15.79 hardened multidisc selection, protected parent BIOS, sparse ISO and partial failures")
+
