@@ -106,6 +106,18 @@ jobs:
           command -v cgc
           test -f ps3dev/bin/pkg.py
           if [ ! -f ps3dev/ppu/include/sysutil/sysutil.h ]; then curl -fSL https://raw.githubusercontent.com/ps3dev/PSL1GHT/master/ppu/include/sysutil/sysutil.h -o ps3dev/ppu/include/sysutil/sysutil.h; fi
+      - name: Pin unchanged PS1 engine to original verified upstream source commit
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path("tools/build_ps1_fullbleed_engine.sh")
+          s=p.read_text()
+          old='if [ ! -e "$src/.git" ]; then git clone -q --depth 1 --branch ps3 "$repo" "$src"; fi\\ntest "$(git -C "$src" rev-parse HEAD)" = "$rev"'
+          new='if [ ! -e "$src/.git" ]; then git clone -q --depth 1 --branch ps3 "$repo" "$src"; fi\\ngit -C "$src" fetch -q --depth 1 origin "$rev"\\ngit -C "$src" checkout -q --detach "$rev"\\ntest "$(git -C "$src" rev-parse HEAD)" = "$rev"'
+          assert s.count(old)==1, 'Pinned source expected'
+          p.write_text(s.replace(old,new))
+          PY
       - name: Build full source and verify all engine resources
         shell: bash
         env:
