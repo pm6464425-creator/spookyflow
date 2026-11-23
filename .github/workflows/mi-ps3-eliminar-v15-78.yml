@@ -160,3 +160,26 @@ jobs:
           git add MI_PS3_BUILD_REPORT.txt
           git commit -m 'Publish verified MI PS3 deletion PKG link and SHA'
           git push origin HEAD:refs/heads/feature/mi-ps3-eliminar-v15-78-integrado
+
+  report-build-failure:
+    needs: build-verified-pkg
+    if: ${{ always() && needs.build-verified-pkg.result != 'success' }}
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Preserve diagnostic details for repair
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -e
+          echo "MI PS3 PKG NOT RELEASED; build or validation failed" > MI_PS3_BUILD_FAILURE.txt
+          echo "RUN_ID=$GITHUB_RUN_ID" >> MI_PS3_BUILD_FAILURE.txt
+          echo "WORKFLOW_URL=https://github.com/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID" >> MI_PS3_BUILD_FAILURE.txt
+          gh run view "$GITHUB_RUN_ID" --log-failed 2>&1 | tail -n 120 >> MI_PS3_BUILD_FAILURE.txt || true
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add MI_PS3_BUILD_FAILURE.txt
+          git commit -m 'Report MI PS3 package validation blocker'
+          git push origin HEAD:refs/heads/feature/mi-ps3-eliminar-v15-78-integrado
