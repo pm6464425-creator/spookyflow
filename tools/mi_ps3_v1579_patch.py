@@ -307,6 +307,10 @@ s=replace_once(s,
     make_file("/dev_hdd0/ARCADE/neogeo.zip","BIOS");
     FAIL(PLAT_ARCADE,"/dev_hdd0/ARCADE/neogeo.zip",0);
     assert(exists("/dev_hdd0/ARCADE/neogeo.zip"));
+    /* 19b. Ordinary Capcom vs SNK 2 game is not a system BIOS. */
+    make_file("/dev_hdd0/ARCADE/cvs2.zip","GAME");
+    DEL(PLAT_ARCADE,"/dev_hdd0/ARCADE/cvs2.zip",0);
+    assert(!exists("/dev_hdd0/ARCADE/cvs2.zip"));
     /* 20. Detect file removal interrupted after one CUE track. */
     make_file("/dev_hdd0/PSXISO/PartialTests/Partial 1.bin","TRACK1");
     make_file("/dev_hdd0/PSXISO/PartialTests/Partial 2.bin","TRACK2");
@@ -331,7 +335,7 @@ s=replace_once(s,
     make_file("/dev_hdd0/ARCADE/1942.zip","ROM");
     FAIL(PLAT_ARCADE,"/dev_hdd0/ARCADE/1942.zip",0);
     assert(exists("/dev_hdd0/ARCADE/1942.zip"));
-    printf("PASS 22 MI PS3 end-to-end deletion and safety scenarios\\n");''',p)
+    printf("PASS 23 MI PS3 end-to-end deletion and safety scenarios\\n");''',p)
 save(p,s)
 print("PASS V15.79 hardened multidisc selection, protected parent BIOS, sparse ISO and partial failures")
 
